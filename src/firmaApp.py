@@ -9,6 +9,7 @@ sys.path.insert(0, parent_dir)
 import json
 import tkinter as tk
 from tkinter import messagebox, filedialog
+from datetime import datetime
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 
 class AutoFirmaApp:
@@ -66,7 +67,10 @@ class AutoFirmaApp:
         """Carga la SK y PK del usuario desde el certificado."""
         try:
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_path = os.path.join(desktop_path, "certificado_digital.json")
+            cert_files = [f for f in os.listdir(desktop_path) if f.startswith("certificado_digital_") and f.endswith(".json")]
+            if not cert_files:
+                raise FileNotFoundError("No se encontraron certificados en el escritorio.")
+            cert_path = os.path.join(desktop_path, filedialog.askopenfilename(title="Seleccionar certificado", initialdir=desktop_path, filetypes=[("Certificados", "certificado_digital_*.json")]))
             if not os.path.exists(cert_path):
                 raise FileNotFoundError("No se encontró el certificado en el escritorio.")
 
@@ -75,21 +79,24 @@ class AutoFirmaApp:
 
             user_sk = bytes.fromhex(cert_data["user_secret_key"])
             user_pk = bytes.fromhex(cert_data["user_public_key"])
-            
+            exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
+            issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
+
+
             self.log_message(f"Clave privada cargada: {user_sk.hex()}")
             self.log_message(f"Clave pública cargada: {user_pk.hex()}")
             
-            return user_sk, user_pk
+            return user_sk, user_pk, issue_date, exp_date
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar certificado: {e}")
             self.log_message(f"Error al cargar certificado: {e}")
-            return None, None
+            return None, None, None, None
 
     def sign_message(self):
         """Firma un mensaje utilizando la clave privada del usuario."""
         try:
             # Cargar claves desde el certificado
-            user_sk, _ = self.load_certificate()
+            user_sk, _, _, _ = self.load_certificate()
             if not user_sk:
                 return
 
@@ -123,8 +130,14 @@ class AutoFirmaApp:
         """Verifica una firma utilizando la clave pública del usuario."""
         try:
             # Cargar claves desde el certificado
-            _, user_pk = self.load_certificate()
+            _, user_pk, issue_date, exp_date = self.load_certificate()
             if not user_pk:
+                return
+
+            current_date = datetime.now()
+            if current_date < issue_date or current_date > exp_date:
+                messagebox.showwarning("Verificación", "El certificado ha expirado o aún no es válido.")
+                self.log_message("La firma no es válida debido a la fecha de expiración o emisión.")
                 return
 
             # Leer firma
