@@ -103,7 +103,7 @@ class AutoFirmaApp:
             # Seleccionar mensaje
             message = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
-                filetypes=(("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")),
+                filetypes=(("Archivos pdf", "*.pdf"), ("Todos los archivos", "*.*")),
             )
             if not message:
                 return
@@ -153,7 +153,7 @@ class AutoFirmaApp:
             # Seleccionar mensaje
             message = filedialog.askopenfilename(
                 title="Seleccionar archivo para verificar",
-                filetypes=(("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")),
+                filetypes=(("Archivos pdf", "*.pdf"), ("Todos los archivos", "*.*")),
             )
             if not message:
                 return
