@@ -8,9 +8,13 @@ sys.path.insert(0, parent_dir)
 
 import json
 import datetime
+import hashlib
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from package.sphincs import Sphincs  # Importar la clase Sphincs
+
+# Clave privada fija de la Entidad Generadora
+ENTIDAD_SK = b"Entidad_Secreta_Privada"
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -62,8 +66,12 @@ class CertificadoDigitalApp:
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
 
+    def calcular_hash(self, data):
+        """Calcula el hash SHA-256 del JSON serializado."""
+        return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
     def generate_certificate(self):
-        """Genera un certificado digital firmado por la entidad certificadora."""
+        """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
             # Obtener datos del usuario
             nombre = self.name_entry.get().strip()
@@ -78,34 +86,50 @@ class CertificadoDigitalApp:
             fecha_expedicion = datetime.date.today().isoformat()
             fecha_caducidad = (datetime.date.today() + datetime.timedelta(days=2*365)).isoformat()
 
-            # Crear estructura del certificado
-            certificado = {
+            # Crear estructura del certificado SIN la clave privada (para autenticación)
+            certificado_autenticacion = {
                 "nombre": nombre,
                 "dni": dni,
                 "fecha_expedicion": fecha_expedicion,
                 "fecha_caducidad": fecha_caducidad,
                 "user_public_key": user_pk.hex(),
-                "user_secret_key": user_sk.hex(),
             }
 
-            # Convertir a JSON
-            certificado_json = json.dumps(certificado, indent=4)
+            # Convertir a JSON y calcular el hash de autenticación
+            hash_certificado = hashlib.sha256(json.dumps(certificado_autenticacion, sort_keys=True).encode()).hexdigest()
 
-            # Firmar el certificado con la clave privada de la entidad
-            firma = self.sphincs.sign(certificado_json.encode(), user_sk)
-            certificado["firma"] = firma.hex()
+            # Firmar el hash con la clave de la entidad generadora
+            firma = self.sphincs.sign(hash_certificado.encode(), ENTIDAD_SK)
 
-            # Guardar certificado en el escritorio
+            # Agregar firma al certificado de autenticación
+            certificado_autenticacion["firma"] = firma.hex()
+
+            # Calcular huella digital (hash de todo el certificado de autenticación)
+            certificado_autenticacion["huella_digital"] = self.calcular_hash(certificado_autenticacion)
+
+            # Crear certificado de firma (incluye la clave privada del usuario)
+            certificado_firma = certificado_autenticacion.copy()
+            certificado_firma["user_secret_key"] = user_sk.hex()  # Solo en el certificado de firma
+
+            # Calcular huella digital (hash de todo el certificado de firma)
+            certificado_firma["huella_digital"] = self.calcular_hash(certificado_firma)
+
+            # Guardar certificados en el escritorio
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_path = os.path.join(desktop_path, "certificado_digital_"+ dni +".json")
-            with open(cert_path, "w") as cert_file:
-                json.dump(certificado, cert_file, indent=4)
+            cert_auth_path = os.path.join(desktop_path, f"certificado_digital_{dni}_autenticacion.json")
+            cert_sign_path = os.path.join(desktop_path, f"certificado_digital_{dni}_firmar.json")
 
-            self.log_message(f"Certificado generado y guardado en: {cert_path}")
-            messagebox.showinfo("Éxito", f"Certificado generado con éxito en: {cert_path}")
+            with open(cert_auth_path, "w") as cert_auth_file:
+                json.dump(certificado_autenticacion, cert_auth_file, indent=4)
+
+            with open(cert_sign_path, "w") as cert_sign_file:
+                json.dump(certificado_firma, cert_sign_file, indent=4)
+
+            self.log_message(f"Certificados generados y guardados en:\n- {cert_auth_path}\n- {cert_sign_path}")
+            messagebox.showinfo("Éxito", f"Certificados generados con éxito:\n{cert_auth_path}\n{cert_sign_path}")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al generar certificado: {e}")
-            self.log_message(f"Error al generar certificado: {e}")
+            messagebox.showerror("Error", f"Error al generar certificados: {e}")
+            self.log_message(f"Error al generar certificados: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
