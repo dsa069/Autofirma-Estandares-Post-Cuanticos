@@ -63,47 +63,60 @@ class AutoFirmaApp:
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
 
-    def load_certificate(self):
-        """Carga la SK y PK del usuario desde el certificado."""
+    def load_certificate(self, tipo):
+        """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_files = [f for f in os.listdir(desktop_path) if f.startswith("certificado_digital_") and f.endswith(".json")]
+            cert_files = [
+                f for f in os.listdir(desktop_path)
+                if f.startswith(f"certificado_digital_{tipo}_") and f.endswith(".json")
+            ]
             if not cert_files:
-                raise FileNotFoundError("No se encontraron certificados en el escritorio.")
-            cert_path = os.path.join(desktop_path, filedialog.askopenfilename(title="Seleccionar certificado", initialdir=desktop_path, filetypes=[("Certificados", "certificado_digital_*.json")]))
-            if not os.path.exists(cert_path):
-                raise FileNotFoundError("No se encontró el certificado en el escritorio.")
+                raise FileNotFoundError(f"No se encontraron certificados de tipo {tipo} en el escritorio.")
+
+            cert_path = filedialog.askopenfilename(
+                title="Seleccionar certificado",
+                initialdir=desktop_path,
+                filetypes=[("Certificados", f"certificado_digital_{tipo}_*.json")]
+            )
+            if not cert_path:
+                return None, None, None, None  # Si no se selecciona nada, devolver None
 
             with open(cert_path, "r") as cert_file:
                 cert_data = json.load(cert_file)
 
-            user_sk = bytes.fromhex(cert_data["user_secret_key"])
+            user_sk = bytes.fromhex(cert_data["user_secret_key"]) if tipo == "firmar" else None
             user_pk = bytes.fromhex(cert_data["user_public_key"])
             exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
             issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
 
+            self.log_message(f"Certificado {tipo} cargado correctamente.")
 
-            self.log_message(f"Clave privada cargada: {user_sk.hex()}")
-            self.log_message(f"Clave pública cargada: {user_pk.hex()}")
-            
             return user_sk, user_pk, issue_date, exp_date
         except Exception as e:
-            messagebox.showerror("Error", f"Error al cargar certificado: {e}")
-            self.log_message(f"Error al cargar certificado: {e}")
+            messagebox.showerror("Error", f"Error al cargar certificado {tipo}: {e}")
+            self.log_message(f"Error al cargar certificado {tipo}: {e}")
             return None, None, None, None
 
     def sign_message(self):
         """Firma un mensaje utilizando la clave privada del usuario."""
         try:
-            # Cargar claves desde el certificado
-            user_sk, _, _, _ = self.load_certificate()
+            # Cargar certificado de firma
+            user_sk, _, issue_date, exp_date = self.load_certificate("firmar")
             if not user_sk:
+                return
+
+            # Verificar que el certificado es válido por fecha
+            current_date = datetime.now()
+            if current_date < issue_date or current_date > exp_date:
+                messagebox.showwarning("Firma", "El certificado ha expirado o aún no es válido.")
+                self.log_message("No se puede firmar: El certificado ha expirado o aún no es válido.")
                 return
 
             # Seleccionar mensaje
             message = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
-                filetypes=(("Archivos pdf", "*.pdf"), ("Todos los archivos", "*.*")),
+                filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
             )
             if not message:
                 return
@@ -129,8 +142,8 @@ class AutoFirmaApp:
     def verify_signature(self):
         """Verifica una firma utilizando la clave pública del usuario."""
         try:
-            # Cargar claves desde el certificado
-            _, user_pk, issue_date, exp_date = self.load_certificate()
+            # Cargar certificado de autenticación
+            _, user_pk, issue_date, exp_date = self.load_certificate("autenticacion")
             if not user_pk:
                 return
 
@@ -153,7 +166,7 @@ class AutoFirmaApp:
             # Seleccionar mensaje
             message = filedialog.askopenfilename(
                 title="Seleccionar archivo para verificar",
-                filetypes=(("Archivos pdf", "*.pdf"), ("Todos los archivos", "*.*")),
+                filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
             )
             if not message:
                 return

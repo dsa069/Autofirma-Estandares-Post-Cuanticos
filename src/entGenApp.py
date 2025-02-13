@@ -89,7 +89,6 @@ class CertificadoDigitalApp:
             # Crear estructura del certificado SIN la clave privada (para autenticación)
             certificado_autenticacion = {
                 "nombre": nombre,
-                "dni": dni,
                 "fecha_expedicion": fecha_expedicion,
                 "fecha_caducidad": fecha_caducidad,
                 "user_public_key": user_pk.hex(),
@@ -116,8 +115,8 @@ class CertificadoDigitalApp:
 
             # Guardar certificados en el escritorio
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_auth_path = os.path.join(desktop_path, f"certificado_digital_{dni}_autenticacion.json")
-            cert_sign_path = os.path.join(desktop_path, f"certificado_digital_{dni}_firmar.json")
+            cert_auth_path = os.path.join(desktop_path, f"certificado_digital_autenticacion_{dni}.json")
+            cert_sign_path = os.path.join(desktop_path, f"certificado_digital_firmar_{dni}.json")
 
             with open(cert_auth_path, "w") as cert_auth_file:
                 json.dump(certificado_autenticacion, cert_auth_file, indent=4)
