@@ -10,6 +10,7 @@ import json
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from datetime import datetime
+import fitz  # PyMuPDF para manejar metadatos en PDFs
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 
 class AutoFirmaApp:
@@ -80,7 +81,7 @@ class AutoFirmaApp:
                 filetypes=[("Certificados", f"certificado_digital_{tipo}_*.json")]
             )
             if not cert_path:
-                return None, None, None, None  # Si no se selecciona nada, devolver None
+                return None, None, None, None
 
             with open(cert_path, "r") as cert_file:
                 cert_data = json.load(cert_file)
@@ -92,28 +93,56 @@ class AutoFirmaApp:
 
             self.log_message(f"Certificado {tipo} cargado correctamente.")
 
-            return user_sk, user_pk, issue_date, exp_date
+            return user_sk, user_pk, issue_date, exp_date, cert_data
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar certificado {tipo}: {e}")
             self.log_message(f"Error al cargar certificado {tipo}: {e}")
-            return None, None, None, None
+            return None, None, None, None, None
+
+    def add_metadata_to_pdf(self, pdf_path, firma, cert_data):
+        """Añade la firma y el certificado de autenticación a los metadatos del PDF."""
+        try:
+            doc = fitz.open(pdf_path)
+            metadata = doc.metadata
+            metadata["keywords"] = json.dumps({
+                "firma": firma.hex(),
+                "certificado_autenticacion": cert_data
+            }, separators=(',', ':'))
+            
+            doc.set_metadata(metadata)
+            output_path = pdf_path.replace(".pdf", "_firmado.pdf")
+            doc.save(output_path)
+            doc.close()
+            self.log_message(f"PDF firmado con metadatos guardado en: {output_path}")
+            messagebox.showinfo("Éxito", f"PDF firmado guardado en: {output_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al añadir metadatos al PDF: {e}")
+            self.log_message(f"Error al añadir metadatos al PDF: {e}")
 
     def sign_message(self):
         """Firma un mensaje utilizando la clave privada del usuario."""
         try:
             # Cargar certificado de firma
-            user_sk, _, issue_date, exp_date = self.load_certificate("firmar")
+            user_sk, _, issue_date, exp_date, _ = self.load_certificate("firmar")
             if not user_sk:
                 return
 
-            # Verificar que el certificado es válido por fecha
+            # Verificar certificado de autenticación
+            _, _, auth_issue_date, auth_exp_date, cert_data = self.load_certificate("autenticacion")
+            if not cert_data:
+                return
+            
             current_date = datetime.now()
             if current_date < issue_date or current_date > exp_date:
-                messagebox.showwarning("Firma", "El certificado ha expirado o aún no es válido.")
-                self.log_message("No se puede firmar: El certificado ha expirado o aún no es válido.")
+                messagebox.showwarning("Firma", "El certificado de firma ha expirado o aún no es válido.")
+                self.log_message("No se puede firmar: El certificado de firma ha expirado o aún no es válido.")
+                return
+            
+            if current_date < auth_issue_date or current_date > auth_exp_date:
+                messagebox.showwarning("Firma", "El certificado de autenticación ha expirado o aún no es válido.")
+                self.log_message("No se puede firmar: El certificado de autenticación ha expirado o aún no es válido.")
                 return
 
-            # Seleccionar mensaje
             message = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
                 filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
@@ -124,20 +153,15 @@ class AutoFirmaApp:
             with open(message, "rb") as f:
                 data = f.read()
 
-            # Generar firma
             signature = self.sphincs.sign(data, user_sk)
 
-            # Guardar firma en el escritorio
-            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            signature_path = os.path.join(desktop_path, "firma.sig")
-            with open(signature_path, "wb") as sig_file:
-                sig_file.write(signature)
+            # Añadir la firma y el certificado autenticación a los metadatos del PDF
+            self.add_metadata_to_pdf(message, signature, cert_data)
 
-            self.log_message(f"Mensaje firmado con éxito.\nFirma guardada en: {signature_path}")
-            messagebox.showinfo("Éxito", f"Firma generada y guardada en {signature_path}")
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar mensaje: {e}")
             self.log_message(f"Error al firmar mensaje: {e}")
+
 
     def verify_signature(self):
         """Verifica una firma utilizando la clave pública del usuario."""
