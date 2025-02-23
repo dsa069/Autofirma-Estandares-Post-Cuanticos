@@ -7,6 +7,7 @@ parent_dir = os.path.dirname(current_dir)  # Subir un nivel desde 'src'
 sys.path.insert(0, parent_dir)
 
 import json
+import hashlib
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from datetime import datetime
@@ -64,36 +65,68 @@ class AutoFirmaApp:
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
 
+    def verificar_certificado(self, cert_data):
+        """Verifica la validez de un certificado."""
+        try:
+            expected_hash = cert_data.get("huella_digital")
+            firma = cert_data.get("firma")
+            ent_pk = bytes.fromhex(cert_data["entity_public_key"])
+
+            # Crear una copia exacta del certificado sin modificar el original
+            cert_copy = cert_data.copy()
+            cert_copy.pop("huella_digital", None)
+
+            # Serializar y calcular el hash con los mismos parámetros
+            ordered_keys = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
+            ordered_data = {key: cert_copy[key] for key in ordered_keys if key in cert_copy}
+            
+            serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
+
+            # Guardar en un archivo para comparar con la generación
+            with open("serializado_verificacion.json", "w", encoding="utf-8") as f:
+                f.write(serialized_data)
+
+            recalculated_hash = hashlib.sha256(serialized_data.encode()).hexdigest()
+
+            self.log_message(f"Datos serializados para hash: {serialized_data}")
+            self.log_message(f"Hash recalculado: {recalculated_hash}")
+
+            if recalculated_hash != expected_hash:
+                raise ValueError("La huella digital del certificado no es válida.")
+
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al verificar certificado: {e}")
+            self.log_message(f"Error al verificar certificado: {e}")
+            return False
+
+
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_files = [
-                f for f in os.listdir(desktop_path)
-                if f.startswith(f"certificado_digital_{tipo}_") and f.endswith(".json")
-            ]
-            if not cert_files:
-                raise FileNotFoundError(f"No se encontraron certificados de tipo {tipo} en el escritorio.")
-
             cert_path = filedialog.askopenfilename(
                 title="Seleccionar certificado",
                 initialdir=desktop_path,
                 filetypes=[("Certificados", f"certificado_digital_{tipo}_*.json")]
             )
             if not cert_path:
-                return None, None, None, None
+                return None, None, None, None, None
 
             with open(cert_path, "r") as cert_file:
                 cert_data = json.load(cert_file)
 
+            if not self.verificar_certificado(cert_data):
+                return None, None, None, None, None
+
             user_sk = bytes.fromhex(cert_data["user_secret_key"]) if tipo == "firmar" else None
             user_pk = bytes.fromhex(cert_data["user_public_key"])
+            ent_pk = bytes.fromhex(cert_data["entity_public_key"])
             exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
             issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
 
             self.log_message(f"Certificado {tipo} cargado correctamente.")
-
-            return user_sk, user_pk, issue_date, exp_date, cert_data
+            return user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar certificado {tipo}: {e}")
             self.log_message(f"Error al cargar certificado {tipo}: {e}")
@@ -123,12 +156,12 @@ class AutoFirmaApp:
         """Firma un mensaje utilizando la clave privada del usuario."""
         try:
             # Cargar certificado de firma
-            user_sk, _, issue_date, exp_date, _ = self.load_certificate("firmar")
+            user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data = self.load_certificate("firmar")
             if not user_sk:
                 return
 
             # Verificar certificado de autenticación
-            _, _, auth_issue_date, auth_exp_date, cert_data = self.load_certificate("autenticacion")
+            _, _, _, auth_issue_date, auth_exp_date, cert_data = self.load_certificate("autenticacion")
             if not cert_data:
                 return
             

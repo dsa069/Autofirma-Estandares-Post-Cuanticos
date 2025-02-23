@@ -16,6 +16,10 @@ from package.sphincs import Sphincs  # Importar la clase Sphincs
 # Clave privada fija de la Entidad Generadora
 ENTIDAD_SK = b"Entidad_Secreta_Privada"
 
+# Generar la clave pública de la entidad generadora
+sphincs_instancia = Sphincs()
+ENTIDAD_PK = b"Entidad_Secreta_Publica"
+
 class CertificadoDigitalApp:
     def __init__(self, root):
         self.root = root
@@ -24,7 +28,7 @@ class CertificadoDigitalApp:
         self.root.resizable(False, False)
 
         # Instancia de Sphincs
-        self.sphincs = Sphincs()
+        self.sphincs = sphincs_instancia
 
         # Título
         self.title_label = tk.Label(
@@ -66,9 +70,26 @@ class CertificadoDigitalApp:
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
 
-    def calcular_hash(self, data):
-        """Calcula el hash SHA-256 del JSON serializado."""
-        return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+    def calcular_hash(self, data, tipo="generacion"):
+        """Calcula el hash SHA-256 de los datos serializados asegurando el mismo orden."""
+        ordered_keys = [
+            "nombre",
+            "fecha_expedicion",
+            "fecha_caducidad",
+            "user_public_key",
+            "entity_public_key",
+            "firma",
+            "user_secret_key"
+        ]
+        ordered_data = {key: data[key] for key in ordered_keys if key in data}
+        serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
+
+        # Guardar en un archivo para comparar con la verificación
+        with open(f"serializado_{tipo}.json", "w", encoding="utf-8") as f:
+            f.write(serialized_data)
+
+        return hashlib.sha256(serialized_data.encode()).hexdigest()
+
 
     def generate_certificate(self):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
@@ -92,6 +113,7 @@ class CertificadoDigitalApp:
                 "fecha_expedicion": fecha_expedicion,
                 "fecha_caducidad": fecha_caducidad,
                 "user_public_key": user_pk.hex(),
+                "entity_public_key": ENTIDAD_PK.hex()
             }
 
             # Convertir a JSON y calcular el hash de autenticación
