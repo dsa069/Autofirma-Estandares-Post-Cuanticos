@@ -64,7 +64,7 @@ class AutoFirmaApp:
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
-
+    
     def verificar_certificado(self, cert_data):
         """Verifica la validez de un certificado."""
         try:
@@ -72,35 +72,65 @@ class AutoFirmaApp:
             firma = cert_data.get("firma")
             ent_pk = bytes.fromhex(cert_data["entity_public_key"])
 
-            # Crear una copia exacta del certificado sin modificar el original
+            # -------------------- VALIDACIÓN HUELLA DIGITAL --------------------
             cert_copy = cert_data.copy()
             cert_copy.pop("huella_digital", None)
 
-            # Serializar y calcular el hash con los mismos parámetros
-            ordered_keys = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
-            ordered_data = {key: cert_copy[key] for key in ordered_keys if key in cert_copy}
-            
-            serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
+            ordered_keys_huella = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
+            ordered_data_huella = {key: cert_copy[key] for key in ordered_keys_huella if key in cert_copy}
 
-            # Guardar en un archivo para comparar con la generación
-            with open("serializado_verificacion.json", "w", encoding="utf-8") as f:
-                f.write(serialized_data)
+            serialized_data_huella = json.dumps(ordered_data_huella, separators=(",", ":"), ensure_ascii=False)
+            recalculated_hash = hashlib.sha256(serialized_data_huella.encode()).hexdigest()
 
-            recalculated_hash = hashlib.sha256(serialized_data.encode()).hexdigest()
-
-            self.log_message(f"Datos serializados para hash: {serialized_data}")
+            self.log_message(f"Datos serializados para huella digital: {serialized_data_huella}")
             self.log_message(f"Hash recalculado: {recalculated_hash}")
 
             if recalculated_hash != expected_hash:
                 raise ValueError("La huella digital del certificado no es válida.")
+
+            # Guardar en archivo para depuración
+            with open("serializado_huella.json", "w", encoding="utf-8") as f:
+                f.write(serialized_data_huella)
+
+            # -------------------- VALIDACIÓN FIRMA --------------------
+            # -VALIDACION HASH DATOS FIRMA (ESTA BIEN) 
+            cert_copy.pop("firma", None)
+            cert_copy.pop("user_secret_key", None)  # No debe estar en la firma
+
+            ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
+            ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
+
+            serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
+            recalculated_hash_firma = hashlib.sha256(serialized_data_firma.encode()).digest()
+
+            self.log_message(f"Datos serializados para firma: {serialized_data_firma}")
+            self.log_message(f"Hash recalculado para firma: {recalculated_hash_firma}")
+
+            # Guardar en archivo para depuración
+            with open("serializado_verificacion_firma.json", "w", encoding="utf-8") as f:
+                f.write(serialized_data_firma)
+   
+            # Verificar firma usando el hash correcto y la clave pública de la entidad
+            firma_bytes = bytes.fromhex(firma)
+            self.log_message(f"firma_hex: {firma}")
+            #self.log_message(f"firma_bytes: {firma_bytes}")
+            self.log_message(f"clave publica entidad: {ent_pk.hex()}")
+            print(f"Hash recalculado para firma: {recalculated_hash_firma}")
+            print(f"Hash recalculado para firma (bytes): {recalculated_hash_firma.hex()}")
+
+
+            # Y asegurar que al verificar también usamos .digest()
+            firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk)
+
+            if not firma_valida:
+                raise ValueError("La firma del certificado no es válida.")
 
             return True
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar certificado: {e}")
             self.log_message(f"Error al verificar certificado: {e}")
             return False
-
-
+             
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
@@ -111,13 +141,13 @@ class AutoFirmaApp:
                 filetypes=[("Certificados", f"certificado_digital_{tipo}_*.json")]
             )
             if not cert_path:
-                return None, None, None, None, None
+                return None, None, None, None, None, None
 
             with open(cert_path, "r") as cert_file:
                 cert_data = json.load(cert_file)
 
             if not self.verificar_certificado(cert_data):
-                return None, None, None, None, None
+                return None, None, None, None, None, None
 
             user_sk = bytes.fromhex(cert_data["user_secret_key"]) if tipo == "firmar" else None
             user_pk = bytes.fromhex(cert_data["user_public_key"])
@@ -130,7 +160,7 @@ class AutoFirmaApp:
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar certificado {tipo}: {e}")
             self.log_message(f"Error al cargar certificado {tipo}: {e}")
-            return None, None, None, None, None
+            return None, None, None, None, None, None
 
     def add_metadata_to_pdf(self, pdf_path, firma, cert_data):
         """Añade la firma y el certificado de autenticación a los metadatos del PDF."""

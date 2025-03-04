@@ -13,12 +13,29 @@ import tkinter as tk
 from tkinter import messagebox, filedialog
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 
-# Clave privada fija de la Entidad Generadora
-ENTIDAD_SK = b"Entidad_Secreta_Privada"
-
-# Generar la clave pública de la entidad generadora
+# Ruta del archivo donde guardaremos las claves de la entidad
+CLAVES_ENTIDAD_PATH = "claves_entidad.json"
 sphincs_instancia = Sphincs()
-ENTIDAD_PK = b"Entidad_Secreta_Publica"
+
+def obtener_claves_entidad():
+    """Obtiene las claves fijas de la entidad generadora, creándolas solo si no existen."""
+
+    # Si ya existen, cargarlas
+    if os.path.exists(CLAVES_ENTIDAD_PATH):
+        with open(CLAVES_ENTIDAD_PATH, "r") as f:
+            claves = json.load(f)
+            return bytes.fromhex(claves["sk"]), bytes.fromhex(claves["pk"])
+
+    # Si no existen, generarlas y guardarlas
+    sk, pk = sphincs_instancia.generate_key_pair()
+    with open(CLAVES_ENTIDAD_PATH, "w") as f:
+        json.dump({"sk": sk.hex(), "pk": pk.hex()}, f)
+
+    return sk, pk
+
+# Obtener claves FIJAS de la entidad generadora
+ENTIDAD_SK, ENTIDAD_PK = obtener_claves_entidad()
+
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -90,7 +107,6 @@ class CertificadoDigitalApp:
 
         return hashlib.sha256(serialized_data.encode()).hexdigest()
 
-
     def generate_certificate(self):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
@@ -116,12 +132,37 @@ class CertificadoDigitalApp:
                 "entity_public_key": ENTIDAD_PK.hex()
             }
 
-            # Convertir a JSON y calcular el hash de autenticación
-            hash_certificado = hashlib.sha256(json.dumps(certificado_autenticacion, sort_keys=True).encode()).hexdigest()
+            # --------- Generar HASH PARA FIRMA (EXCLUYENDO firma y huella) ---------
+            ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
+            ordered_data_firma = {key: certificado_autenticacion[key] for key in ordered_keys_firma}
 
-            # Firmar el hash con la clave de la entidad generadora
-            firma = self.sphincs.sign(hash_certificado.encode(), ENTIDAD_SK)
+            serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
+            hash_certificado = hashlib.sha256(serialized_data_firma.encode()).digest()
 
+
+            self.log_message(f"Datos serializados para firma: {serialized_data_firma}")
+            self.log_message(f"Hash calculado para firma: {hash_certificado}")
+                        # Firmar el hash con la clave de la entidad generadora
+            print(f"Hash calculado para firma (antes de firmar): {hash_certificado}")
+            print(f"Hash calculado para firma (bytes): {hash_certificado.hex()}")
+
+            # Guardar en archivo para depuración
+            with open("serializado_firma.json", "w", encoding="utf-8") as f:
+                f.write(serialized_data_firma)
+
+            print(f"Entidad SK: {ENTIDAD_SK.hex()}")
+            print(f"Entidad PK: {ENTIDAD_PK.hex()}")
+
+            # Haz esto:
+            firma = self.sphincs.sign(hash_certificado, ENTIDAD_SK)
+
+            print(f"firma: {firma.hex()}")
+
+            # Y para verificar:
+            firma_valida = self.sphincs.verify(hash_certificado, firma, ENTIDAD_PK)
+
+            if not firma_valida:
+                raise ValueError("La firma del certificado no es válida.")
             # Agregar firma al certificado de autenticación
             certificado_autenticacion["firma"] = firma.hex()
 
@@ -151,6 +192,8 @@ class CertificadoDigitalApp:
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             self.log_message(f"Error al generar certificados: {e}")
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()
