@@ -64,6 +64,16 @@ class AutoFirmaApp:
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
+
+    def calcular_hash_firma(self, cert_copy):
+        cert_copy.pop("firma", None)
+        cert_copy.pop("user_secret_key", None)  # No debe estar en la firma
+
+        ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
+        ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
+
+        serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(serialized_data_firma.encode()).digest()
     
     def verificar_certificado(self, cert_data):
         """Verifica la validez de un certificado."""
@@ -118,14 +128,7 @@ class AutoFirmaApp:
 
             # -------------------- VALIDACIÓN FIRMA --------------------
             # -VALIDACION HASH DATOS FIRMA (ESTA BIEN) 
-            cert_copy.pop("firma", None)
-            cert_copy.pop("user_secret_key", None) 
-
-            ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
-            ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
-
-            serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
-            recalculated_hash_firma = hashlib.sha256(serialized_data_firma.encode()).digest()
+            recalculated_hash_firma = self.calcular_hash_firma(cert_copy)
 
             #self.log_message(f"Hash recalculado para firma: {recalculated_hash_firma}")
 
@@ -201,15 +204,31 @@ class AutoFirmaApp:
     def sign_message(self):
         """Firma un documento y permite al usuario renombrarlo antes de guardarlo."""
         try:
-            # Cargar certificado de firma
-            user_sk, _, _, _, _, _ = self.load_certificate("firmar")
+                # Cargar certificado de firma
+            user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
             if not user_sk:
                 return
 
-            # Verificar certificado de autenticación
-            _, _, _, _, _, cert_data = self.load_certificate("autenticacion")
-            if not cert_data:
+            # Cargar certificado de autenticación
+            _, _, _, _, _, cert_auth = self.load_certificate("autenticacion")
+            if not cert_auth:
                 return
+
+
+            # -------------------- CALCULAR HASH DE FIRMA PARA CADA CD --------------------
+            cert_copy_auth = cert_auth.copy()
+            cert_copy_auth.pop("huella_digital", None)
+            cert_firma.pop("huella_digital", None)
+
+
+            # Calcular hashes
+            hash_firma_cd = self.calcular_hash_firma(cert_firma)
+            hash_auth_cd = self.calcular_hash_firma(cert_copy_auth)
+
+            if hash_firma_cd != hash_auth_cd:
+                messagebox.showerror("Error", "Los certificados de firma y autenticación no están asociados.")
+                self.log_message("Error: Los certificados de firma y autenticación no coinciden.")
+                return  # 🔴 Salir sin continuar la firma
 
             # -------------------- SELECCIONAR DOCUMENTO PARA FIRMAR --------------------
             file_path = filedialog.askopenfilename(
@@ -242,7 +261,7 @@ class AutoFirmaApp:
                 f.write(data)  # Guardamos el documento original firmado
 
             # -------------------- AÑADIR METADATOS AL PDF --------------------
-            self.add_metadata_to_pdf(save_path, signature, cert_data)
+            self.add_metadata_to_pdf(save_path, signature, cert_auth)
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
