@@ -10,32 +10,46 @@ import json
 import datetime
 import hashlib
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 
-# Ruta del archivo donde guardaremos las claves de la entidad
-CLAVES_ENTIDAD_PATH = "claves_entidad.json"
+# Rutas de los archivos donde guardaremos las claves de la entidad
+SK_ENTIDAD_PATH = "sk_entidad.json"
+PK_ENTIDAD_PATH = "pk_entidad.json"
+
 sphincs_instancia = Sphincs()
 
-def obtener_claves_entidad():
-    """Obtiene las claves fijas de la entidad generadora, creándolas solo si no existen."""
-
-    # Si ya existen, cargarlas
-    if os.path.exists(CLAVES_ENTIDAD_PATH):
-        with open(CLAVES_ENTIDAD_PATH, "r") as f:
-            claves = json.load(f)
-            return bytes.fromhex(claves["sk"]), bytes.fromhex(claves["pk"])
-
-    # Si no existen, generarlas y guardarlas
+def generar_claves_entidad():
+    """Genera nuevas claves de la entidad y las guarda en archivos separados."""
     sk, pk = sphincs_instancia.generate_key_pair()
-    with open(CLAVES_ENTIDAD_PATH, "w") as f:
-        json.dump({"sk": sk.hex(), "pk": pk.hex()}, f)
 
-    return sk, pk
+    with open(SK_ENTIDAD_PATH, "w") as sk_file:
+        json.dump({"sk": sk.hex()}, sk_file)
 
-# Obtener claves FIJAS de la entidad generadora
-ENTIDAD_SK, ENTIDAD_PK = obtener_claves_entidad()
+    with open(PK_ENTIDAD_PATH, "w") as pk_file:
+        json.dump({"pk": pk.hex()}, pk_file)
 
+    global ENTIDAD_SK, ENTIDAD_PK
+    ENTIDAD_SK, ENTIDAD_PK = sk, pk
+
+    messagebox.showinfo("Éxito", "Nuevas claves de entidad generadas correctamente.")
+
+def leer_claves_entidad():
+    """Lee las claves de la entidad generadora si existen. Retorna (sk, pk) o None si alguna falta."""
+    if not os.path.exists(SK_ENTIDAD_PATH) or not os.path.exists(PK_ENTIDAD_PATH):
+        return None, None  # Indica que falta una clave y hay que generarla
+
+    with open(SK_ENTIDAD_PATH, "r") as sk_file, open(PK_ENTIDAD_PATH, "r") as pk_file:
+        sk = bytes.fromhex(json.load(sk_file)["sk"])
+        pk = bytes.fromhex(json.load(pk_file)["pk"])
+        return sk, pk
+
+# Intentar leer claves existentes
+ENTIDAD_SK, ENTIDAD_PK = leer_claves_entidad()
+
+# Si falta alguna clave, se notifica
+if ENTIDAD_SK is None or ENTIDAD_PK is None:
+    print("⚠️ Claves de la entidad no encontradas. Debes generarlas manualmente desde la interfaz.")
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -53,7 +67,26 @@ class CertificadoDigitalApp:
         )
         self.title_label.pack(pady=10)
 
-        # Campos para nombre y DNI
+        # Botón para generar claves de la entidad (ahora está arriba)
+        self.generate_keys_button = tk.Button(
+            root,
+            text="Generar Claves de Entidad",
+            font=("Arial", 12),
+            command=generar_claves_entidad,  # Llama directamente al único método
+            bg="#D9534F",
+            fg="white",
+            width=25,
+        )
+        self.generate_keys_button.pack(pady=10)
+
+        # Verificar si existen las claves, si no, mostrar advertencia
+        global ENTIDAD_SK, ENTIDAD_PK
+        if ENTIDAD_SK is None or ENTIDAD_PK is None:
+            messagebox.showwarning(
+                "Faltan claves", "No se encontraron claves de la entidad. Debes generarlas."
+            )
+
+        # Campos para nombre y DNI (ahora están debajo del botón)
         self.name_label = tk.Label(root, text="Nombre:", font=("Arial", 12))
         self.name_label.pack()
         self.name_entry = tk.Entry(root, font=("Arial", 12))

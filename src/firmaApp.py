@@ -76,6 +76,7 @@ class AutoFirmaApp:
             cert_copy = cert_data.copy()
             cert_copy.pop("huella_digital", None)
 
+            # QUE PASA CON LA SECRET KEY EN EL CASO DE LA VERIFICACION EN EL CERTIFICADO DE AUTENTICACION???????????????
             ordered_keys_huella = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
             ordered_data_huella = {key: cert_copy[key] for key in ordered_keys_huella if key in cert_copy}
 
@@ -92,10 +93,34 @@ class AutoFirmaApp:
             with open("serializado_huella.json", "w", encoding="utf-8") as f:
                 f.write(serialized_data_huella)
 
+            # -------------------- VERIFICACIÓN DE FECHAS --------------------
+            fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
+            fecha_caducidad = datetime.fromisoformat(cert_data["fecha_caducidad"])
+            current_date = datetime.now()
+            
+            if current_date < fecha_expedicion:
+                raise ValueError("El certificado aún no es válido (fecha de emisión futura).")
+
+            if current_date > fecha_caducidad:
+                raise ValueError("El certificado ha expirado.")
+            
+            # -------------------- VERIFICACIÓN PK ENTIDAD --------------------
+            ent_pk_cert = bytes.fromhex(cert_data["entity_public_key"])  # Clave pública dentro del certificado
+            pk_entidad_path = "pk_entidad.json"
+            
+            if not os.path.exists(pk_entidad_path):
+                raise ValueError("No se encontró la clave pública de la entidad.")
+
+            with open(pk_entidad_path, "r") as pk_file:
+                ent_pk_real = bytes.fromhex(json.load(pk_file)["pk"])  # Clave pública real de la entidad
+
+            if ent_pk_cert != ent_pk_real:
+                raise ValueError("La clave pública de la entidad en el certificado no coincide con la clave pública oficial.")
+
             # -------------------- VALIDACIÓN FIRMA --------------------
             # -VALIDACION HASH DATOS FIRMA (ESTA BIEN) 
             cert_copy.pop("firma", None)
-            cert_copy.pop("user_secret_key", None)  # No debe estar en la firma
+            cert_copy.pop("user_secret_key", None) 
 
             ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
             ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
@@ -118,12 +143,13 @@ class AutoFirmaApp:
             print(f"Hash recalculado para firma: {recalculated_hash_firma}")
             print(f"Hash recalculado para firma (bytes): {recalculated_hash_firma.hex()}")
 
-
             # Y asegurar que al verificar también usamos .digest()
             firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk)
 
             if not firma_valida:
                 raise ValueError("La firma del certificado no es válida.")
+
+
 
             return True
         except Exception as e:
@@ -194,17 +220,6 @@ class AutoFirmaApp:
             _, _, _, auth_issue_date, auth_exp_date, cert_data = self.load_certificate("autenticacion")
             if not cert_data:
                 return
-            
-            current_date = datetime.now()
-            if current_date < issue_date or current_date > exp_date:
-                messagebox.showwarning("Firma", "El certificado de firma ha expirado o aún no es válido.")
-                self.log_message("No se puede firmar: El certificado de firma ha expirado o aún no es válido.")
-                return
-            
-            if current_date < auth_issue_date or current_date > auth_exp_date:
-                messagebox.showwarning("Firma", "El certificado de autenticación ha expirado o aún no es válido.")
-                self.log_message("No se puede firmar: El certificado de autenticación ha expirado o aún no es válido.")
-                return
 
             message = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
@@ -232,12 +247,6 @@ class AutoFirmaApp:
             # Cargar certificado de autenticación
             _, user_pk, issue_date, exp_date = self.load_certificate("autenticacion")
             if not user_pk:
-                return
-
-            current_date = datetime.now()
-            if current_date < issue_date or current_date > exp_date:
-                messagebox.showwarning("Verificación", "El certificado ha expirado o aún no es válido.")
-                self.log_message("La firma no es válida debido a la fecha de expiración o emisión.")
                 return
 
             # Leer firma
