@@ -83,15 +83,14 @@ class AutoFirmaApp:
             serialized_data_huella = json.dumps(ordered_data_huella, separators=(",", ":"), ensure_ascii=False)
             recalculated_hash = hashlib.sha256(serialized_data_huella.encode()).hexdigest()
 
-            self.log_message(f"Datos serializados para huella digital: {serialized_data_huella}")
-            self.log_message(f"Hash recalculado: {recalculated_hash}")
+            #self.log_message(f"Hash recalculado: {recalculated_hash}")
 
             if recalculated_hash != expected_hash:
                 raise ValueError("La huella digital del certificado no es válida.")
 
             # Guardar en archivo para depuración
-            with open("serializado_huella.json", "w", encoding="utf-8") as f:
-                f.write(serialized_data_huella)
+            #with open("serializado_huella.json", "w", encoding="utf-8") as f:
+            #    f.write(serialized_data_huella)
 
             # -------------------- VERIFICACIÓN DE FECHAS --------------------
             fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
@@ -128,28 +127,18 @@ class AutoFirmaApp:
             serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
             recalculated_hash_firma = hashlib.sha256(serialized_data_firma.encode()).digest()
 
-            self.log_message(f"Datos serializados para firma: {serialized_data_firma}")
-            self.log_message(f"Hash recalculado para firma: {recalculated_hash_firma}")
+            #self.log_message(f"Hash recalculado para firma: {recalculated_hash_firma}")
 
             # Guardar en archivo para depuración
-            with open("serializado_verificacion_firma.json", "w", encoding="utf-8") as f:
-                f.write(serialized_data_firma)
+            #with open("serializado_verificacion_firma.json", "w", encoding="utf-8") as f:
+            #   f.write(serialized_data_firma)
    
             # Verificar firma usando el hash correcto y la clave pública de la entidad
             firma_bytes = bytes.fromhex(firma)
-            self.log_message(f"firma_hex: {firma}")
-            #self.log_message(f"firma_bytes: {firma_bytes}")
-            self.log_message(f"clave publica entidad: {ent_pk.hex()}")
-            print(f"Hash recalculado para firma: {recalculated_hash_firma}")
-            print(f"Hash recalculado para firma (bytes): {recalculated_hash_firma.hex()}")
-
-            # Y asegurar que al verificar también usamos .digest()
             firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk)
 
             if not firma_valida:
                 raise ValueError("La firma del certificado no es válida.")
-
-
 
             return True
         except Exception as e:
@@ -211,13 +200,16 @@ class AutoFirmaApp:
     def sign_message(self):
         """Firma un mensaje utilizando la clave privada del usuario."""
         try:
+            # FALTA VERIFICACION DE EL QUE CD FRIMA Y AUTH PERTENEZCAN AL MISMO USUARIO
+            # DAR NOMBRES DIFERENETS A LOS PDFS FIRMADOS DEPENDIENDO DEL USARUIO?????
+            
             # Cargar certificado de firma
-            user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data = self.load_certificate("firmar")
+            user_sk, _, _, _, _, cert_data = self.load_certificate("firmar")
             if not user_sk:
                 return
 
             # Verificar certificado de autenticación
-            _, _, _, auth_issue_date, auth_exp_date, cert_data = self.load_certificate("autenticacion")
+            _, _, _, _, _, cert_data = self.load_certificate("autenticacion")
             if not cert_data:
                 return
 

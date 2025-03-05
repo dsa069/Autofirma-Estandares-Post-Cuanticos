@@ -47,10 +47,6 @@ def leer_claves_entidad():
 # Intentar leer claves existentes
 ENTIDAD_SK, ENTIDAD_PK = leer_claves_entidad()
 
-# Si falta alguna clave, se notifica
-if ENTIDAD_SK is None or ENTIDAD_PK is None:
-    print("⚠️ Claves de la entidad no encontradas. Debes generarlas manualmente desde la interfaz.")
-
 class CertificadoDigitalApp:
     def __init__(self, root):
         self.root = root
@@ -120,7 +116,7 @@ class CertificadoDigitalApp:
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
 
-    def calcular_hash(self, data, tipo="generacion"):
+    def calcular_hash(self, data):
         """Calcula el hash SHA-256 de los datos serializados asegurando el mismo orden."""
         ordered_keys = [
             "nombre",
@@ -135,8 +131,8 @@ class CertificadoDigitalApp:
         serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
 
         # Guardar en un archivo para comparar con la verificación
-        with open(f"serializado_{tipo}.json", "w", encoding="utf-8") as f:
-            f.write(serialized_data)
+        #with open(f"serializado_generacion_huella.json", "w", encoding="utf-8") as f:
+        #    f.write(serialized_data)
 
         return hashlib.sha256(serialized_data.encode()).hexdigest()
 
@@ -172,30 +168,12 @@ class CertificadoDigitalApp:
             serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
             hash_certificado = hashlib.sha256(serialized_data_firma.encode()).digest()
 
-
-            self.log_message(f"Datos serializados para firma: {serialized_data_firma}")
-            self.log_message(f"Hash calculado para firma: {hash_certificado}")
-                        # Firmar el hash con la clave de la entidad generadora
-            print(f"Hash calculado para firma (antes de firmar): {hash_certificado}")
-            print(f"Hash calculado para firma (bytes): {hash_certificado.hex()}")
-
             # Guardar en archivo para depuración
-            with open("serializado_firma.json", "w", encoding="utf-8") as f:
-                f.write(serialized_data_firma)
+            # with open("serializado_generacion_firma.json", "w", encoding="utf-8") as f:
+            #    f.write(serialized_data_firma)
 
-            print(f"Entidad SK: {ENTIDAD_SK.hex()}")
-            print(f"Entidad PK: {ENTIDAD_PK.hex()}")
-
-            # Haz esto:
             firma = self.sphincs.sign(hash_certificado, ENTIDAD_SK)
 
-            print(f"firma: {firma.hex()}")
-
-            # Y para verificar:
-            firma_valida = self.sphincs.verify(hash_certificado, firma, ENTIDAD_PK)
-
-            if not firma_valida:
-                raise ValueError("La firma del certificado no es válida.")
             # Agregar firma al certificado de autenticación
             certificado_autenticacion["firma"] = firma.hex()
 
@@ -225,8 +203,6 @@ class CertificadoDigitalApp:
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             self.log_message(f"Error al generar certificados: {e}")
-
-
 
 if __name__ == "__main__":
     root = tk.Tk()
