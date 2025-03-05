@@ -178,7 +178,7 @@ class AutoFirmaApp:
             return None, None, None, None, None, None
 
     def add_metadata_to_pdf(self, pdf_path, firma, cert_data):
-        """Añade la firma y el certificado de autenticación a los metadatos del PDF."""
+        """Añade la firma y el certificado de autenticación a los metadatos del PDF sin crear una copia."""
         try:
             doc = fitz.open(pdf_path)
             metadata = doc.metadata
@@ -186,25 +186,23 @@ class AutoFirmaApp:
                 "firma": firma.hex(),
                 "certificado_autenticacion": cert_data
             }, separators=(',', ':'))
-            
+
             doc.set_metadata(metadata)
-            output_path = pdf_path.replace(".pdf", "_firmado.pdf")
-            doc.save(output_path)
+            doc.save(pdf_path, incremental=True, encryption=0)  # Guardar con incremental=True
             doc.close()
-            self.log_message(f"PDF firmado con metadatos guardado en: {output_path}")
-            messagebox.showinfo("Éxito", f"PDF firmado guardado en: {output_path}")
+
+            self.log_message(f"PDF firmado con metadatos guardado en: {pdf_path}")
+            messagebox.showinfo("Éxito", f"PDF firmado guardado en: {pdf_path}")
+
         except Exception as e:
             messagebox.showerror("Error", f"Error al añadir metadatos al PDF: {e}")
             self.log_message(f"Error al añadir metadatos al PDF: {e}")
 
     def sign_message(self):
-        """Firma un mensaje utilizando la clave privada del usuario."""
+        """Firma un documento y permite al usuario renombrarlo antes de guardarlo."""
         try:
-            # FALTA VERIFICACION DE EL QUE CD FRIMA Y AUTH PERTENEZCAN AL MISMO USUARIO
-            # DAR NOMBRES DIFERENETS A LOS PDFS FIRMADOS DEPENDIENDO DEL USARUIO?????
-            
             # Cargar certificado de firma
-            user_sk, _, _, _, _, cert_data = self.load_certificate("firmar")
+            user_sk, _, _, _, _, _ = self.load_certificate("firmar")
             if not user_sk:
                 return
 
@@ -213,24 +211,42 @@ class AutoFirmaApp:
             if not cert_data:
                 return
 
-            message = filedialog.askopenfilename(
+            # -------------------- SELECCIONAR DOCUMENTO PARA FIRMAR --------------------
+            file_path = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
                 filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
             )
-            if not message:
+            if not file_path:
                 return
 
-            with open(message, "rb") as f:
+            with open(file_path, "rb") as f:
                 data = f.read()
 
+            # -------------------- FIRMAR EL DOCUMENTO --------------------
             signature = self.sphincs.sign(data, user_sk)
 
-            # Añadir la firma y el certificado autenticación a los metadatos del PDF
-            self.add_metadata_to_pdf(message, signature, cert_data)
+            # -------------------- PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO --------------------
+            save_path = filedialog.asksaveasfilename(
+                title="Guardar documento firmado",
+                initialfile="documento_firmado.pdf",
+                defaultextension=".pdf",
+                filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")]
+            )
+
+            if not save_path:
+                messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
+                return
+
+            # 🔹 **GUARDAR EL ARCHIVO ANTES DE MODIFICARLO**
+            with open(save_path, "wb") as f:
+                f.write(data)  # Guardamos el documento original firmado
+
+            # -------------------- AÑADIR METADATOS AL PDF --------------------
+            self.add_metadata_to_pdf(save_path, signature, cert_data)
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al firmar mensaje: {e}")
-            self.log_message(f"Error al firmar mensaje: {e}")
+            messagebox.showerror("Error", f"Error al firmar documento: {e}")
+            self.log_message(f"Error al firmar documento: {e}")
 
 
     def verify_signature(self):
