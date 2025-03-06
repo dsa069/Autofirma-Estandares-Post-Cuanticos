@@ -203,13 +203,21 @@ class AutoFirmaApp:
 
 
     def calcular_hash_documento(self, file_path):
-        """Calcula el hash SHA-256 del contenido de un documento."""
+        """Calcula el hash SHA-256 del contenido del documento, ignorando los metadatos."""
         try:
-            with open(file_path, "rb") as f:
-                data = f.read()
-            return hashlib.sha256(data).digest()  # Retorna el hash en bytes
+            doc = fitz.open(file_path)
+
+            # 🔹 Extraer solo los bytes de las páginas, ignorando metadatos
+            contenido_binario = b"".join(doc[page].get_text("text").encode() for page in range(len(doc)))
+
+            doc.close()
+            
+            return hashlib.sha256(contenido_binario).digest()
+        
         except Exception as e:
             raise ValueError(f"Error al calcular el hash del documento: {e}")
+
+
 
     def sign_message(self):
         """Firma un documento y permite al usuario renombrarlo antes de guardarlo."""
@@ -282,61 +290,57 @@ class AutoFirmaApp:
 
 
     def verify_signature(self):
-        """Verifica la firma de un documento firmado con Sphincs+."""
+        """Verifica una firma utilizando el hash del documento calculado en tiempo real."""
         try:
             # -------------------- SELECCIONAR DOCUMENTO FIRMADO --------------------
             file_path = filedialog.askopenfilename(
-                title="Seleccionar documento firmado",
+                title="Seleccionar archivo firmado",
                 filetypes=[("Archivos PDF", "*.pdf")],
             )
             if not file_path:
                 return
 
-            # -------------------- EXTRAER METADATOS DEL DOCUMENTO --------------------
+            # 🔹 **EXTRAER METADATOS DEL PDF**
             doc = fitz.open(file_path)
             metadata = doc.metadata
             doc.close()
 
-            if "keywords" not in metadata:
-                raise ValueError("El documento no contiene metadatos de firma.")
-
+            # 🔹 **EXTRAER FIRMA Y CERTIFICADO**
             try:
-                metadata_content = json.loads(metadata["keywords"])
-                firma_hex = metadata_content.get("firma")
-                cert_data = metadata_content.get("certificado_autenticacion")
+                meta_data = json.loads(metadata.get("keywords", "{}"))
+                firma = bytes.fromhex(meta_data["firma"])
+                cert_data = meta_data["certificado_autenticacion"]
+            except Exception:
+                messagebox.showerror("Error", "No se encontraron metadatos de firma en el documento.")
+                return
 
-                if not firma_hex or not cert_data:
-                    raise ValueError("El documento firmado no contiene los datos necesarios para la verificación.")
-                
-                firma_bytes = bytes.fromhex(firma_hex)
-
-            except json.JSONDecodeError:
-                raise ValueError("Los metadatos del documento no están en un formato válido.")
-
-            # -------------------- VALIDAR CERTIFICADO DEL USUARIO --------------------
+            # 🔹 **VALIDAR EL CERTIFICADO**
             if not self.verificar_certificado(cert_data):
-                raise ValueError("El certificado del documento firmado no es válido.")
+                messagebox.showerror("Error", "El certificado en el documento firmado no es válido.")
+                return
 
-            # -------------------- OBTENER PK DEL USUARIO DESDE EL CERTIFICADO --------------------
+            # 🔹 **OBTENER LA CLAVE PÚBLICA DEL USUARIO DESDE EL CERTIFICADO**
             user_pk = bytes.fromhex(cert_data["user_public_key"])
 
-            # -------------------- EXTRAER DATOS DEL DOCUMENTO PARA VERIFICAR FIRMA --------------------
-            with open(file_path, "rb") as f:
-                data = f.read()
+            # 🔹 **CALCULAR EL HASH DEL DOCUMENTO ACTUAL**
+            hash_documento_actual = self.calcular_hash_documento(file_path)
 
-            # -------------------- VERIFICAR FIRMA --------------------
-            is_valid = self.sphincs.verify(data, firma_bytes, user_pk)
+            self.log_message(f"Hash del documento: {hash_documento_actual.hex()}")
+            self.log_message(f"Hash del documento_bytes: {hash_documento_actual}")
 
+            # 🔹 **VERIFICAR LA FIRMA**
+            is_valid = self.sphincs.verify(hash_documento_actual, firma, user_pk)
             if is_valid:
                 messagebox.showinfo("Verificación", "La firma es válida.")
-                self.log_message("✅ Verificación exitosa: La firma es válida.")
+                self.log_message("Verificación exitosa: La firma es válida.")
             else:
                 messagebox.showwarning("Verificación", "La firma no es válida.")
-                self.log_message("⚠️ La firma no es válida.")
+                self.log_message("La firma no es válida.")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al verificar la firma: {e}")
-            self.log_message(f"❌ Error al verificar la firma: {e}")
+            messagebox.showerror("Error", f"Error al verificar firma: {e}")
+            self.log_message(f"Error al verificar firma: {e}")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
