@@ -9,7 +9,7 @@ sys.path.insert(0, parent_dir)
 import json
 import hashlib
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
 from package.sphincs import Sphincs  # Importar la clase Sphincs
@@ -218,29 +218,60 @@ class AutoFirmaApp:
         
         except Exception as e:
             raise ValueError(f"Error al calcular el hash del documento: {e}")
+        
+    def add_written_signature(self, pdf_path):
+        """Añade una firma escrita al PDF después de firmarlo digitalmente."""
+        try:
+            # Abrir el documento PDF
+            doc = fitz.open(pdf_path)
 
+            # 🔹 Pedir al usuario que ingrese su firma escrita
+            firma_texto = simpledialog.askstring("Firma", "Introduce tu nombre para la firma:")
+            if not firma_texto:
+                return
+
+            # 🔹 Obtener la fecha actual
+            fecha_firma = datetime.now().strftime("%d/%m/%Y")
+
+            # 🔹 Seleccionar página para la firma (ejemplo: última página)
+            page = doc[-1]
+
+            # 🔹 Definir posición de la firma (ajustable)
+            rect = fitz.Rect(100, 700, 400, 750)  # Posición en la página (x1, y1, x2, y2)
+
+            # 🔹 Agregar la firma escrita
+            page.insert_textbox(rect, f"Firmado por: {firma_texto}\nFecha: {fecha_firma}",
+                                fontsize=12, color=(0, 0, 0))
+
+            # 🔹 Guardar el documento con la firma escrita
+            doc.save(pdf_path, incremental=True, encryption=0)
+            doc.close()
+
+            messagebox.showinfo("Firma Escrita", "Firma escrita añadida correctamente.")
+            self.log_message("Firma escrita añadida correctamente.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al añadir firma escrita: {e}")
+            self.log_message(f"Error al añadir firma escrita: {e}")
 
 
     def sign_message(self):
-        """Firma un documento y permite al usuario renombrarlo antes de guardarlo."""
+        """Firma un documento digitalmente y permite añadir una firma escrita en el PDF."""
         try:
-                # Cargar certificado de firma
+            # Cargar certificados
             user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
             if not user_sk:
                 return
 
-            # Cargar certificado de autenticación
             _, _, _, _, _, cert_auth = self.load_certificate("autenticacion")
             if not cert_auth:
                 return
 
-            # -------------------- CALCULAR HASH DE FIRMA PARA CADA CD --------------------
+            # 🔹 CALCULAR HASH DE LOS CERTIFICADOS
             cert_copy_auth = cert_auth.copy()
             cert_copy_auth.pop("huella_digital", None)
             cert_firma.pop("huella_digital", None)
 
-
-            # Calcular hashes
             hash_firma_cd = self.calcular_hash_firma(cert_firma)
             hash_auth_cd = self.calcular_hash_firma(cert_copy_auth)
 
@@ -249,7 +280,7 @@ class AutoFirmaApp:
                 self.log_message("Error: Los certificados de firma y autenticación no coinciden.")
                 return  # 🔴 Salir sin continuar la firma
 
-            # -------------------- SELECCIONAR DOCUMENTO PARA FIRMAR --------------------
+            # 🔹 SELECCIONAR DOCUMENTO PARA FIRMAR
             file_path = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
                 filetypes=[("Archivos PDF", "*.pdf")],
@@ -257,16 +288,14 @@ class AutoFirmaApp:
             if not file_path:
                 return
 
-            # **CALCULAR HASH DEL DOCUMENTO**
+            # 🔹 CALCULAR HASH DEL DOCUMENTO
             hash_documento = self.calcular_hash_documento(file_path)
-
             self.log_message(f"Hash del documento: {hash_documento.hex()}")
-            self.log_message(f"Hash del documento_bytes: {hash_documento}")
 
-            # **FIRMAR EL HASH**
+            # 🔹 FIRMAR EL HASH DIGITALMENTE
             signature = self.sphincs.sign(hash_documento, user_sk)
 
-            # -------------------- PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO --------------------
+            # 🔹 PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO
             save_path = filedialog.asksaveasfilename(
                 title="Guardar documento firmado",
                 initialfile="documento_firmado.pdf",
@@ -278,18 +307,20 @@ class AutoFirmaApp:
                 messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
                 return
 
-            # **GUARDAR EL ARCHIVO ANTES DE MODIFICARLO**
+            # 🔹 GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
             with open(save_path, "wb") as f:
                 with open(file_path, "rb") as original_file:
                     f.write(original_file.read())  # Copiar el contenido original
 
-            # -------------------- AÑADIR METADATOS AL PDF --------------------
+            # 🔹 AÑADIR METADATOS AL PDF
             self.add_metadata_to_pdf(save_path, signature, cert_auth)
+
+            # 🔹 SOLICITAR FIRMA ESCRITA
+            self.add_written_signature(save_path)
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
             self.log_message(f"Error al firmar documento: {e}")
-
 
     def verify_signature(self):
         """Verifica una firma utilizando el hash del documento calculado en tiempo real."""
