@@ -185,9 +185,11 @@ class AutoFirmaApp:
         try:
             doc = fitz.open(pdf_path)
             metadata = doc.metadata
+            fecha_firma = datetime.now().isoformat()
             metadata["keywords"] = json.dumps({
                 "firma": firma.hex(),
-                "certificado_autenticacion": cert_data
+                "certificado_autenticacion": cert_data,
+                "fecha_firma": fecha_firma
             }, separators=(',', ':'))
 
             doc.set_metadata(metadata)
@@ -195,7 +197,7 @@ class AutoFirmaApp:
             doc.close()
 
             self.log_message(f"PDF firmado con metadatos guardado en: {pdf_path}")
-            messagebox.showinfo("Éxito", f"PDF firmado guardado en: {pdf_path}")
+            messagebox.showinfo("Éxito", f"PDF firmado guardado en: {pdf_path}\nFecha de firma: {fecha_firma}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al añadir metadatos al PDF: {e}")
@@ -207,7 +209,7 @@ class AutoFirmaApp:
         try:
             doc = fitz.open(file_path)
 
-            # 🔹 Extraer solo los bytes de las páginas, ignorando metadatos
+            # Extraer solo los bytes de las páginas, ignorando metadatos
             contenido_binario = b"".join(doc[page].get_text("text").encode() for page in range(len(doc)))
 
             doc.close()
@@ -255,13 +257,13 @@ class AutoFirmaApp:
             if not file_path:
                 return
 
-            # 🔹 **CALCULAR HASH DEL DOCUMENTO**
+            # **CALCULAR HASH DEL DOCUMENTO**
             hash_documento = self.calcular_hash_documento(file_path)
 
             self.log_message(f"Hash del documento: {hash_documento.hex()}")
             self.log_message(f"Hash del documento_bytes: {hash_documento}")
 
-            # 🔹 **FIRMAR EL HASH**
+            # **FIRMAR EL HASH**
             signature = self.sphincs.sign(hash_documento, user_sk)
 
             # -------------------- PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO --------------------
@@ -276,7 +278,7 @@ class AutoFirmaApp:
                 messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
                 return
 
-            # 🔹 **GUARDAR EL ARCHIVO ANTES DE MODIFICARLO**
+            # **GUARDAR EL ARCHIVO ANTES DE MODIFICARLO**
             with open(save_path, "wb") as f:
                 with open(file_path, "rb") as original_file:
                     f.write(original_file.read())  # Copiar el contenido original
@@ -300,12 +302,12 @@ class AutoFirmaApp:
             if not file_path:
                 return
 
-            # 🔹 **EXTRAER METADATOS DEL PDF**
+            # **EXTRAER METADATOS DEL PDF**
             doc = fitz.open(file_path)
             metadata = doc.metadata
             doc.close()
 
-            # 🔹 **EXTRAER FIRMA Y CERTIFICADO**
+            # **EXTRAER FIRMA Y CERTIFICADO**
             try:
                 meta_data = json.loads(metadata.get("keywords", "{}"))
                 firma = bytes.fromhex(meta_data["firma"])
@@ -319,16 +321,16 @@ class AutoFirmaApp:
                 messagebox.showerror("Error", "El certificado en el documento firmado no es válido.")
                 return
 
-            # 🔹 **OBTENER LA CLAVE PÚBLICA DEL USUARIO DESDE EL CERTIFICADO**
+            # **OBTENER LA CLAVE PÚBLICA DEL USUARIO DESDE EL CERTIFICADO**
             user_pk = bytes.fromhex(cert_data["user_public_key"])
 
-            # 🔹 **CALCULAR EL HASH DEL DOCUMENTO ACTUAL**
+            # **CALCULAR EL HASH DEL DOCUMENTO ACTUAL**
             hash_documento_actual = self.calcular_hash_documento(file_path)
 
             self.log_message(f"Hash del documento: {hash_documento_actual.hex()}")
             self.log_message(f"Hash del documento_bytes: {hash_documento_actual}")
 
-            # 🔹 **VERIFICAR LA FIRMA**
+            # **VERIFICAR LA FIRMA**
             is_valid = self.sphincs.verify(hash_documento_actual, firma, user_pk)
             if is_valid:
                 messagebox.showinfo("Verificación", "La firma es válida.")
