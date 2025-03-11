@@ -219,29 +219,47 @@ class AutoFirmaApp:
         except Exception as e:
             raise ValueError(f"Error al calcular el hash del documento: {e}")
         
-    def add_written_signature(self, pdf_path):
+    def add_written_signature(self, pdf_path, nombre_certificado):
         """Añade una firma escrita al PDF después de firmarlo digitalmente."""
         try:
             # Abrir el documento PDF
             doc = fitz.open(pdf_path)
 
-            # 🔹 Pedir al usuario que ingrese su firma escrita
-            firma_texto = simpledialog.askstring("Firma", "Introduce tu nombre para la firma:")
-            if not firma_texto:
-                return
-
             # 🔹 Obtener la fecha actual
             fecha_firma = datetime.now().strftime("%d/%m/%Y")
 
-            # 🔹 Seleccionar página para la firma (ejemplo: última página)
+            # 🔹 Seleccionar página para la firma (última página)
             page = doc[-1]
+            
+            # Obtener dimensiones de la página
+            page_rect = page.rect
+            
+            # 🔹 Definir posición de la firma en la parte inferior de la página
+            signature_height = 60  # Altura del área de firma
+            signature_width = 350  # Ancho del área de firma
+            margin = 20  # Margen desde los bordes
+            
+            # Posición centrada en la parte inferior
+            x0 = (page_rect.width - signature_width) / 2
+            y0 = page_rect.height - signature_height - margin
+            rect = fitz.Rect(x0, y0, x0 + signature_width, y0 + signature_height)
+            
+            # 🔹 Agregar un rectángulo blanco como fondo
+            page.draw_rect(rect, color=(0, 0, 0), fill=(1, 1, 1), overlay=True)
+            
+            # 🔹 Agregar un borde visible al rectángulo
+            page.draw_rect(rect, color=(0, 0, 0), width=1.0, overlay=True)
 
-            # 🔹 Definir posición de la firma (ajustable)
-            rect = fitz.Rect(100, 700, 400, 750)  # Posición en la página (x1, y1, x2, y2)
-
-            # 🔹 Agregar la firma escrita
-            page.insert_textbox(rect, f"Firmado por: {firma_texto}\nFecha: {fecha_firma}",
-                                fontsize=12, color=(0, 0, 0))
+            # 🔹 Agregar la firma escrita con una fuente estándar (sin "bold")
+            page.insert_textbox(
+                rect, 
+                f"Firmado por: {nombre_certificado}\nFecha: {fecha_firma}",
+                fontsize=11, 
+                fontname="helv",  # Cambiar a fuente estándar sin "bold"
+                color=(0, 0, 0),
+                align=1,  # Centrado
+                overlay=True  # Asegurar que el texto esté por encima de todo
+            )
 
             # 🔹 Guardar el documento con la firma escrita
             doc.save(pdf_path, incremental=True, encryption=0)
@@ -254,9 +272,8 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al añadir firma escrita: {e}")
             self.log_message(f"Error al añadir firma escrita: {e}")
 
-
     def sign_message(self):
-        """Firma un documento digitalmente y permite añadir una firma escrita en el PDF."""
+        """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
         try:
             # Cargar certificados
             user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
@@ -266,6 +283,9 @@ class AutoFirmaApp:
             _, _, _, _, _, cert_auth = self.load_certificate("autenticacion")
             if not cert_auth:
                 return
+
+            # 🔹 OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
+            nombre_certificado = cert_firma["nombre"]  # Ahora se toma del certificado digital
 
             # 🔹 CALCULAR HASH DE LOS CERTIFICADOS
             cert_copy_auth = cert_auth.copy()
@@ -315,12 +335,15 @@ class AutoFirmaApp:
             # 🔹 AÑADIR METADATOS AL PDF
             self.add_metadata_to_pdf(save_path, signature, cert_auth)
 
-            # 🔹 SOLICITAR FIRMA ESCRITA
-            self.add_written_signature(save_path)
+            # 🔹 PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
+            agregar_firma = messagebox.askyesno("Firma Escrita", "¿Desea añadir una firma escrita en el PDF?")
+            if agregar_firma:
+                self.add_written_signature(save_path, nombre_certificado)  # Pasamos el nombre desde el CD
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
             self.log_message(f"Error al firmar documento: {e}")
+
 
     def verify_signature(self):
         """Verifica una firma utilizando el hash del documento calculado en tiempo real."""
