@@ -220,7 +220,8 @@ class AutoFirmaApp:
             raise ValueError(f"Error al calcular el hash del documento: {e}")
         
     def add_written_signature(self, pdf_path, nombre_certificado):
-        """Añade una firma escrita al PDF después de firmarlo digitalmente."""
+        """Añade una firma escrita al PDF después de firmarlo digitalmente, permitiendo al usuario elegir 
+        la posición directamente sobre el documento."""
         try:
             # Abrir el documento PDF
             doc = fitz.open(pdf_path)
@@ -228,20 +229,286 @@ class AutoFirmaApp:
             # 🔹 Obtener la fecha actual
             fecha_firma = datetime.now().strftime("%d/%m/%Y")
 
-            # 🔹 Seleccionar página para la firma (última página)
-            page = doc[-1]
+            # 🔹 Seleccionar página para la firma
+            total_pages = len(doc)
+            page_idx = 0  # Por defecto, primera página
             
-            # Obtener dimensiones de la página
-            page_rect = page.rect
+            if total_pages > 1:
+                # Crear un diálogo personalizado para seleccionar la página
+                page_dialog = tk.Toplevel(self.root)
+                page_dialog.title("Selección de página")
+                page_dialog.geometry("500x400")  # Hacer el diálogo más grande para la vista previa
+                page_dialog.resizable(False, False)
+                page_dialog.transient(self.root)
+                page_dialog.grab_set()
+                
+                tk.Label(page_dialog, text=f"Seleccione la página para la firma (1-{total_pages}):",
+                        font=("Arial", 10)).pack(pady=10)
+                
+                # Frame para el spinbox y botones de navegación
+                nav_frame = tk.Frame(page_dialog)
+                nav_frame.pack(fill=tk.X, pady=5)
+                
+                # Variable para el número de página - AHORA EMPIEZA EN 1
+                page_var = tk.StringVar(value="1")  # Por defecto PRIMERA página en lugar de la última
+                
+                # Función para actualizar la vista previa
+                preview_label = tk.Label(page_dialog)
+                preview_label.pack(pady=10, fill=tk.BOTH, expand=True)
+                
+                # Mantener referencia a la imagen
+                preview_image = [None]
+                
+                def update_preview(page_num):
+                    try:
+                        # Convertir a índice base 0
+                        page_idx = int(page_num) - 1
+                        if 0 <= page_idx < total_pages:
+                            # Renderizar la página seleccionada
+                            page = doc[page_idx]
+                            pix = page.get_pixmap(matrix=fitz.Matrix(0.3, 0.3))  # Escala reducida para la vista previa
+                            img_data = pix.tobytes("ppm")
+                            
+                            # Convertir a imagen de PIL y luego a PhotoImage de tkinter
+                            from PIL import Image, ImageTk
+                            import io
+                            
+                            img = Image.open(io.BytesIO(img_data))
+                            img_tk = ImageTk.PhotoImage(img)
+                            
+                            # Actualizar la etiqueta con la nueva imagen
+                            preview_label.config(image=img_tk)
+                            preview_image[0] = img_tk  # Mantener referencia para evitar que el garbage collector la elimine
+                    except Exception as e:
+                        print(f"Error al actualizar vista previa: {e}")
+                
+                def on_page_change(*args):
+                    try:
+                        page_num = int(page_var.get())
+                        update_preview(page_num)
+                    except ValueError:
+                        pass
+                
+                # Botones de navegación
+                def prev_page():
+                    try:
+                        current = int(page_var.get())
+                        if current > 1:
+                            page_var.set(str(current - 1))
+                    except ValueError:
+                        page_var.set("1")
+                
+                def next_page():
+                    try:
+                        current = int(page_var.get())
+                        if current < total_pages:
+                            page_var.set(str(current + 1))
+                    except ValueError:
+                        page_var.set(str(total_pages))
+                
+                # Centrar los controles de navegación
+                # Crear un frame para contener los controles y centrarlo
+                controls_frame = tk.Frame(nav_frame)
+                controls_frame.pack(side=tk.TOP, fill=tk.X)
+                
+                # Espaciador a la izquierda para centrado
+                tk.Label(controls_frame, width=10).pack(side=tk.LEFT, expand=True)
+                
+                # Añadir botones de navegación y campo de texto
+                prev_btn = tk.Button(controls_frame, text="◀", command=prev_page)
+                prev_btn.pack(side=tk.LEFT, padx=5)
+                
+                # Reemplazar spinbox con un Entry normal para eliminar las flechas arriba/abajo redundantes
+                page_entry = tk.Entry(controls_frame, textvariable=page_var, width=5, justify=tk.CENTER)
+                page_entry.pack(side=tk.LEFT, padx=5)
+                
+                next_btn = tk.Button(controls_frame, text="▶", command=next_page)
+                next_btn.pack(side=tk.LEFT, padx=5)
+                
+                # Espaciador a la derecha para centrado
+                tk.Label(controls_frame, width=10).pack(side=tk.LEFT, expand=True)
+                
+                # Validación del campo de texto al presionar Enter
+                def validate_and_update(event):
+                    try:
+                        page_num = int(page_var.get())
+                        if page_num < 1:
+                            page_var.set("1")
+                        elif page_num > total_pages:
+                            page_var.set(str(total_pages))
+                        update_preview(page_var.get())
+                    except ValueError:
+                        page_var.set("1")
+                        update_preview("1")
+                
+                page_entry.bind("<Return>", validate_and_update)
+                page_entry.bind("<FocusOut>", validate_and_update)
+                
+                # Actualizar cuando cambie el valor manualmente
+                page_var.trace_add("write", on_page_change)
+                
+                # Mostrar la vista previa inicial (ahora es la primera página)
+                update_preview("1")
+                
+                result = [None]  # Usamos una lista para almacenar el resultado
+                
+                def on_ok():
+                    try:
+                        page_num = int(page_var.get())
+                        if 1 <= page_num <= total_pages:
+                            result[0] = page_num - 1  # Ajustar a índice base 0
+                            page_dialog.destroy()
+                        else:
+                            messagebox.showerror("Error", f"Ingrese un número entre 1 y {total_pages}")
+                    except ValueError:
+                        messagebox.showerror("Error", "Ingrese un número válido")
+                        
+                def on_cancel():
+                    result[0] = -1  # Cancelar
+                    page_dialog.destroy()
+                    
+                button_frame = tk.Frame(page_dialog)
+                button_frame.pack(pady=10, fill=tk.X)
+                tk.Button(button_frame, text="Aceptar", command=on_ok).pack(side=tk.LEFT, padx=10, expand=True)
+                tk.Button(button_frame, text="Cancelar", command=on_cancel).pack(side=tk.RIGHT, padx=10, expand=True)
+                
+                self.root.wait_window(page_dialog)
+                
+                if result[0] == -1:
+                    return False  # Usuario canceló
+                    
+                page_idx = result[0]
             
-            # 🔹 Definir posición de la firma en la parte inferior de la página
-            signature_height = 60  # Altura del área de firma
-            signature_width = 350  # Ancho del área de firma
-            margin = 20  # Margen desde los bordes
+            # El resto de la función se mantiene igual...
+            page = doc[page_idx]
+        
+        # Continuar con el código existente para posicionar la firma...
             
-            # Posición centrada en la parte inferior
-            x0 = (page_rect.width - signature_width) / 2
-            y0 = page_rect.height - signature_height - margin
+            # 🔹 Crear ventana para previsualizar el PDF y permitir al usuario hacer clic en la posición deseada
+            preview_window = tk.Toplevel(self.root)
+            preview_window.title(f"Seleccione dónde colocar la firma (Página {page_idx + 1} de {total_pages})")
+            preview_window.geometry("800x800")
+            preview_window.transient(self.root)
+            
+            # Añadir instrucciones en la parte superior
+            tk.Label(preview_window, text="Haga clic en el lugar donde desea centrar la firma:", 
+                    font=("Arial", 12)).pack(pady=5)
+            
+            # Frame para el canvas y la barra de desplazamiento
+            frame = tk.Frame(preview_window)
+            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # Crear barra de desplazamiento vertical
+            v_scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL)
+            v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            # Crear barra de desplazamiento horizontal
+            h_scrollbar = tk.Scrollbar(frame, orient=tk.HORIZONTAL)
+            h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+            
+            # Crear canvas con barras de desplazamiento
+            canvas = tk.Canvas(frame, yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            v_scrollbar.config(command=canvas.yview)
+            h_scrollbar.config(command=canvas.xview)
+            
+            # Renderizar página del PDF a imagen
+            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # Escala 1.5 para mejor calidad
+            img_data = pix.tobytes("ppm")
+            
+            # Convertir a imagen de PIL y luego a PhotoImage de tkinter
+            from PIL import Image, ImageTk
+            import io
+            
+            img = Image.open(io.BytesIO(img_data))
+            img_tk = ImageTk.PhotoImage(img)
+            
+            # Mostrar la imagen en el canvas
+            canvas.create_image(0, 0, anchor=tk.NW, image=img_tk)
+            canvas.config(scrollregion=canvas.bbox(tk.ALL))
+            
+            # Variable para almacenar las coordenadas seleccionadas
+            selected_position = [None, None]
+            signature_rect = [None]  # Para almacenar el rectángulo de previsualización
+            
+            # Definir tamaño de la firma - REDUCIDO A LA MITAD
+            signature_height = 30   # Antes era 60
+            signature_width = 175   # Antes era 350
+            
+            # Función para manejar clic en el canvas
+            def on_canvas_click(event):
+                # Obtener coordenadas del canvas
+                x = canvas.canvasx(event.x)
+                y = canvas.canvasy(event.y)
+                
+                # Guardar coordenadas del centro ajustadas a la escala del PDF
+                selected_position[0] = x / 1.5  # Ajustar escala
+                selected_position[1] = y / 1.5  # Ajustar escala
+                
+                # Calcular esquina superior izquierda para el rectángulo de previsualización
+                x_top_left = x - (signature_width * 1.5) / 2
+                y_top_left = y - (signature_height * 1.5) / 2
+                
+                # Eliminar rectángulo anterior si existe
+                if signature_rect[0]:
+                    canvas.delete(signature_rect[0])
+                
+                # Dibujar rectángulo de previsualización CENTRADO en el punto donde se hizo clic
+                signature_rect[0] = canvas.create_rectangle(
+                    x_top_left, y_top_left, 
+                    x_top_left + signature_width * 1.5, y_top_left + signature_height * 1.5,
+                    outline="blue", width=2
+                )
+                
+                # Mostrar coordenadas seleccionadas
+                status_var.set(f"Posición seleccionada: ({int(selected_position[0])}, {int(selected_position[1])})")
+            
+            canvas.bind("<Button-1>", on_canvas_click)
+            
+            # Etiqueta de estado
+            status_var = tk.StringVar(value="Haga clic para seleccionar una posición")
+            status_label = tk.Label(preview_window, textvariable=status_var)
+            status_label.pack(pady=5)
+            
+            # Frame para botones
+            btn_frame = tk.Frame(preview_window)
+            btn_frame.pack(pady=10)
+            
+            # Variable para controlar si se completó la selección
+            selection_completed = [False]
+            
+            def on_accept():
+                if selected_position[0] is None or selected_position[1] is None:
+                    messagebox.showwarning("Aviso", "Por favor, haga clic en el documento para seleccionar una posición.")
+                    return
+                    
+                selection_completed[0] = True
+                preview_window.destroy()
+                
+            def on_cancel():
+                selected_position[0] = None
+                selected_position[1] = None
+                preview_window.destroy()
+            
+            tk.Button(btn_frame, text="Aceptar", command=on_accept).pack(side=tk.LEFT, padx=20)
+            tk.Button(btn_frame, text="Cancelar", command=on_cancel).pack(side=tk.RIGHT, padx=20)
+            
+            # Necesario para mantener la referencia a la imagen
+            preview_window.img_tk = img_tk
+            
+            # Esperar a que se cierre la ventana
+            self.root.wait_window(preview_window)
+            
+            # Si el usuario canceló o no seleccionó posición
+            if selected_position[0] is None or not selection_completed[0]:
+                return False
+            
+            # 🔹 Calcular las coordenadas de la esquina superior izquierda a partir del centro
+            x_center = selected_position[0]
+            y_center = selected_position[1]
+            x0 = x_center - (signature_width / 2)
+            y0 = y_center - (signature_height / 2)
             rect = fitz.Rect(x0, y0, x0 + signature_width, y0 + signature_height)
             
             # 🔹 Agregar un rectángulo blanco como fondo
@@ -250,15 +517,15 @@ class AutoFirmaApp:
             # 🔹 Agregar un borde visible al rectángulo
             page.draw_rect(rect, color=(0, 0, 0), width=1.0, overlay=True)
 
-            # 🔹 Agregar la firma escrita con una fuente estándar (sin "bold")
+            # 🔹 Agregar la firma escrita
             page.insert_textbox(
                 rect, 
                 f"Firmado por: {nombre_certificado}\nFecha: {fecha_firma}",
-                fontsize=11, 
-                fontname="helv",  # Cambiar a fuente estándar sin "bold"
+                fontsize=8,  # Tamaño de fuente reducido para la firma más pequeña
+                fontname="helv",
                 color=(0, 0, 0),
                 align=1,  # Centrado
-                overlay=True  # Asegurar que el texto esté por encima de todo
+                overlay=True
             )
 
             # 🔹 Guardar el documento con la firma escrita
@@ -267,10 +534,12 @@ class AutoFirmaApp:
 
             messagebox.showinfo("Firma Escrita", "Firma escrita añadida correctamente.")
             self.log_message("Firma escrita añadida correctamente.")
+            return True
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al añadir firma escrita: {e}")
             self.log_message(f"Error al añadir firma escrita: {e}")
+            return False
 
     def sign_message(self):
         """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
