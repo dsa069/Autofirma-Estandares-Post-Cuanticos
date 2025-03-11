@@ -554,7 +554,7 @@ class AutoFirmaApp:
                 return
 
             # 🔹 OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
-            nombre_certificado = cert_firma["nombre"]  # Ahora se toma del certificado digital
+            nombre_certificado = cert_firma["nombre"]  # Tomado del certificado digital
 
             # 🔹 CALCULAR HASH DE LOS CERTIFICADOS
             cert_copy_auth = cert_auth.copy()
@@ -567,7 +567,7 @@ class AutoFirmaApp:
             if hash_firma_cd != hash_auth_cd:
                 messagebox.showerror("Error", "Los certificados de firma y autenticación no están asociados.")
                 self.log_message("Error: Los certificados de firma y autenticación no coinciden.")
-                return  # 🔴 Salir sin continuar la firma
+                return
 
             # 🔹 SELECCIONAR DOCUMENTO PARA FIRMAR
             file_path = filedialog.askopenfilename(
@@ -576,13 +576,6 @@ class AutoFirmaApp:
             )
             if not file_path:
                 return
-
-            # 🔹 CALCULAR HASH DEL DOCUMENTO
-            hash_documento = self.calcular_hash_documento(file_path)
-            self.log_message(f"Hash del documento: {hash_documento.hex()}")
-
-            # 🔹 FIRMAR EL HASH DIGITALMENTE
-            signature = self.sphincs.sign(hash_documento, user_sk)
 
             # 🔹 PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO
             save_path = filedialog.asksaveasfilename(
@@ -601,18 +594,29 @@ class AutoFirmaApp:
                 with open(file_path, "rb") as original_file:
                     f.write(original_file.read())  # Copiar el contenido original
 
-            # 🔹 AÑADIR METADATOS AL PDF
-            self.add_metadata_to_pdf(save_path, signature, cert_auth)
-
             # 🔹 PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
+            # IMPORTANTE: Añadir la firma visual ANTES de calcular el hash y firmar digitalmente
             agregar_firma = messagebox.askyesno("Firma Escrita", "¿Desea añadir una firma escrita en el PDF?")
             if agregar_firma:
-                self.add_written_signature(save_path, nombre_certificado)  # Pasamos el nombre desde el CD
+                if not self.add_written_signature(save_path, nombre_certificado):
+                    # Si se cancela la firma escrita, seguimos con la firma digital normal
+                    self.log_message("Firma escrita cancelada, continuando con firma digital.")
+
+            # 🔹 CALCULAR HASH DEL DOCUMENTO (después de añadir la firma escrita si se solicitó)
+            hash_documento = self.calcular_hash_documento(save_path)
+            self.log_message(f"Hash del documento: {hash_documento.hex()}")
+
+            # 🔹 FIRMAR EL HASH DIGITALMENTE
+            signature = self.sphincs.sign(hash_documento, user_sk)
+
+            # 🔹 AÑADIR METADATOS AL PDF (incluida la firma digital)
+            self.add_metadata_to_pdf(save_path, signature, cert_auth)
+
+            messagebox.showinfo("Éxito", f"Documento firmado correctamente y guardado en:\n{save_path}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
             self.log_message(f"Error al firmar documento: {e}")
-
 
     def verify_signature(self):
         """Verifica una firma utilizando el hash del documento calculado en tiempo real."""
