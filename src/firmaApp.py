@@ -154,13 +154,20 @@ class AutoFirmaApp:
     def decrypt_private_key(self, encrypted_sk, password):
         """Descifra la clave privada utilizando AES-256 CBC y verifica la redundancia."""
         try:
-            key = hashlib.sha256(password.encode()).digest()  # Derivar clave AES-256
             encrypted_data = base64.b64decode(encrypted_sk)  # Decodificar de Base64
 
-            iv = encrypted_data[:16]  # Extraer IV (primeros 16 bytes)
+            # Extraer SALT (primeros 16 bytes)
+            salt = encrypted_data[:16]
+            
+            # Extraer IV (siguientes 16 bytes)
+            iv = encrypted_data[16:32]
+            
+            # Derivar clave con el salt
+            key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dklen=32)
+            
             cipher = AES.new(key, AES.MODE_CBC, iv)  # Crear cifrador AES-CBC
 
-            decrypted_sk = cipher.decrypt(encrypted_data[16:])  # Desencriptar
+            decrypted_sk = cipher.decrypt(encrypted_data[32:])  # Desencriptar
             decrypted_sk = decrypted_sk[:-decrypted_sk[-1]]  # Eliminar padding PKCS7
 
             # Verificar redundancia (últimos 50 bits = 7 bytes deben repetirse al final)

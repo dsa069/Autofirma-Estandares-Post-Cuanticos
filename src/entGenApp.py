@@ -143,8 +143,11 @@ class CertificadoDigitalApp:
     def encrypt_private_key(self, secret_key, password):
         """Cifra la clave privada con AES-256 en modo CBC usando una contraseña."""
         try:
-            # Generar un hash de la contraseña para usarlo como clave AES (256 bits)
-            key = hashlib.sha256(password.encode()).digest()
+            # Generar un salt aleatorio de 16 bytes
+            salt = secrets.token_bytes(16)
+
+            # Generar un hash de la contraseña con el salt para usarlo como clave AES (256 bits)
+            key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dklen=32)
 
             # Añadir padding con los últimos 50 bits duplicados
             padding = secret_key[-7:]  # 50 bits (aprox. 7 bytes)
@@ -163,11 +166,27 @@ class CertificadoDigitalApp:
             # Cifrar la clave privada
             encrypted_data = cipher.encrypt(secret_key_padded)
 
-            # Guardar IV + datos cifrados en Base64 para facilitar almacenamiento
-            return base64.b64encode(iv + encrypted_data).decode()
+            # Guardar SALT + IV + datos cifrados en Base64 para facilitar almacenamiento
+            return base64.b64encode(salt + iv + encrypted_data).decode()
 
         except Exception as e:
             raise ValueError(f"Error al cifrar clave privada: {e}")
+
+    def validate_password(self, password):
+        """Valida que la contraseña cumpla con los requisitos mínimos de seguridad."""
+        if len(password) < 8:
+            return False, "La contraseña debe tener al menos 8 caracteres."
+        
+        if not any(c.isupper() for c in password):
+            return False, "La contraseña debe contener al menos una letra mayúscula."
+        
+        if not any(c.isdigit() for c in password):
+            return False, "La contraseña debe contener al menos un número."
+        
+        if not any(c in '!@#$%^&*()_-+=[]{}|:;<>,.?/~`' for c in password):
+            return False, "La contraseña debe contener al menos un carácter especial."
+        
+        return True, "Contraseña válida"
 
     def generate_certificate(self):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
@@ -178,10 +197,25 @@ class CertificadoDigitalApp:
             if not nombre or not dni:
                 raise ValueError("El nombre y el DNI son obligatorios.")
             
-            # Solicitar contraseña de cifrado al usuario
-            password = simpledialog.askstring("Contraseña", "Introduce una contraseña para cifrar la clave privada:", show="*")
-            if not password:
-                raise ValueError("Debes introducir una contraseña.")
+            # Solicitar contraseña de cifrado al usuario con validación
+            password = None
+            while password is None:
+                password = simpledialog.askstring("Contraseña", 
+                                                "Introduce una contraseña para cifrar la clave privada:\n\n"
+                                                "La contraseña debe tener:\n"
+                                                "- Al menos 8 caracteres\n"
+                                                "- Al menos una letra mayúscula\n"
+                                                "- Al menos un número\n"
+                                                "- Al menos un carácter especial (ej: !@#$%^&*)", 
+                                                show="*")
+                
+                if password is None:  # Usuario canceló el diálogo
+                    return
+                
+                valid, message = self.validate_password(password)
+                if not valid:
+                    messagebox.showerror("Contraseña insegura", message)
+                    password = None
 
             # Generar clave privada y pública del usuario
             user_sk, user_pk = self.sphincs.generate_key_pair()
