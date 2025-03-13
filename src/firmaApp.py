@@ -9,6 +9,8 @@ sys.path.insert(0, parent_dir)
 import json
 import hashlib
 import tkinter as tk
+from Crypto.Cipher import AES
+import base64
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
@@ -148,6 +150,27 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al verificar certificado: {e}")
             self.log_message(f"Error al verificar certificado: {e}")
             return False
+        
+    def decrypt_private_key(self, encrypted_sk, password):
+        """Descifra la clave privada utilizando AES-256 CBC y verifica la redundancia."""
+        try:
+            key = hashlib.sha256(password.encode()).digest()  # Derivar clave AES-256
+            encrypted_data = base64.b64decode(encrypted_sk)  # Decodificar de Base64
+
+            iv = encrypted_data[:16]  # Extraer IV (primeros 16 bytes)
+            cipher = AES.new(key, AES.MODE_CBC, iv)  # Crear cifrador AES-CBC
+
+            decrypted_sk = cipher.decrypt(encrypted_data[16:])  # Desencriptar
+            decrypted_sk = decrypted_sk[:-decrypted_sk[-1]]  # Eliminar padding PKCS7
+
+            # Verificar redundancia (últimos 50 bits = 7 bytes deben repetirse al final)
+            if decrypted_sk[-7:] != decrypted_sk[-14:-7]:
+                raise ValueError("Contraseña incorrecta: No se validó la redundancia.")
+
+            return decrypted_sk[:-7]  # Devolver clave privada sin redundancia
+
+        except Exception:
+            return None  # Error → Contraseña incorrecta
              
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
@@ -167,11 +190,35 @@ class AutoFirmaApp:
             if not self.verificar_certificado(cert_data):
                 return None, None, None, None, None, None
 
-            user_sk = bytes.fromhex(cert_data["user_secret_key"]) if tipo == "firmar" else None
             user_pk = bytes.fromhex(cert_data["user_public_key"])
             ent_pk = bytes.fromhex(cert_data["entity_public_key"])
             exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
             issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
+            user_sk = None
+
+            if tipo == "firmar":
+                encrypted_sk = cert_data.get("user_secret_key")
+                if not encrypted_sk:
+                    raise ValueError("No se encontró la clave privada cifrada en el certificado.")
+
+                for intento in range(3):  # 🔹 Máximo 3 intentos
+                    password = simpledialog.askstring(
+                        "Contraseña", "Introduce la contraseña del certificado:", show="*"
+                    )
+
+                    if not password:
+                        return None, None, None, None, None, None  # Usuario canceló
+
+                    user_sk = self.decrypt_private_key(encrypted_sk, password)
+
+                    if user_sk:
+                        break  # 🔹 Clave descifrada correctamente
+                    else:
+                        messagebox.showerror("Error", f"Contraseña incorrecta. Intento {intento + 1}/3")
+
+                if not user_sk:
+                    messagebox.showerror("Error", "Máximo de intentos alcanzado. No se pudo cargar la clave privada.")
+                    return None, None, None, None, None, None
 
             self.log_message(f"Certificado {tipo} cargado correctamente.")
             return user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data

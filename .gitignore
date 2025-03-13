@@ -1,2 +1,4 @@
 # Ignore all JSON files in src directory
 src/*.json
+# Ignore preguntas directory
+preguntas/

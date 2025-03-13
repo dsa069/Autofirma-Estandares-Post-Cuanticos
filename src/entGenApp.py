@@ -10,6 +10,10 @@ import json
 import datetime
 import hashlib
 import tkinter as tk
+from Crypto.Cipher import AES
+import base64
+import secrets
+from tkinter import simpledialog
 from tkinter import messagebox
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 
@@ -136,6 +140,35 @@ class CertificadoDigitalApp:
 
         return hashlib.sha256(serialized_data.encode()).hexdigest()
 
+    def encrypt_private_key(self, secret_key, password):
+        """Cifra la clave privada con AES-256 en modo CBC usando una contraseña."""
+        try:
+            # Generar un hash de la contraseña para usarlo como clave AES (256 bits)
+            key = hashlib.sha256(password.encode()).digest()
+
+            # Añadir padding con los últimos 50 bits duplicados
+            padding = secret_key[-7:]  # 50 bits (aprox. 7 bytes)
+            secret_key_padded = secret_key + padding
+
+            # Generar un IV aleatorio de 16 bytes
+            iv = secrets.token_bytes(16)
+
+            # Crear el cifrador AES en modo CBC
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+
+            # Asegurar que el texto a cifrar es múltiplo de 16 bytes (padding PKCS7)
+            pad_length = 16 - (len(secret_key_padded) % 16)
+            secret_key_padded += bytes([pad_length] * pad_length)
+
+            # Cifrar la clave privada
+            encrypted_data = cipher.encrypt(secret_key_padded)
+
+            # Guardar IV + datos cifrados en Base64 para facilitar almacenamiento
+            return base64.b64encode(iv + encrypted_data).decode()
+
+        except Exception as e:
+            raise ValueError(f"Error al cifrar clave privada: {e}")
+
     def generate_certificate(self):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
@@ -144,6 +177,11 @@ class CertificadoDigitalApp:
             dni = self.dni_entry.get().strip()
             if not nombre or not dni:
                 raise ValueError("El nombre y el DNI son obligatorios.")
+            
+            # Solicitar contraseña de cifrado al usuario
+            password = simpledialog.askstring("Contraseña", "Introduce una contraseña para cifrar la clave privada:", show="*")
+            if not password:
+                raise ValueError("Debes introducir una contraseña.")
 
             # Generar clave privada y pública del usuario
             user_sk, user_pk = self.sphincs.generate_key_pair()
@@ -180,9 +218,11 @@ class CertificadoDigitalApp:
             # Calcular huella digital (hash de todo el certificado de autenticación)
             certificado_autenticacion["huella_digital"] = self.calcular_hash(certificado_autenticacion)
 
+            user_sk_encrypted = self.encrypt_private_key(user_sk, password)
+
             # Crear certificado de firma (incluye la clave privada del usuario)
             certificado_firma = certificado_autenticacion.copy()
-            certificado_firma["user_secret_key"] = user_sk.hex()  # Solo en el certificado de firma
+            certificado_firma["user_secret_key"] = user_sk_encrypted  # Solo en el certificado de firma
 
             # Calcular huella digital (hash de todo el certificado de firma)
             certificado_firma["huella_digital"] = self.calcular_hash(certificado_firma)
