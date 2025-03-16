@@ -11,6 +11,8 @@ import hashlib
 import tkinter as tk
 from Crypto.Cipher import AES
 import base64
+import smtplib
+from email.mime.text import MIMEText
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
@@ -71,7 +73,7 @@ class AutoFirmaApp:
         cert_copy.pop("firma", None)
         cert_copy.pop("user_secret_key", None)  # No debe estar en la firma
 
-        ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
+        ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
         ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
 
         serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
@@ -89,20 +91,19 @@ class AutoFirmaApp:
             cert_copy.pop("huella_digital", None)
 
             # QUE PASA CON LA SECRET KEY EN EL CASO DE LA VERIFICACION EN EL CERTIFICADO DE AUTENTICACION???????????????
-            ordered_keys_huella = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
+            ordered_keys_huella = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
             ordered_data_huella = {key: cert_copy[key] for key in ordered_keys_huella if key in cert_copy}
 
             serialized_data_huella = json.dumps(ordered_data_huella, separators=(",", ":"), ensure_ascii=False)
             recalculated_hash = hashlib.sha256(serialized_data_huella.encode()).hexdigest()
 
-            #self.log_message(f"Hash recalculado: {recalculated_hash}")
+            self.log_message(f"Hash recalculado: {recalculated_hash}")
+                        # Guardar en archivo para depuración
+            with open("serializado_huella.json", "w", encoding="utf-8") as f:
+                f.write(serialized_data_huella)
 
             if recalculated_hash != expected_hash:
                 raise ValueError("La huella digital del certificado no es válida.")
-
-            # Guardar en archivo para depuración
-            #with open("serializado_huella.json", "w", encoding="utf-8") as f:
-            #    f.write(serialized_data_huella)
 
             # -------------------- VERIFICACIÓN DE FECHAS --------------------
             fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
@@ -178,6 +179,33 @@ class AutoFirmaApp:
 
         except Exception:
             return None  # Error → Contraseña incorrecta
+        
+    def enviar_correo_alerta(self, nombre, dni):
+        """Envía un correo de alerta a la entidad generadora."""
+        remitente = "tuemail@gmail.com"  # Cambia esto por tu email real
+        destinatario = "entidadgeneradora@gmail.com"
+        asunto = "🔴 ALERTA: Intentos fallidos de acceso a certificado"
+        cuerpo = f"Se han detectado múltiples intentos fallidos de descifrar el certificado de:\n\n" \
+                f"📌 Nombre: {nombre}\n" \
+                f"📌 DNI: {dni}\n\n" \
+                f"Si estos intentos no fueron realizados por el usuario, es posible que el certificado esté comprometido."
+
+        # Configurar el mensaje
+        msg = MIMEText(cuerpo, "plain")
+        msg["Subject"] = asunto
+        msg["From"] = remitente
+        msg["To"] = destinatario
+
+        try:
+            # Conectar al servidor SMTP y enviar correo
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
+                server.login(remitente, "contraseña_aqui")  # ⚠️ Reemplaza con la contraseña del email remitente
+                server.sendmail(remitente, destinatario, msg.as_string())
+
+            print(f"[INFO] Correo de alerta enviado a {destinatario}.")
+        except Exception as e:
+            print(f"[ERROR] No se pudo enviar el correo de alerta: {e}")
              
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
@@ -208,7 +236,9 @@ class AutoFirmaApp:
                 if not encrypted_sk:
                     raise ValueError("No se encontró la clave privada cifrada en el certificado.")
 
-                for intento in range(3):  # 🔹 Máximo 3 intentos
+                intento = 0
+                while True:  # Bucle infinito hasta que se introduzca la contraseña correcta
+
                     password = simpledialog.askstring(
                         "Contraseña", "Introduce la contraseña del certificado:", show="*"
                     )
@@ -219,13 +249,12 @@ class AutoFirmaApp:
                     user_sk = self.decrypt_private_key(encrypted_sk, password)
 
                     if user_sk:
-                        break  # 🔹 Clave descifrada correctamente
+                        break  # Clave descifrada correctamente
                     else:
-                        messagebox.showerror("Error", f"Contraseña incorrecta. Intento {intento + 1}/3")
-
-                if not user_sk:
-                    messagebox.showerror("Error", "Máximo de intentos alcanzado. No se pudo cargar la clave privada.")
-                    return None, None, None, None, None, None
+                        messagebox.showerror("Error", "Contraseña incorrecta. Inténtalo de nuevo.")
+                        intento += 1
+                        if intento == 3:  # Mostrar alerta cada 3 intentos
+                            self.enviar_correo_alerta(cert_data["nombre"], cert_data["dni"])
 
             self.log_message(f"Certificado {tipo} cargado correctamente.")
             return user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data

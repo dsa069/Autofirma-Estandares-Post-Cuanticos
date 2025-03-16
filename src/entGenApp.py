@@ -124,6 +124,7 @@ class CertificadoDigitalApp:
         """Calcula el hash SHA-256 de los datos serializados asegurando el mismo orden."""
         ordered_keys = [
             "nombre",
+            "dni",
             "fecha_expedicion",
             "fecha_caducidad",
             "user_public_key",
@@ -135,8 +136,8 @@ class CertificadoDigitalApp:
         serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
 
         # Guardar en un archivo para comparar con la verificación
-        #with open(f"serializado_generacion_huella.json", "w", encoding="utf-8") as f:
-        #    f.write(serialized_data)
+        with open(f"serializado_generacion_huella.json", "w", encoding="utf-8") as f:
+            f.write(serialized_data)
 
         return hashlib.sha256(serialized_data.encode()).hexdigest()
 
@@ -227,6 +228,7 @@ class CertificadoDigitalApp:
             # Crear estructura del certificado SIN la clave privada (para autenticación)
             certificado_autenticacion = {
                 "nombre": nombre,
+                "dni": dni,  # Añadir DNI al certificado
                 "fecha_expedicion": fecha_expedicion,
                 "fecha_caducidad": fecha_caducidad,
                 "user_public_key": user_pk.hex(),
@@ -234,7 +236,7 @@ class CertificadoDigitalApp:
             }
 
             # --------- Generar HASH PARA FIRMA (EXCLUYENDO firma y huella) ---------
-            ordered_keys_firma = ["nombre", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
+            ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
             ordered_data_firma = {key: certificado_autenticacion[key] for key in ordered_keys_firma}
 
             serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
