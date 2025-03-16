@@ -1,3 +1,4 @@
+from email.header import Header
 import sys
 import os
 
@@ -12,7 +13,9 @@ import tkinter as tk
 from Crypto.Cipher import AES
 import base64
 import smtplib
+import ssl
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
@@ -97,10 +100,10 @@ class AutoFirmaApp:
             serialized_data_huella = json.dumps(ordered_data_huella, separators=(",", ":"), ensure_ascii=False)
             recalculated_hash = hashlib.sha256(serialized_data_huella.encode()).hexdigest()
 
-            self.log_message(f"Hash recalculado: {recalculated_hash}")
+            #self.log_message(f"Hash recalculado: {recalculated_hash}")
                         # Guardar en archivo para depuración
-            with open("serializado_huella.json", "w", encoding="utf-8") as f:
-                f.write(serialized_data_huella)
+            #with open("serializado_huella.json", "w", encoding="utf-8") as f:
+            #    f.write(serialized_data_huella)
 
             if recalculated_hash != expected_hash:
                 raise ValueError("La huella digital del certificado no es válida.")
@@ -180,33 +183,15 @@ class AutoFirmaApp:
         except Exception:
             return None  # Error → Contraseña incorrecta
         
-    def enviar_correo_alerta(self, nombre, dni):
-        """Envía un correo de alerta a la entidad generadora."""
-        remitente = "tuemail@gmail.com"  # Cambia esto por tu email real
-        destinatario = "entidadgeneradora@gmail.com"
-        asunto = "🔴 ALERTA: Intentos fallidos de acceso a certificado"
-        cuerpo = f"Se han detectado múltiples intentos fallidos de descifrar el certificado de:\n\n" \
-                f"📌 Nombre: {nombre}\n" \
-                f"📌 DNI: {dni}\n\n" \
-                f"Si estos intentos no fueron realizados por el usuario, es posible que el certificado esté comprometido."
-
-        # Configurar el mensaje
-        msg = MIMEText(cuerpo, "plain")
-        msg["Subject"] = asunto
-        msg["From"] = remitente
-        msg["To"] = destinatario
-
-        try:
-            # Conectar al servidor SMTP y enviar correo
-            with smtplib.SMTP("smtp.gmail.com", 587) as server:
-                server.starttls()
-                server.login(remitente, "contraseña_aqui")  # ⚠️ Reemplaza con la contraseña del email remitente
-                server.sendmail(remitente, destinatario, msg.as_string())
-
-            print(f"[INFO] Correo de alerta enviado a {destinatario}.")
-        except Exception as e:
-            print(f"[ERROR] No se pudo enviar el correo de alerta: {e}")
-             
+    def enviar_alerta_certificado(self, nombre, dni):
+        """Muestra una alerta simple en la consola cuando hay intentos fallidos."""
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
+        print("-" * 50)
+        
+        return True
+                
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
@@ -254,7 +239,7 @@ class AutoFirmaApp:
                         messagebox.showerror("Error", "Contraseña incorrecta. Inténtalo de nuevo.")
                         intento += 1
                         if intento == 3:  # Mostrar alerta cada 3 intentos
-                            self.enviar_correo_alerta(cert_data["nombre"], cert_data["dni"])
+                            self.enviar_alerta_certificado(cert_data["nombre"], cert_data["dni"])
 
             self.log_message(f"Certificado {tipo} cargado correctamente.")
             return user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data

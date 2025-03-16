@@ -136,8 +136,8 @@ class CertificadoDigitalApp:
         serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
 
         # Guardar en un archivo para comparar con la verificación
-        with open(f"serializado_generacion_huella.json", "w", encoding="utf-8") as f:
-            f.write(serialized_data)
+        #with open(f"serializado_generacion_huella.json", "w", encoding="utf-8") as f:
+        #    f.write(serialized_data)
 
         return hashlib.sha256(serialized_data.encode()).hexdigest()
 
