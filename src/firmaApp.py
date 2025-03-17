@@ -1,4 +1,3 @@
-from email.header import Header
 import sys
 import os
 
@@ -12,14 +11,12 @@ import hashlib
 import tkinter as tk
 from Crypto.Cipher import AES
 import base64
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
 from package.sphincs import Sphincs  # Importar la clase Sphincs
+from dilithium_py.ml_dsa import ML_DSA_65  # Usamos ML_DSA_65 (Dilithium3)
+
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -76,38 +73,42 @@ class AutoFirmaApp:
         cert_copy.pop("firma", None)
         cert_copy.pop("user_secret_key", None)  # No debe estar en la firma
 
-        ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key"]
+        ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "algoritmo"]
         ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
 
         serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
         return hashlib.sha256(serialized_data_firma.encode()).digest()
     
     def verificar_certificado(self, cert_data):
-        """Verifica la validez de un certificado."""
+        """Verifica la validez de un certificado (SPHINCS+ o Dilithium)."""
         try:
+            # Detectar algoritmo del certificado
+            algoritmo = cert_data.get("algoritmo")  # Por defecto SPHINCS+ para compatibilidad
+            self.log_message(f"Verificando certificado con algoritmo: {algoritmo.upper()}")
+            
             expected_hash = cert_data.get("huella_digital")
             firma = cert_data.get("firma")
-            ent_pk = bytes.fromhex(cert_data["entity_public_key"])
 
             # -------------------- VALIDACIÓN HUELLA DIGITAL --------------------
             cert_copy = cert_data.copy()
             cert_copy.pop("huella_digital", None)
 
-            # QUE PASA CON LA SECRET KEY EN EL CASO DE LA VERIFICACION EN EL CERTIFICADO DE AUTENTICACION???????????????
-            ordered_keys_huella = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "firma", "user_secret_key"]
+            # Campos ordenados para calcular la huella digital (con algoritmo)
+            ordered_keys_huella = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", 
+                                "user_public_key", "entity_public_key", "algoritmo", 
+                                "firma", "user_secret_key"]
             ordered_data_huella = {key: cert_copy[key] for key in ordered_keys_huella if key in cert_copy}
 
             serialized_data_huella = json.dumps(ordered_data_huella, separators=(",", ":"), ensure_ascii=False)
             recalculated_hash = hashlib.sha256(serialized_data_huella.encode()).hexdigest()
 
             #self.log_message(f"Hash recalculado: {recalculated_hash}")
-                        # Guardar en archivo para depuración
+            # Guardar en archivo para depuración
             #with open("serializado_huella.json", "w", encoding="utf-8") as f:
             #    f.write(serialized_data_huella)
 
             if recalculated_hash != expected_hash:
                 raise ValueError("La huella digital del certificado no es válida.")
-
             # -------------------- VERIFICACIÓN DE FECHAS --------------------
             fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
             fecha_caducidad = datetime.fromisoformat(cert_data["fecha_caducidad"])
@@ -126,25 +127,44 @@ class AutoFirmaApp:
             if not os.path.exists(pk_entidad_path):
                 raise ValueError("No se encontró la clave pública de la entidad.")
 
+            # Leer el archivo de claves públicas según el algoritmo del certificado
             with open(pk_entidad_path, "r") as pk_file:
-                ent_pk_real = bytes.fromhex(json.load(pk_file)["pk"])  # Clave pública real de la entidad
+                pk_data = json.load(pk_file)
 
+                if algoritmo.lower() == "sphincs":
+                    # Para certificados SPHINCS+
+                    ent_pk_real = bytes.fromhex(pk_data["sphincs_pk"])
+                elif algoritmo.lower() == "dilithium":
+                    # Para certificados Dilithium
+                    ent_pk_real = bytes.fromhex(pk_data["dilithium_pk"])
+                else:
+                    raise ValueError(f"Algoritmo no reconocido: {algoritmo}")
+                
             if ent_pk_cert != ent_pk_real:
                 raise ValueError("La clave pública de la entidad en el certificado no coincide con la clave pública oficial.")
 
             # -------------------- VALIDACIÓN FIRMA --------------------
-            # -VALIDACION HASH DATOS FIRMA (ESTA BIEN) 
             recalculated_hash_firma = self.calcular_hash_firma(cert_copy)
-
+            
             #self.log_message(f"Hash recalculado para firma: {recalculated_hash_firma}")
 
             # Guardar en archivo para depuración
             #with open("serializado_verificacion_firma.json", "w", encoding="utf-8") as f:
             #   f.write(serialized_data_firma)
-   
-            # Verificar firma usando el hash correcto y la clave pública de la entidad
+
+            # Convertir la firma a bytes
             firma_bytes = bytes.fromhex(firma)
-            firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk)
+            
+            # Verificar firma según el algoritmo usado
+            if algoritmo.lower() == "sphincs":
+                # Utilizar SPHINCS+ para verificar
+                firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk_real)
+            elif algoritmo.lower() == "dilithium":
+                # Utilizar Dilithium para verificar
+                # Nota: ML_DSA_65 usa un orden diferente de parámetros: verify(pk, msg, sig)
+                firma_valida = ML_DSA_65.verify(ent_pk_real, recalculated_hash_firma, firma_bytes)
+            else:
+                raise ValueError(f"Algoritmo no soportado para verificación: {algoritmo}")
 
             if not firma_valida:
                 raise ValueError("La firma del certificado no es válida.")

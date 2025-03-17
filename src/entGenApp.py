@@ -164,6 +164,7 @@ class CertificadoDigitalApp:
             "fecha_caducidad",
             "user_public_key",
             "entity_public_key",
+            "algoritmo",
             "firma",
             "user_secret_key"
         ]
@@ -271,11 +272,11 @@ class CertificadoDigitalApp:
             # Determinar qué algoritmo y claves usar
             algorithm = algorithm_choice.get()
             if algorithm == "sphincs":
-                signing_algorithm = "Sphincs"
+                algoritmo = "Sphincs"
                 entity_sk = ENTIDAD_SK_SPHINCS
                 entity_pk = ENTIDAD_PK_SPHINCS
             else:  # dilithium
-                signing_algorithm = "Dilithium"
+                algoritmo = "Dilithium"
                 entity_sk = ENTIDAD_SK_DILITHIUM
                 entity_pk = ENTIDAD_PK_DILITHIUM
             
@@ -314,11 +315,11 @@ class CertificadoDigitalApp:
                 "fecha_caducidad": fecha_caducidad,
                 "user_public_key": user_pk.hex(),
                 "entity_public_key": entity_pk.hex(),
-                "signing_algorithm": signing_algorithm  # Añadir información del algoritmo usado
+                "algoritmo": algoritmo  # Añadir información del algoritmo usado
             }
 
             # --------- Generar HASH PARA FIRMA (EXCLUYENDO firma y huella) ---------
-            ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "signing_algorithm"]
+            ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "algoritmo"]
             ordered_data_firma = {key: certificado_autenticacion[key] for key in ordered_keys_firma}
 
             serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
@@ -329,7 +330,7 @@ class CertificadoDigitalApp:
             #    f.write(serialized_data_firma)
 
             # Firmar según el algoritmo seleccionado
-            if signing_algorithm == "Sphincs":
+            if algoritmo == "Sphincs":
                 firma = self.sphincs.sign(hash_certificado, entity_sk)
             else:  # Dilithium
                 firma = ML_DSA_65.sign(entity_sk, hash_certificado)
@@ -351,8 +352,8 @@ class CertificadoDigitalApp:
 
             # Guardar certificados en el escritorio
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_auth_path = os.path.join(desktop_path, f"certificado_digital_autenticacion_{dni}_{signing_algorithm.lower()}.json")
-            cert_sign_path = os.path.join(desktop_path, f"certificado_digital_firmar_{dni}_{signing_algorithm.lower()}.json")
+            cert_auth_path = os.path.join(desktop_path, f"certificado_digital_autenticacion_{dni}_{algoritmo.lower()}.json")
+            cert_sign_path = os.path.join(desktop_path, f"certificado_digital_firmar_{dni}_{algoritmo.lower()}.json")
 
             with open(cert_auth_path, "w") as cert_auth_file:
                 json.dump(certificado_autenticacion, cert_auth_file, indent=4)
@@ -360,8 +361,8 @@ class CertificadoDigitalApp:
             with open(cert_sign_path, "w") as cert_sign_file:
                 json.dump(certificado_firma, cert_sign_file, indent=4)
 
-            self.log_message(f"Certificados generados con {signing_algorithm} y guardados en:\n- {cert_auth_path}\n- {cert_sign_path}")
-            messagebox.showinfo("Éxito", f"Certificados generados con {signing_algorithm} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
+            self.log_message(f"Certificados generados con {algoritmo} y guardados en:\n- {cert_auth_path}\n- {cert_sign_path}")
+            messagebox.showinfo("Éxito", f"Certificados generados con {algoritmo} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             self.log_message(f"Error al generar certificados: {e}")
