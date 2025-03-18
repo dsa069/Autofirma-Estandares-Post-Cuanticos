@@ -2,3 +2,6 @@
 src/*.json
 # Ignore preguntas directory
 preguntas/
+
+src/dist
+src/build
