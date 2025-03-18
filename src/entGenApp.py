@@ -300,8 +300,18 @@ class CertificadoDigitalApp:
                     messagebox.showerror("Contraseña insegura", message)
                     password = None
 
-            # Generar clave privada y pública del usuario
-            user_sk, user_pk = self.sphincs.generate_key_pair()
+            # Generar clave privada y pública del usuario según el algoritmo seleccionado
+            if algoritmo == "Sphincs":
+                # Para certificados SPHINCS+, usar el algoritmo SPHINCS+
+                user_sk, user_pk = self.sphincs.generate_key_pair()
+            else:  # Dilithium
+                # Para certificados Dilithium, usar el algoritmo Dilithium
+                user_pk_raw, user_sk_raw = ML_DSA_65.keygen()  # Nota el orden invertido en Dilithium
+                # Convertir a bytes para mantener compatibilidad con el resto del código
+                user_sk = bytes.fromhex(user_sk_raw.hex())
+                user_pk = bytes.fromhex(user_pk_raw.hex())
+
+            self.log_message(f"Generadas claves de usuario con algoritmo {algoritmo}")
 
             # Fechas de expedición y caducidad
             fecha_expedicion = datetime.date.today().isoformat()

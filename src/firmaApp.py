@@ -641,10 +641,10 @@ class AutoFirmaApp:
             if not cert_auth:
                 return
 
-            # 🔹 OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
+            # OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
             nombre_certificado = cert_firma["nombre"]  # Tomado del certificado digital
 
-            # 🔹 CALCULAR HASH DE LOS CERTIFICADOS
+            #  CALCULAR HASH DE LOS CERTIFICADOS
             cert_copy_auth = cert_auth.copy()
             cert_copy_auth.pop("huella_digital", None)
             cert_firma.pop("huella_digital", None)
@@ -657,7 +657,7 @@ class AutoFirmaApp:
                 self.log_message("Error: Los certificados de firma y autenticación no coinciden.")
                 return
 
-            # 🔹 SELECCIONAR DOCUMENTO PARA FIRMAR
+            # SELECCIONAR DOCUMENTO PARA FIRMAR
             file_path = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
                 filetypes=[("Archivos PDF", "*.pdf")],
@@ -665,7 +665,7 @@ class AutoFirmaApp:
             if not file_path:
                 return
 
-            # 🔹 PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO
+            # PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO
             save_path = filedialog.asksaveasfilename(
                 title="Guardar documento firmado",
                 initialfile="documento_firmado.pdf",
@@ -677,12 +677,12 @@ class AutoFirmaApp:
                 messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
                 return
 
-            # 🔹 GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
+            # GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
             with open(save_path, "wb") as f:
                 with open(file_path, "rb") as original_file:
                     f.write(original_file.read())  # Copiar el contenido original
 
-            # 🔹 PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
+            # PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
             # IMPORTANTE: Añadir la firma visual ANTES de calcular el hash y firmar digitalmente
             agregar_firma = messagebox.askyesno("Firma Escrita", "¿Desea añadir una firma escrita en el PDF?")
             if agregar_firma:
@@ -690,14 +690,25 @@ class AutoFirmaApp:
                     # Si se cancela la firma escrita, seguimos con la firma digital normal
                     self.log_message("Firma escrita cancelada, continuando con firma digital.")
 
-            # 🔹 CALCULAR HASH DEL DOCUMENTO (después de añadir la firma escrita si se solicitó)
+            # CALCULAR HASH DEL DOCUMENTO (después de añadir la firma escrita si se solicitó)
             hash_documento = self.calcular_hash_documento(save_path)
             self.log_message(f"Hash del documento: {hash_documento.hex()}")
 
-            # 🔹 FIRMAR EL HASH DIGITALMENTE
-            signature = self.sphincs.sign(hash_documento, user_sk)
+            # OBTENER EL ALGORITMO DEL CERTIFICADO
+            algoritmo = cert_firma.get("algoritmo", "sphincs").lower()
+            self.log_message(f"Firmando con algoritmo: {algoritmo.upper()}")
 
-            # 🔹 AÑADIR METADATOS AL PDF (incluida la firma digital)
+            # FIRMAR EL HASH DIGITALMENTE SEGÚN EL ALGORITMO
+            if algoritmo == "sphincs":
+                # Firmar con SPHINCS+
+                signature = self.sphincs.sign(hash_documento, user_sk)
+            elif algoritmo == "dilithium":
+                # Firmar con Dilithium (orden diferente de parámetros)
+                signature = ML_DSA_65.sign(user_sk, hash_documento)
+            else:
+                raise ValueError(f"Algoritmo no soportado para firma: {algoritmo}")
+
+            # AÑADIR METADATOS AL PDF (incluida la firma digital)
             self.add_metadata_to_pdf(save_path, signature, cert_auth)
 
             messagebox.showinfo("Éxito", f"Documento firmado correctamente y guardado en:\n{save_path}")
@@ -736,17 +747,28 @@ class AutoFirmaApp:
                 messagebox.showerror("Error", "El certificado en el documento firmado no es válido.")
                 return
 
-            # **OBTENER LA CLAVE PÚBLICA DEL USUARIO DESDE EL CERTIFICADO**
+            # **OBTENER LA CLAVE PÚBLICA DEL USUARIO DESDE EL CERTIFICADO Y ALGORITMO**
             user_pk = bytes.fromhex(cert_data["user_public_key"])
+            algoritmo = cert_data.get("algoritmo").lower()  # Default a Sphincs para compatibilidad
 
             # **CALCULAR EL HASH DEL DOCUMENTO ACTUAL**
             hash_documento_actual = self.calcular_hash_documento(file_path)
 
-            self.log_message(f"Hash del documento: {hash_documento_actual.hex()}")
-            self.log_message(f"Hash del documento_bytes: {hash_documento_actual}")
+            #self.log_message(f"Hash del documento: {hash_documento_actual.hex()}")
+            #self.log_message(f"Hash del documento_bytes: {hash_documento_actual}")
 
             # **VERIFICAR LA FIRMA**
-            is_valid = self.sphincs.verify(hash_documento_actual, firma, user_pk)
+            # **VERIFICAR LA FIRMA SEGÚN EL ALGORITMO**
+            if algoritmo == "sphincs":
+                # Verificar con SPHINCS+
+                is_valid = self.sphincs.verify(hash_documento_actual, firma, user_pk)
+            elif algoritmo == "dilithium":
+                # Verificar con Dilithium (orden diferente de parámetros)
+                is_valid = ML_DSA_65.verify(user_pk, hash_documento_actual, firma)
+            else:
+                messagebox.showerror("Error", f"Algoritmo desconocido: {algoritmo}")
+                self.log_message(f"Error: Algoritmo desconocido: {algoritmo}")
+                return
             if is_valid:
                 messagebox.showinfo("Verificación", "La firma es válida.")
                 self.log_message("Verificación exitosa: La firma es válida.")
