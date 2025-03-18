@@ -4,11 +4,9 @@ import os
 block_cipher = None
 
 # Preparar lista de datos de forma correcta
-datas = [('../package', 'package')]  # Esto siempre se incluye
-
-# Agregar archivo solo si existe
-if os.path.exists('../pk_entidad.json'):
-    datas.append(('../pk_entidad.json', '.'))
+datas = [('../package', 'package'), 
+        ('pk_entidad.json', '.')   # Copiar pk_entidad.json en el mismo directorio del EXE
+]  # Esto siempre se incluye
 
 a = Analysis(
     ['firmaApp.py'],

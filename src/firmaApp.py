@@ -122,7 +122,11 @@ class AutoFirmaApp:
             
             # -------------------- VERIFICACIÓN PK ENTIDAD --------------------
             ent_pk_cert = bytes.fromhex(cert_data["entity_public_key"])  # Clave pública dentro del certificado
-            pk_entidad_path = "pk_entidad.json"
+            if getattr(sys, 'frozen', False):
+                BASE_DIR = sys._MEIPASS  # Carpeta temporal de PyInstaller
+            else:
+                BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Carpeta actual del script
+            pk_entidad_path = os.path.join(BASE_DIR, "pk_entidad.json")
             
             if not os.path.exists(pk_entidad_path):
                 raise ValueError("No se encontró la clave pública de la entidad.")

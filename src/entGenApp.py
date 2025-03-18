@@ -18,14 +18,23 @@ from tkinter import messagebox
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 from dilithium_py.ml_dsa import ML_DSA_65  # Utilizamos Dilithium3 
 
-# Rutas de los archivos donde guardaremos las claves de la entidad
-SK_ENTIDAD_PATH = "sk_entidad.json"
-PK_ENTIDAD_PATH = "pk_entidad.json"
+import sys
+import os
+import json
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = sys._MEIPASS  # Carpeta temporal de PyInstaller
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
+PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
+
 
 sphincs_instancia = Sphincs()
 
-def generar_claves_entidad():
-    """Genera nuevas claves de la entidad (SPHINCS y Dilithium) y las guarda en archivos separados."""
+"""def generar_claves_entidad():
+    #Genera nuevas claves de la entidad (SPHINCS y Dilithium) y las guarda en archivos separados.
     # Generar claves SPHINCS
     sphincs_sk, sphincs_pk = sphincs_instancia.generate_key_pair()
     
@@ -55,7 +64,7 @@ def generar_claves_entidad():
     ENTIDAD_SK_SPHINCS, ENTIDAD_PK_SPHINCS = sphincs_sk, sphincs_pk
     ENTIDAD_SK_DILITHIUM, ENTIDAD_PK_DILITHIUM = dilithium_sk, dilithium_pk
 
-    messagebox.showinfo("Éxito", "Nuevas claves de entidad (SPHINCS y Dilithium) generadas correctamente.")
+    messagebox.showinfo("Éxito", "Nuevas claves de entidad (SPHINCS y Dilithium) generadas correctamente.")"""
 
 def leer_claves_entidad():
     """
@@ -103,16 +112,16 @@ class CertificadoDigitalApp:
         self.title_label.pack(pady=10)
 
         # Botón para generar claves de la entidad (ahora está arriba)
-        self.generate_keys_button = tk.Button(
-            root,
-            text="Generar Claves de Entidad",
-            font=("Arial", 12),
-            command=generar_claves_entidad,  # Llama directamente al único método
-            bg="#D9534F",
-            fg="white",
-            width=25,
-        )
-        self.generate_keys_button.pack(pady=10)
+        """ self.generate_keys_button = tk.Button(
+                root,
+                text="Generar Claves de Entidad",
+                font=("Arial", 12),
+                command=generar_claves_entidad,  # Llama directamente al único método
+                bg="#D9534F",
+                fg="white",
+                width=25,
+            )
+            self.generate_keys_button.pack(pady=10)"""
 
         # Verificar si existen las claves, si no, mostrar advertencia
         global ENTIDAD_SK, ENTIDAD_PK

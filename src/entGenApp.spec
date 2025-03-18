@@ -4,13 +4,10 @@ import os
 block_cipher = None
 
 # Preparar lista de datos de forma correcta
-datas = [('../package', 'package')]  # Esto siempre se incluye
-
-# Agregar archivos solo si existen
-if os.path.exists('../sk_entidad.json'):
-    datas.append(('../sk_entidad.json', '.'))
-if os.path.exists('../pk_entidad.json'):
-    datas.append(('../pk_entidad.json', '.'))
+datas = [('../package', 'package'), 
+        ('sk_entidad.json', '.'),  # Copiar sk_entidad.json en el mismo directorio del EXE
+        ('pk_entidad.json', '.')   # Copiar pk_entidad.json en el mismo directorio del EXE
+]  # Esto siempre se incluye
 
 a = Analysis(
     ['entGenApp.py'],
