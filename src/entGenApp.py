@@ -369,10 +369,15 @@ class CertificadoDigitalApp:
             # Calcular huella digital (hash de todo el certificado de firma)
             certificado_firma["huella_digital"] = self.calcular_hash(certificado_firma)
 
-            # Guardar certificados en el escritorio
-            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            cert_auth_path = os.path.join(desktop_path, f"certificado_digital_autenticacion_{dni}_{algoritmo.lower()}.json")
-            cert_sign_path = os.path.join(desktop_path, f"certificado_digital_firmar_{dni}_{algoritmo.lower()}.json")
+            # Guardar certificados 
+            user_home = os.path.expanduser("~")
+            certs_folder = os.path.join(user_home, "certificados_postC")
+            
+            # Crear la carpeta si no existe
+            if not os.path.exists(certs_folder):
+                os.makedirs(certs_folder)
+            cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo.lower()}.json")
+            cert_sign_path = os.path.join(certs_folder, f"certificado_digital_firmar_{dni}_{algoritmo.lower()}.json")
 
             with open(cert_auth_path, "w") as cert_auth_file:
                 json.dump(certificado_autenticacion, cert_auth_file, indent=4)

@@ -5,3 +5,6 @@ preguntas/
 
 src/dist
 src/build
+
+dist/
+build/

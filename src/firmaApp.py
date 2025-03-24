@@ -219,10 +219,19 @@ class AutoFirmaApp:
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
-            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+            # Comprobar si existe la carpeta certificados_postC
+            user_home = os.path.expanduser("~")
+            certs_folder = os.path.join(user_home, "certificados_postC")
+            
+            # Verificar si la carpeta existe
+            if not os.path.exists(certs_folder):
+                messagebox.showerror("Error", "No se encuentra la carpeta certificados_postC en su directorio de usuario.")
+                self.log_message("Error: No se encuentra la carpeta certificados_postC")
+                return None, None, None, None, None, None
+                
             cert_path = filedialog.askopenfilename(
                 title="Seleccionar certificado",
-                initialdir=desktop_path,
+                initialdir=certs_folder,
                 filetypes=[("Certificados", f"certificado_digital_{tipo}_*.json")]
             )
             if not cert_path:
@@ -636,19 +645,47 @@ class AutoFirmaApp:
     def sign_message(self):
         """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
         try:
-            # Cargar certificados
+            # Cargar certificado de firma
             user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
             if not user_sk:
                 return
 
-            _, _, _, _, _, cert_auth = self.load_certificate("autenticacion")
-            if not cert_auth:
+            # Extraer DNI y algoritmo del certificado de firma
+            dni = cert_firma["dni"]
+            algoritmo = cert_firma["algoritmo"].lower()
+            
+            # Buscar automáticamente el certificado de autenticación correspondiente
+            user_home = os.path.expanduser("~")
+            certs_folder = os.path.join(user_home, "certificados_postC")
+            cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo}.json")
+            
+            # Verificar si existe el certificado de autenticación
+            if not os.path.exists(cert_auth_path):
+                messagebox.showerror("Error", f"No se encontró el certificado de autenticación para el DNI {dni}.")
+                self.log_message(f"Error: No se encontró certificado de autenticación para DNI {dni}")
+                return
+                
+            # Cargar el certificado de autenticación
+            try:
+                with open(cert_auth_path, "r") as cert_file:
+                    cert_auth = json.load(cert_file)
+                    
+                # Verificar el certificado de autenticación
+                if not self.verificar_certificado(cert_auth):
+                    messagebox.showerror("Error", "El certificado de autenticación no es válido.")
+                    self.log_message("Error: Certificado de autenticación inválido.")
+                    return
+                    
+                self.log_message(f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al cargar certificado de autenticación: {e}")
+                self.log_message(f"Error al cargar certificado de autenticación: {e}")
                 return
 
             # OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
-            nombre_certificado = cert_firma["nombre"]  # Tomado del certificado digital
+            nombre_certificado = cert_firma["nombre"]
 
-            #  CALCULAR HASH DE LOS CERTIFICADOS
+            # CALCULAR HASH DE LOS CERTIFICADOS
             cert_copy_auth = cert_auth.copy()
             cert_copy_auth.pop("huella_digital", None)
             cert_firma.pop("huella_digital", None)
@@ -662,8 +699,10 @@ class AutoFirmaApp:
                 return
 
             # SELECCIONAR DOCUMENTO PARA FIRMAR
+            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
             file_path = filedialog.askopenfilename(
                 title="Seleccionar archivo para firmar",
+                initialdir=desktop_path,  # Usar el Escritorio como carpeta inicial
                 filetypes=[("Archivos PDF", "*.pdf")],
             )
             if not file_path:
