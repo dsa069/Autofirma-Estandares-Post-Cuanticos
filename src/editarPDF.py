@@ -196,13 +196,14 @@ class PDFModifierApp:
                                 new_char = 'd' if original_char == 'c' else 'c'
                                 firmas[i]["firma"] = firma[:2] + new_char + firma[3:]
                                 modified_count += 1
+                    # Modificación para modify_signature
                     else:
-                        # Modificar solo la primera firma
-                        firma = firmas[0]["firma"]
+                        # Modificar solo la última firma
+                        firma = firmas[-1]["firma"]  # Usamos -1 para acceder al último elemento
                         if len(firma) > 2:
                             original_char = firma[2]
                             new_char = 'd' if original_char == 'c' else 'c'
-                            firmas[0]["firma"] = firma[:2] + new_char + firma[3:]
+                            firmas[-1]["firma"] = firma[:2] + new_char + firma[3:]
                             modified_count = 1
                     
                     # Actualizar los metadatos solo si se modificó alguna firma
@@ -340,10 +341,11 @@ class PDFModifierApp:
                                     new_char = 'd' if original_char == 'c' else 'c'
                                     cert_data["entity_public_key"] = entity_pk[:4] + new_char + entity_pk[5:]
                                     modified_count += 1
+                    # Modificación para modify_pubkey
                     else:
-                        # Modificar solo el primer certificado
-                        if "certificado_autenticacion" in firmas[0]:
-                            cert_data = firmas[0]["certificado_autenticacion"]
+                        # Modificar solo el último certificado
+                        if "certificado_autenticacion" in firmas[-1]:
+                            cert_data = firmas[-1]["certificado_autenticacion"]
                             if "entity_public_key" in cert_data and len(cert_data["entity_public_key"]) > 4:
                                 entity_pk = cert_data["entity_public_key"]
                                 original_char = entity_pk[4]
@@ -498,11 +500,11 @@ class PDFModifierApp:
                                     # Si hay error al procesar la fecha, la omitimos
                                     continue
                     else:
-                        # Modificar solo la primera firma
-                        if "fecha_firma" in firmas[0]:
+                        # Modificar solo la última firma
+                        if "fecha_firma" in firmas[-1]:
                             try:
                                 # Obtener fecha original
-                                original_date = firmas[0]["fecha_firma"]
+                                original_date = firmas[-1]["fecha_firma"]
                                 fecha_obj = datetime.fromisoformat(original_date)
                                 
                                 # Sumar 1 día
@@ -512,7 +514,7 @@ class PDFModifierApp:
                                 nueva_fecha = nueva_fecha_obj.isoformat()
                                 
                                 # Actualizar fecha
-                                firmas[0]["fecha_firma"] = nueva_fecha
+                                firmas[-1]["fecha_firma"] = nueva_fecha
                                 modified_count = 1
                             except (ValueError, TypeError):
                                 # Si hay error al procesar la fecha

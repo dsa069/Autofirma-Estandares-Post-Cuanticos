@@ -58,6 +58,21 @@ class AutoFirmaApp:
         )
         self.verify_signature_button.pack(pady=10)
 
+        # Botón para depuración (temporal)
+        self.debug_button = tk.Button(
+            root,
+            text="Depurar Firmas Visuales",
+            font=("Arial", 12),
+            command=lambda: self.debug_firmas_visuales(filedialog.askopenfilename(
+                title="Seleccionar archivo firmado para depurar",
+                filetypes=[("Archivos PDF", "*.pdf")],
+            )),
+            bg="#9C27B0",
+            fg="white",
+            width=20,
+        )
+        self.debug_button.pack(pady=10)
+
         # Área de texto para logs
         self.log_text = tk.Text(root, width=70, height=15, state=tk.DISABLED)
         self.log_text.pack(pady=10)
@@ -281,7 +296,7 @@ class AutoFirmaApp:
             self.log_message(f"Error al cargar certificado {tipo}: {e}")
             return None, None, None, None, None, None
 
-    def add_metadata_to_pdf(self, pdf_path, firma, cert_data):
+    def add_metadata_to_pdf(self, pdf_path, firma, cert_data, visual_signature_hash=None):
         """Añade la firma y el certificado de autenticación a los metadatos del PDF preservando firmas anteriores."""
         try:
             doc = fitz.open(pdf_path)
@@ -294,6 +309,10 @@ class AutoFirmaApp:
                 "certificado_autenticacion": cert_data,
                 "fecha_firma": fecha_firma
             }
+
+            # Añadir el hash de la firma visual si existe
+            if visual_signature_hash:
+                nueva_firma["hash_visual_signature"] = visual_signature_hash.hex()
             
             # Verificar si ya existen metadatos de firmas
             existing_metadata = {}
@@ -593,7 +612,12 @@ class AutoFirmaApp:
             # Resto del código igual que antes para añadir la firma al PDF
             if not result["success"]:
                 return False
-                
+
+            # Guardar el documento antes de añadir la firma visual para calcular el hash "antes"
+            doc_before = fitz.open(pdf_path)
+            hash_before = self.calcular_hash_documento(pdf_path)
+            doc_before.close()
+
             # Añadir la firma visual al PDF
             try:
                 doc = fitz.open(pdf_path)
@@ -616,12 +640,22 @@ class AutoFirmaApp:
                 doc.save(pdf_path, incremental=True, encryption=0)
                 doc.close()
                 
+                # Calcular el hash "después" de añadir la firma visual
+                doc_after = fitz.open(pdf_path)
+                hash_after = self.calcular_hash_documento(pdf_path)
+                doc_after.close()
+                
+                # IMPORTANTE: Calcular el hash de la DIFERENCIA entre antes y después
+                # Esto representará más precisamente la firma visual por sí sola
+                visual_signature_hash = bytes(a ^ b for a, b in zip(hash_before, hash_after))
+
+                
                 self.log_message(f"Firma visual añadida en la página {result['page']+1}")
-                return True
+                return True, visual_signature_hash
                 
             except Exception as e:
                 self.log_message(f"Error al añadir firma visual: {e}")
-                return False
+                return False, None
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error al seleccionar posición: {e}")
@@ -711,11 +745,15 @@ class AutoFirmaApp:
                 with open(file_path, "rb") as original_file:
                     f.write(original_file.read())  # Copiar el contenido original
 
+            visual_signature_hash = None
+            
             # PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
-            # IMPORTANTE: Añadir la firma visual ANTES de calcular el hash y firmar digitalmente
             agregar_firma = messagebox.askyesno("Firma Escrita", "¿Desea añadir una firma escrita en el PDF?")
             if agregar_firma:
-                if not self.add_written_signature(save_path, nombre_certificado):
+                success, visual_hash = self.add_written_signature(save_path, nombre_certificado)
+                if success:
+                    visual_signature_hash = visual_hash
+                else:
                     # Si se cancela la firma escrita, seguimos con la firma digital normal
                     self.log_message("Firma escrita cancelada, continuando con firma digital.")
 
@@ -738,7 +776,11 @@ class AutoFirmaApp:
                 raise ValueError(f"Algoritmo no soportado para firma: {algoritmo}")
 
             # AÑADIR METADATOS AL PDF (incluida la firma digital)
-            self.add_metadata_to_pdf(save_path, signature, cert_auth)
+            self.add_metadata_to_pdf(save_path, signature, cert_auth, visual_signature_hash)
+
+            # Registrar en el log el documento firmado
+            titulo_doc = os.path.basename(save_path)
+            self.log_documento_firmado(titulo_doc, hash_documento, nombre_certificado)
 
             messagebox.showinfo("Éxito", f"Documento firmado correctamente y guardado en:\n{save_path}")
 
@@ -787,12 +829,12 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al verificar firmas: {e}")
             self.log_message(f"Error al verificar firmas: {e}")
 
-    def mostrar_resultados_firmas(self, file_path, firmas, hash_documento):
-        """Muestra los resultados de la verificación de múltiples firmas."""
+    def mostrar_resultados_firmas(self, file_path, firmas, hash_documento_actual):
+        """Muestra los resultados de la verificación de múltiples firmas en cascada."""
         # Crear ventana de resultados
         results_window = tk.Toplevel(self.root)
         results_window.title(f"Verificación de firmas: {os.path.basename(file_path)}")
-        results_window.geometry("700x500")
+        results_window.geometry("800x600")
         results_window.transient(self.root)
         results_window.grab_set()
         
@@ -814,7 +856,7 @@ class AutoFirmaApp:
             anchor="w"
         ).pack(fill=tk.X)
         
-        # Frame para la lista de firmas
+        # Frame con scroll para resultados
         list_frame = tk.Frame(results_window)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -842,146 +884,161 @@ class AutoFirmaApp:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # Verificar cada firma y mostrar resultados
+        # Inicializar contadores
         valid_count = 0
         invalid_count = 0
         
-        for i, firma_data in enumerate(firmas):
-            try:
-                # Extraer datos
-                firma = bytes.fromhex(firma_data["firma"])
-                cert_data = firma_data["certificado_autenticacion"]
-                fecha_firma = firma_data.get("fecha_firma", "Desconocida")
-                if isinstance(fecha_firma, str) and fecha_firma.startswith('20'):
-                    try:
-                        # Intentar formatear la fecha si está en formato ISO
-                        fecha_obj = datetime.fromisoformat(fecha_firma)
-                        fecha_firma = fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
-                    except:
-                        pass
-                
-                # Obtener nombre del certificado
-                nombre = cert_data.get("nombre", "Desconocido")
-                
-                # Obtener algoritmo y clave pública
-                algoritmo = cert_data.get("algoritmo", "sphincs").lower()
-                user_pk = bytes.fromhex(cert_data["user_public_key"])
-                
-                # Verificar certificado
-                cert_valido = self.verificar_certificado(cert_data)
-                
-                # Verificar firma según algoritmo
-                if cert_valido:
-                    if algoritmo == "sphincs":
-                        firma_valida = self.sphincs.verify(hash_documento, firma, user_pk)
-                    elif algoritmo == "dilithium":
-                        firma_valida = ML_DSA_65.verify(user_pk, hash_documento, firma)
-                    else:
-                        firma_valida = False
-                        self.log_message(f"Algoritmo desconocido: {algoritmo}")
+        # IMPORTANTE: Procesar firmas en orden inverso para la validación en cascada
+        total_firmas = len(firmas)
+        
+        # Inicializar hash actual con el hash del documento completo
+        hash_actual = hash_documento_actual
+        
+        # Lista para almacenar los resultados de validación
+        resultados_validacion = []
+        
+        # FASE 1: Procesar las firmas de la más reciente a la más antigua
+        self.log_message("Iniciando verificación en cascada de firmas...")
+        for i in range(total_firmas - 1, -1, -1):
+            firma_data = firmas[i]
+            
+            # Extraer datos básicos
+            firma = bytes.fromhex(firma_data["firma"])
+            cert_data = firma_data["certificado_autenticacion"]
+            nombre = cert_data.get("nombre", "Desconocido")
+            algoritmo = cert_data.get("algoritmo", "sphincs").lower()
+            user_pk = bytes.fromhex(cert_data["user_public_key"])
+            
+            # Verificar certificado
+            cert_valido = self.verificar_certificado(cert_data)
+            
+            # Verificar firma usando el hash actual
+            if cert_valido:
+                if algoritmo == "sphincs":
+                    firma_valida = self.sphincs.verify(hash_actual, firma, user_pk)
+                elif algoritmo == "dilithium":
+                    firma_valida = ML_DSA_65.verify(user_pk, hash_actual, firma)
                 else:
                     firma_valida = False
-                
-                # Actualizar contadores
-                if firma_valida:
-                    valid_count += 1
-                else:
-                    invalid_count += 1
-                
-                # Crear frame para esta firma
-                firma_frame = tk.Frame(scrollable_frame, relief=tk.RIDGE, bd=1)
-                firma_frame.pack(fill=tk.X, pady=5, padx=5)
-                
-                # Configurar colores según resultado
-                bg_color = "#e8f5e9" if firma_valida else "#ffebee"  # Verde claro o rojo claro
-                firma_frame.configure(bg=bg_color)
-                
-                # Información de la firma
-                header_frame = tk.Frame(firma_frame, bg=bg_color)
-                header_frame.pack(fill=tk.X, padx=5, pady=5)
-                
-                # Número de firma e icono de estado
-                status_icon = "✓" if firma_valida else "✗"
-                status_color = "#388e3c" if firma_valida else "#d32f2f"  # Verde oscuro o rojo oscuro
-                
-                tk.Label(
-                    header_frame, 
-                    text=f"{i+1}. ",
-                    font=("Arial", 11, "bold"),
-                    bg=bg_color
-                ).pack(side=tk.LEFT)
-                
-                tk.Label(
-                    header_frame, 
-                    text=status_icon,
-                    font=("Arial", 14, "bold"),
-                    fg=status_color,
-                    bg=bg_color
-                ).pack(side=tk.LEFT)
-                
-                tk.Label(
-                    header_frame, 
-                    text=f" {nombre}",
-                    font=("Arial", 11, "bold"),
-                    bg=bg_color
-                ).pack(side=tk.LEFT)
-                
-                # Detalles de la firma
-                details_frame = tk.Frame(firma_frame, bg=bg_color)
-                details_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-                
-                tk.Label(
-                    details_frame, 
-                    text=f"Fecha: {fecha_firma}",
-                    font=("Arial", 10),
-                    bg=bg_color
-                ).pack(anchor="w")
-                
-                tk.Label(
-                    details_frame, 
-                    text=f"Algoritmo: {algoritmo.upper()}",
-                    font=("Arial", 10),
-                    bg=bg_color
-                ).pack(anchor="w")
-                
-                tk.Label(
-                    details_frame, 
-                    text=f"Estado: {'Válida' if firma_valida else 'No válida'}",
-                    font=("Arial", 10, "bold"),
-                    fg=status_color,
-                    bg=bg_color
-                ).pack(anchor="w")
-                
-                if not cert_valido:
-                    tk.Label(
-                        details_frame, 
-                        text="El certificado no es válido o ha expirado",
-                        font=("Arial", 10, "italic"),
-                        fg="#d32f2f",
-                        bg=bg_color
-                    ).pack(anchor="w")
-                
-            except Exception as e:
-                # En caso de error con una firma específica
+                    self.log_message(f"Algoritmo desconocido: {algoritmo}")
+            else:
+                firma_valida = False
+            
+            # Guardar el resultado
+            resultados_validacion.append({
+                "indice": i,
+                "firma_valida": firma_valida,
+                "cert_valido": cert_valido,
+                "hash_verificacion": hash_actual,
+                "firma_data": firma_data
+            })
+            
+            # Calcular el siguiente hash para la cascada si hay más firmas para verificar
+            if i > 0 and "hash_visual_signature" in firma_data:
+                hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
+                # Operación "resta" conceptual para obtener el hash anterior
+                hash_actual = bytes(a ^ b for a, b in zip(hash_actual, hash_visual))
+                self.log_message(f"Hash calculado para firma {i}: {hash_actual.hex()[:10]}...")
+        
+        # FASE 2: Mostrar los resultados en orden original (de la más antigua a la más reciente)
+        resultados_validacion.reverse()
+        
+        for resultado in resultados_validacion:
+            i = resultado["indice"]
+            firma_data = resultado["firma_data"]
+            firma_valida = resultado["firma_valida"]
+            cert_valido = resultado["cert_valido"]
+            
+            # Extraer datos para la visualización
+            nombre = firma_data["certificado_autenticacion"].get("nombre", "Desconocido")
+            fecha_firma = firma_data.get("fecha_firma", "Desconocida")
+            if isinstance(fecha_firma, str) and fecha_firma.startswith('20'):
+                try:
+                    fecha_obj = datetime.fromisoformat(fecha_firma)
+                    fecha_firma = fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
+                except:
+                    pass
+            
+            algoritmo = firma_data["certificado_autenticacion"].get("algoritmo", "sphincs").lower()
+            
+            # Actualizar contadores
+            if firma_valida:
+                valid_count += 1
+            else:
                 invalid_count += 1
-                
-                # Crear frame para esta firma con error
-                firma_frame = tk.Frame(scrollable_frame, relief=tk.RIDGE, bd=1, bg="#ffebee")
-                firma_frame.pack(fill=tk.X, pady=5, padx=5)
-                
+            
+            # Crear frame para esta firma
+            firma_frame = tk.Frame(scrollable_frame, relief=tk.RIDGE, bd=1)
+            firma_frame.pack(fill=tk.X, pady=5, padx=5)
+            
+            # Configurar colores según resultado
+            bg_color = "#e8f5e9" if firma_valida else "#ffebee"  # Verde claro o rojo claro
+            firma_frame.configure(bg=bg_color)
+            
+            # Información de la firma
+            header_frame = tk.Frame(firma_frame, bg=bg_color)
+            header_frame.pack(fill=tk.X, padx=5, pady=5)
+            
+            # Número de firma e icono de estado
+            status_icon = "✓" if firma_valida else "✗"
+            status_color = "#388e3c" if firma_valida else "#d32f2f"  # Verde oscuro o rojo oscuro
+            
+            tk.Label(
+                header_frame, 
+                text=f"{i+1}. ",
+                font=("Arial", 11, "bold"),
+                bg=bg_color
+            ).pack(side=tk.LEFT)
+            
+            tk.Label(
+                header_frame, 
+                text=status_icon,
+                font=("Arial", 14, "bold"),
+                fg=status_color,
+                bg=bg_color
+            ).pack(side=tk.LEFT)
+            
+            tk.Label(
+                header_frame, 
+                text=f" {nombre}",
+                font=("Arial", 11, "bold"),
+                bg=bg_color
+            ).pack(side=tk.LEFT)
+            
+            # Detalles de la firma
+            details_frame = tk.Frame(firma_frame, bg=bg_color)
+            details_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+            
+            tk.Label(
+                details_frame, 
+                text=f"Fecha: {fecha_firma}",
+                font=("Arial", 10),
+                bg=bg_color
+            ).pack(anchor="w")
+            
+            tk.Label(
+                details_frame, 
+                text=f"Algoritmo: {algoritmo.upper()}",
+                font=("Arial", 10),
+                bg=bg_color
+            ).pack(anchor="w")
+            
+            tk.Label(
+                details_frame, 
+                text=f"Estado: {'Válida' if firma_valida else 'No válida'}",
+                font=("Arial", 10, "bold"),
+                fg=status_color,
+                bg=bg_color
+            ).pack(anchor="w")
+            
+            if not cert_valido:
                 tk.Label(
-                    firma_frame, 
-                    text=f"{i+1}. Error al verificar firma",
-                    font=("Arial", 11, "bold"),
-                    bg="#ffebee"
-                ).pack(anchor="w", padx=5, pady=5)
-                
-                tk.Label(
-                    firma_frame, 
-                    text=f"Error: {str(e)}",
-                    font=("Arial", 10),
-                    bg="#ffebee"
-                ).pack(anchor="w", padx=5, pady=(0, 5))
+                    details_frame, 
+                    text="El certificado no es válido o ha expirado",
+                    font=("Arial", 10, "italic"),
+                    fg="#d32f2f",
+                    bg=bg_color
+                ).pack(anchor="w")
         
         # Resumen de verificación
         summary_frame = tk.Frame(results_window)
@@ -1020,6 +1077,233 @@ class AutoFirmaApp:
             width=10
         ).pack(pady=10)
 
+    def debug_firmas_visuales(self, file_path):
+        """Método temporal para depurar el sistema de firmas visuales."""
+        try:
+            # Abrir documento y obtener metadatos
+            doc = fitz.open(file_path)
+            metadata = doc.metadata
+            doc.close()
+            
+            # Crear ventana de depuración
+            debug_window = tk.Toplevel(self.root)
+            debug_window.title(f"Depuración de Firmas: {os.path.basename(file_path)}")
+            debug_window.geometry("900x600")
+            debug_window.transient(self.root)
+            debug_window.grab_set()
+            
+            # Crear área de texto con scroll
+            frame = tk.Frame(debug_window)
+            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            scrollbar = tk.Scrollbar(frame)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            text_area = tk.Text(frame, wrap=tk.WORD, yscrollcommand=scrollbar.set, font=("Courier", 10))
+            text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            scrollbar.config(command=text_area.yview)
+            
+            # Función para añadir texto
+            def add_text(msg, tag=None):
+                text_area.configure(state=tk.NORMAL)
+                if tag:
+                    text_area.insert(tk.END, msg, tag)
+                else:
+                    text_area.insert(tk.END, msg)
+                text_area.configure(state=tk.DISABLED)
+                text_area.see(tk.END)
+            
+            # Configurar etiquetas de estilo
+            text_area.tag_configure("header", font=("Courier", 11, "bold"))
+            text_area.tag_configure("subheader", font=("Courier", 10, "bold"))
+            text_area.tag_configure("success", foreground="#388e3c")
+            text_area.tag_configure("error", foreground="#d32f2f")
+            text_area.tag_configure("info", foreground="#0277bd")
+            text_area.tag_configure("warning", foreground="#FF9800")
+            
+            # Título
+            add_text("DEPURACIÓN DE FIRMAS VISUALES\n", "header")
+            add_text(f"Documento: {file_path}\n\n", "info")
+            
+            # Calcular hash del documento actual
+            hash_documento_actual = self.calcular_hash_documento(file_path)
+            add_text(f"Hash del documento completo actual: \n{hash_documento_actual.hex()}\n\n", "subheader")
+            
+            # Extraer metadatos del documento
+            try:
+                meta_data = json.loads(metadata.get("keywords", "{}"))
+                
+                # Verificar si hay múltiples firmas
+                if "firmas" in meta_data and meta_data["firmas"]:
+                    firmas = meta_data["firmas"]
+                    total_firmas = len(firmas)
+                    add_text(f"Total de firmas encontradas: {total_firmas}\n\n", "info")
+                    
+                    # Calcular todos los hash resultado para cada firma, 
+                    # empezando con la más reciente
+                    hash_resultados = {}
+                    hash_inicial_actual = hash_documento_actual
+                    
+                    # Primero calculamos los hashes resultado para cada firma
+                    # El más reciente usa el hash actual del documento
+                    for i in range(total_firmas-1, -1, -1):
+                        firma_data = firmas[i]
+                        if "hash_visual_signature" in firma_data:
+                            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
+                            
+                            # El hash resultado es la resta conceptual
+                            hash_resultados[i] = bytes(a ^ b for a, b in zip(hash_inicial_actual, hash_visual))
+                            
+                            # Para la siguiente firma, el hash inicial será este hash_resultado
+                            if i > 0:  # Si no es la primera firma
+                                hash_inicial_actual = hash_resultados[i]
+                        else:
+                            # Si no hay hash visual, usar el mismo hash inicial
+                            hash_resultados[i] = hash_inicial_actual
+                    
+                    # Ahora procesamos las firmas de la más antigua a la más reciente
+                    # mostrando el resultado correcto en cada una
+                    for i in range(total_firmas):
+                        firma_data = firmas[i]
+                        
+                        add_text(f"FIRMA #{i+1}\n", "header")
+                        
+                        # Obtener información básica
+                        nombre = firma_data["certificado_autenticacion"].get("nombre", "Desconocido")
+                        fecha_firma = firma_data.get("fecha_firma", "Desconocida")
+                        
+                        add_text(f"Firmante: {nombre}\n", "subheader")
+                        add_text(f"Fecha: {fecha_firma}\n", "info")
+                        
+                        # Mostrar los tres hashes solicitados
+                        add_text("HASHES PARA VERIFICACIÓN:\n", "subheader")
+                        
+                        # 1. Hash inicial para esta firma (resultado de la firma posterior o hash actual)
+                        if i == total_firmas - 1:  # La firma más reciente
+                            hash_inicial = hash_documento_actual
+                            add_text(f"1. Hash del documento actual: \n{hash_inicial.hex()}\n", "info")
+                        else:
+                            # Para firmas anteriores a la última, usar el resultado de la firma posterior
+                            hash_inicial = hash_resultados[i+1]
+                            add_text(f"1. Hash del documento (del resultado de firma posterior): \n{hash_inicial.hex()}\n", "info")
+                        
+                        # 2. Hash del documento cuando se firmó (si existe)
+                        if "hash_visual_signature" in firma_data:
+                            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
+                            add_text(f"2. Hash almacenado en la firma: \n{hash_visual.hex()}\n", "info")
+                            
+                            # 3. Hash resultado: la resta conceptual calculada anteriormente
+                            hash_resultado = hash_resultados[i]
+                            add_text(f"3. Hash resultado (resta conceptual): \n{hash_resultado.hex()}\n\n", "success")
+                        else:
+                            add_text("2. No tiene hash almacenado\n", "error")
+                            add_text(f"3. No se puede calcular el hash resultado sin el hash almacenado\n\n", "warning")
+                        
+                        # Verificar la firma
+                        firma = bytes.fromhex(firma_data["firma"])
+                        cert_data = firma_data["certificado_autenticacion"]
+                        algoritmo = cert_data.get("algoritmo", "sphincs").lower()
+                        user_pk = bytes.fromhex(cert_data["user_public_key"])
+                        
+                        # Determinar hash a usar para verificación
+                        hash_para_verificar = hash_visual if "hash_visual_signature" in firma_data else hash_inicial
+                        
+                        # Verificar certificado
+                        cert_valido = self.verificar_certificado(cert_data)
+                        
+                        # Probar ambos hashes para comparación
+                        if cert_valido:
+                            add_text("RESULTADOS DE VERIFICACIÓN:\n", "subheader")
+                            if algoritmo == "sphincs":
+                                # Verificar con el hash almacenado (si existe)
+                                if "hash_visual_signature" in firma_data:
+                                    firma_valida_almacenado = self.sphincs.verify(hash_para_verificar, firma, user_pk)
+                                    # También verificar con el hash actual para comparación
+                                    firma_valida_actual = self.sphincs.verify(hash_inicial, firma, user_pk)
+                                    add_text(f"- Verificación con hash almacenado: {'VÁLIDA' if firma_valida_almacenado else 'NO VÁLIDA'}\n", 
+                                            "success" if firma_valida_almacenado else "error")
+                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida_actual else 'NO VÁLIDA'}\n", 
+                                            "success" if firma_valida_actual else "error")
+                                    firma_valida = firma_valida_almacenado
+                                else:
+                                    firma_valida = self.sphincs.verify(hash_inicial, firma, user_pk)
+                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida else 'NO VÁLIDA'}\n", 
+                                            "success" if firma_valida else "error")
+                            elif algoritmo == "dilithium":
+                                # Lo mismo para Dilithium
+                                if "hash_visual_signature" in firma_data:
+                                    firma_valida_almacenado = ML_DSA_65.verify(user_pk, hash_para_verificar, firma)
+                                    firma_valida_actual = ML_DSA_65.verify(user_pk, hash_inicial, firma)
+                                    add_text(f"- Verificación con hash almacenado: {'VÁLIDA' if firma_valida_almacenado else 'NO VÁLIDA'}\n", 
+                                            "success" if firma_valida_almacenado else "error")
+                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida_actual else 'NO VÁLIDA'}\n", 
+                                            "success" if firma_valida_actual else "error")
+                                    firma_valida = firma_valida_almacenado
+                                else:
+                                    firma_valida = ML_DSA_65.verify(user_pk, hash_inicial, firma)
+                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida else 'NO VÁLIDA'}\n", 
+                                            "success" if firma_valida else "error")
+                            else:
+                                firma_valida = False
+                        else:
+                            firma_valida = False
+                            add_text("Certificado inválido, no se realizó verificación\n", "error")
+                        
+                        # Mostrar resultado final
+                        resultado = "VÁLIDA" if firma_valida else "NO VÁLIDA"
+                        tag = "success" if firma_valida else "error"
+                        add_text(f"\nVERDICTO FINAL: {resultado}\n\n", tag)
+                        
+                        add_text("=" * 80 + "\n\n")
+                else:
+                    add_text("No se encontraron firmas en el documento.\n", "error")
+                    
+            except Exception as e:
+                add_text(f"Error al analizar metadatos: {str(e)}\n", "error")
+                import traceback
+                add_text(f"Detalle del error: {traceback.format_exc()}\n", "error")
+            
+            # Botón para cerrar
+            tk.Button(
+                debug_window, 
+                text="Cerrar", 
+                command=debug_window.destroy,
+                width=10
+            ).pack(pady=10)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al depurar firmas: {str(e)}")
+            self.log_message(f"Error al depurar firmas: {str(e)}")
+
+    def log_documento_firmado(self, titulo_doc, hash_doc, nombre_firmante):
+        """Registra información de cada documento firmado en un archivo de log."""
+        try:
+            # Obtener la ruta de la carpeta src (directorio actual del script)
+            log_folder = current_dir  # current_dir ya está definido al inicio del archivo
+            
+            # Crear la carpeta de logs si no existe (no debería ser necesario ya que src ya existe)
+            if not os.path.exists(log_folder):
+                os.makedirs(log_folder)
+            
+            log_file_path = os.path.join(log_folder, "documentos_firmados.log")
+            
+            # Fecha y hora actual
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Crear la entrada de log
+            log_entry = f"[{timestamp}] Documento: '{titulo_doc}' | Hash: {hash_doc.hex()} | Firmante: {nombre_firmante}\n"
+            
+            # Escribir en el archivo de log (modo append)
+            with open(log_file_path, "a", encoding="utf-8") as log_file:
+                log_file.write(log_entry)
+                
+            self.log_message(f"Registro añadido al log: {log_file_path}")
+            return True
+            
+        except Exception as e:
+            self.log_message(f"Error al registrar en el log: {e}")
+            return False
 
 if __name__ == "__main__":
     root = tk.Tk()

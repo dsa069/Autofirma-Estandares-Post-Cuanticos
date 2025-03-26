@@ -5,6 +5,7 @@ preguntas/
 
 src/dist
 src/build
+src/documentos_firmados.log
 
 dist/
 build/
