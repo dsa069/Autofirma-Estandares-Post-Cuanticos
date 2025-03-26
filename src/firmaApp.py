@@ -282,24 +282,45 @@ class AutoFirmaApp:
             return None, None, None, None, None, None
 
     def add_metadata_to_pdf(self, pdf_path, firma, cert_data):
-        """Añade la firma y el certificado de autenticación a los metadatos del PDF sin crear una copia."""
+        """Añade la firma y el certificado de autenticación a los metadatos del PDF preservando firmas anteriores."""
         try:
             doc = fitz.open(pdf_path)
             metadata = doc.metadata
             fecha_firma = datetime.now().isoformat()
-            metadata["keywords"] = json.dumps({
+            
+            # Nueva entrada de firma
+            nueva_firma = {
                 "firma": firma.hex(),
                 "certificado_autenticacion": cert_data,
                 "fecha_firma": fecha_firma
-            }, separators=(',', ':'))
-
+            }
+            
+            # Verificar si ya existen metadatos de firmas
+            existing_metadata = {}
+            if "keywords" in metadata and metadata["keywords"]:
+                try:
+                    existing_metadata = json.loads(metadata["keywords"])
+                except json.JSONDecodeError:
+                    existing_metadata = {}
+            
+            # Verificar si ya existe un array de firmas
+            if "firmas" in existing_metadata:
+                # Añadir la nueva firma al array existente
+                existing_metadata["firmas"].append(nueva_firma)
+            else:
+                # Crear un nuevo array con la primera firma
+                existing_metadata["firmas"] = [nueva_firma]
+            
+            # Actualizar los metadatos
+            metadata["keywords"] = json.dumps(existing_metadata, separators=(',', ':'))
+            
             doc.set_metadata(metadata)
-            doc.save(pdf_path, incremental=True, encryption=0)  # Guardar con incremental=True
+            doc.save(pdf_path, incremental=True, encryption=0)
             doc.close()
-
+            
             self.log_message(f"PDF firmado con metadatos guardado en: {pdf_path}")
             messagebox.showinfo("Éxito", f"PDF firmado guardado en: {pdf_path}\nFecha de firma: {fecha_firma}")
-
+            
         except Exception as e:
             messagebox.showerror("Error", f"Error al añadir metadatos al PDF: {e}")
             self.log_message(f"Error al añadir metadatos al PDF: {e}")
@@ -726,9 +747,9 @@ class AutoFirmaApp:
             self.log_message(f"Error al firmar documento: {e}")
 
     def verify_signature(self):
-        """Verifica una firma utilizando el hash del documento calculado en tiempo real."""
+        """Verifica todas las firmas en un documento PDF."""
         try:
-            # -------------------- SELECCIONAR DOCUMENTO FIRMADO --------------------
+            # Seleccionar documento firmado
             file_path = filedialog.askopenfilename(
                 title="Seleccionar archivo firmado",
                 filetypes=[("Archivos PDF", "*.pdf")],
@@ -736,57 +757,268 @@ class AutoFirmaApp:
             if not file_path:
                 return
 
-            # **EXTRAER METADATOS DEL PDF**
+            # Extraer metadatos del PDF
             doc = fitz.open(file_path)
             metadata = doc.metadata
             doc.close()
 
-            # **EXTRAER FIRMA Y CERTIFICADO**
+            # Extraer firmas
             try:
                 meta_data = json.loads(metadata.get("keywords", "{}"))
-                firma = bytes.fromhex(meta_data["firma"])
-                cert_data = meta_data["certificado_autenticacion"]
-            except Exception:
-                messagebox.showerror("Error", "No se encontraron metadatos de firma en el documento.")
+                
+                # Verificar si hay múltiples firmas o formato antiguo
+                firmas = meta_data["firmas"]
+                if not firmas:
+                    messagebox.showerror("Error", "No se encontraron firmas en el documento.")
+                    return
+                        
+                # Calcular el hash del documento actual (una sola vez para todas las verificaciones)
+                hash_documento_actual = self.calcular_hash_documento(file_path)
+                
+                # Verificar todas las firmas y mostrar resultados
+                self.mostrar_resultados_firmas(file_path, firmas, hash_documento_actual)
+                    
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al extraer firmas: {e}")
+                self.log_message(f"Error al extraer firmas: {e}")
                 return
-
-            # 🔹 **VALIDAR EL CERTIFICADO**
-            if not self.verificar_certificado(cert_data):
-                messagebox.showerror("Error", "El certificado en el documento firmado no es válido.")
-                return
-
-            # **OBTENER LA CLAVE PÚBLICA DEL USUARIO DESDE EL CERTIFICADO Y ALGORITMO**
-            user_pk = bytes.fromhex(cert_data["user_public_key"])
-            algoritmo = cert_data.get("algoritmo").lower()  # Default a Sphincs para compatibilidad
-
-            # **CALCULAR EL HASH DEL DOCUMENTO ACTUAL**
-            hash_documento_actual = self.calcular_hash_documento(file_path)
-
-            #self.log_message(f"Hash del documento: {hash_documento_actual.hex()}")
-            #self.log_message(f"Hash del documento_bytes: {hash_documento_actual}")
-
-            # **VERIFICAR LA FIRMA**
-            # **VERIFICAR LA FIRMA SEGÚN EL ALGORITMO**
-            if algoritmo == "sphincs":
-                # Verificar con SPHINCS+
-                is_valid = self.sphincs.verify(hash_documento_actual, firma, user_pk)
-            elif algoritmo == "dilithium":
-                # Verificar con Dilithium (orden diferente de parámetros)
-                is_valid = ML_DSA_65.verify(user_pk, hash_documento_actual, firma)
-            else:
-                messagebox.showerror("Error", f"Algoritmo desconocido: {algoritmo}")
-                self.log_message(f"Error: Algoritmo desconocido: {algoritmo}")
-                return
-            if is_valid:
-                messagebox.showinfo("Verificación", "La firma es válida.")
-                self.log_message("Verificación exitosa: La firma es válida.")
-            else:
-                messagebox.showwarning("Verificación", "La firma no es válida.")
-                self.log_message("La firma no es válida.")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al verificar firma: {e}")
-            self.log_message(f"Error al verificar firma: {e}")
+            messagebox.showerror("Error", f"Error al verificar firmas: {e}")
+            self.log_message(f"Error al verificar firmas: {e}")
+
+    def mostrar_resultados_firmas(self, file_path, firmas, hash_documento):
+        """Muestra los resultados de la verificación de múltiples firmas."""
+        # Crear ventana de resultados
+        results_window = tk.Toplevel(self.root)
+        results_window.title(f"Verificación de firmas: {os.path.basename(file_path)}")
+        results_window.geometry("700x500")
+        results_window.transient(self.root)
+        results_window.grab_set()
+        
+        # Título
+        tk.Label(
+            results_window, 
+            text="Verificación de Firmas Digitales", 
+            font=("Arial", 14, "bold")
+        ).pack(pady=10)
+        
+        # Información del documento
+        doc_frame = tk.Frame(results_window)
+        doc_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        tk.Label(
+            doc_frame, 
+            text=f"Documento: {os.path.basename(file_path)}", 
+            font=("Arial", 10), 
+            anchor="w"
+        ).pack(fill=tk.X)
+        
+        # Frame para la lista de firmas
+        list_frame = tk.Frame(results_window)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Título para la lista
+        tk.Label(
+            list_frame, 
+            text="Firmas encontradas:", 
+            font=("Arial", 11, "bold"),
+            anchor="w"
+        ).pack(fill=tk.X, pady=(0, 5))
+        
+        # Crear un frame con scroll para contener los resultados
+        canvas = tk.Canvas(list_frame)
+        scrollbar = tk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Verificar cada firma y mostrar resultados
+        valid_count = 0
+        invalid_count = 0
+        
+        for i, firma_data in enumerate(firmas):
+            try:
+                # Extraer datos
+                firma = bytes.fromhex(firma_data["firma"])
+                cert_data = firma_data["certificado_autenticacion"]
+                fecha_firma = firma_data.get("fecha_firma", "Desconocida")
+                if isinstance(fecha_firma, str) and fecha_firma.startswith('20'):
+                    try:
+                        # Intentar formatear la fecha si está en formato ISO
+                        fecha_obj = datetime.fromisoformat(fecha_firma)
+                        fecha_firma = fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
+                    except:
+                        pass
+                
+                # Obtener nombre del certificado
+                nombre = cert_data.get("nombre", "Desconocido")
+                
+                # Obtener algoritmo y clave pública
+                algoritmo = cert_data.get("algoritmo", "sphincs").lower()
+                user_pk = bytes.fromhex(cert_data["user_public_key"])
+                
+                # Verificar certificado
+                cert_valido = self.verificar_certificado(cert_data)
+                
+                # Verificar firma según algoritmo
+                if cert_valido:
+                    if algoritmo == "sphincs":
+                        firma_valida = self.sphincs.verify(hash_documento, firma, user_pk)
+                    elif algoritmo == "dilithium":
+                        firma_valida = ML_DSA_65.verify(user_pk, hash_documento, firma)
+                    else:
+                        firma_valida = False
+                        self.log_message(f"Algoritmo desconocido: {algoritmo}")
+                else:
+                    firma_valida = False
+                
+                # Actualizar contadores
+                if firma_valida:
+                    valid_count += 1
+                else:
+                    invalid_count += 1
+                
+                # Crear frame para esta firma
+                firma_frame = tk.Frame(scrollable_frame, relief=tk.RIDGE, bd=1)
+                firma_frame.pack(fill=tk.X, pady=5, padx=5)
+                
+                # Configurar colores según resultado
+                bg_color = "#e8f5e9" if firma_valida else "#ffebee"  # Verde claro o rojo claro
+                firma_frame.configure(bg=bg_color)
+                
+                # Información de la firma
+                header_frame = tk.Frame(firma_frame, bg=bg_color)
+                header_frame.pack(fill=tk.X, padx=5, pady=5)
+                
+                # Número de firma e icono de estado
+                status_icon = "✓" if firma_valida else "✗"
+                status_color = "#388e3c" if firma_valida else "#d32f2f"  # Verde oscuro o rojo oscuro
+                
+                tk.Label(
+                    header_frame, 
+                    text=f"{i+1}. ",
+                    font=("Arial", 11, "bold"),
+                    bg=bg_color
+                ).pack(side=tk.LEFT)
+                
+                tk.Label(
+                    header_frame, 
+                    text=status_icon,
+                    font=("Arial", 14, "bold"),
+                    fg=status_color,
+                    bg=bg_color
+                ).pack(side=tk.LEFT)
+                
+                tk.Label(
+                    header_frame, 
+                    text=f" {nombre}",
+                    font=("Arial", 11, "bold"),
+                    bg=bg_color
+                ).pack(side=tk.LEFT)
+                
+                # Detalles de la firma
+                details_frame = tk.Frame(firma_frame, bg=bg_color)
+                details_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+                
+                tk.Label(
+                    details_frame, 
+                    text=f"Fecha: {fecha_firma}",
+                    font=("Arial", 10),
+                    bg=bg_color
+                ).pack(anchor="w")
+                
+                tk.Label(
+                    details_frame, 
+                    text=f"Algoritmo: {algoritmo.upper()}",
+                    font=("Arial", 10),
+                    bg=bg_color
+                ).pack(anchor="w")
+                
+                tk.Label(
+                    details_frame, 
+                    text=f"Estado: {'Válida' if firma_valida else 'No válida'}",
+                    font=("Arial", 10, "bold"),
+                    fg=status_color,
+                    bg=bg_color
+                ).pack(anchor="w")
+                
+                if not cert_valido:
+                    tk.Label(
+                        details_frame, 
+                        text="El certificado no es válido o ha expirado",
+                        font=("Arial", 10, "italic"),
+                        fg="#d32f2f",
+                        bg=bg_color
+                    ).pack(anchor="w")
+                
+            except Exception as e:
+                # En caso de error con una firma específica
+                invalid_count += 1
+                
+                # Crear frame para esta firma con error
+                firma_frame = tk.Frame(scrollable_frame, relief=tk.RIDGE, bd=1, bg="#ffebee")
+                firma_frame.pack(fill=tk.X, pady=5, padx=5)
+                
+                tk.Label(
+                    firma_frame, 
+                    text=f"{i+1}. Error al verificar firma",
+                    font=("Arial", 11, "bold"),
+                    bg="#ffebee"
+                ).pack(anchor="w", padx=5, pady=5)
+                
+                tk.Label(
+                    firma_frame, 
+                    text=f"Error: {str(e)}",
+                    font=("Arial", 10),
+                    bg="#ffebee"
+                ).pack(anchor="w", padx=5, pady=(0, 5))
+        
+        # Resumen de verificación
+        summary_frame = tk.Frame(results_window)
+        summary_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        if invalid_count == 0 and valid_count > 0:
+            bg_summary = "#e8f5e9"  # Verde claro
+            fg_summary = "#388e3c"  # Verde oscuro
+            summary_text = f"✓ Todas las firmas son válidas ({valid_count})"
+        elif valid_count == 0:
+            bg_summary = "#ffebee"  # Rojo claro
+            fg_summary = "#d32f2f"  # Rojo oscuro
+            summary_text = f"✗ Ninguna firma es válida ({invalid_count})"
+        else:
+            bg_summary = "#fff3e0"  # Naranja claro
+            fg_summary = "#e65100"  # Naranja oscuro
+            summary_text = f"⚠ Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
+        
+        summary_label = tk.Label(
+            summary_frame, 
+            text=summary_text,
+            font=("Arial", 12, "bold"),
+            fg=fg_summary,
+            bg=bg_summary,
+            padx=10,
+            pady=5
+        )
+        summary_label.pack(fill=tk.X)
+        
+        # Botón para cerrar
+        tk.Button(
+            results_window, 
+            text="Cerrar", 
+            font=("Arial", 11),
+            command=results_window.destroy,
+            width=10
+        ).pack(pady=10)
 
 
 if __name__ == "__main__":
