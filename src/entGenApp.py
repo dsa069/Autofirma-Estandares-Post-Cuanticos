@@ -17,6 +17,7 @@ from tkinter import simpledialog
 from tkinter import messagebox
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 from dilithium_py.ml_dsa import ML_DSA_65  # Utilizamos Dilithium3 
+import traceback
 
 import sys
 import os
@@ -30,70 +31,257 @@ else:
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
 
+# Estructura global para almacenar claves múltiples
+ENTITY_KEYS = {
+    "sphincs": [],  # Lista de diccionarios con claves SPHINCS
+    "dilithium": []  # Lista de diccionarios con claves Dilithium
+}
 
 sphincs_instancia = Sphincs()
 
-"""def generar_claves_entidad():
-    #Genera nuevas claves de la entidad (SPHINCS y Dilithium) y las guarda en archivos separados.
-    # Generar claves SPHINCS
-    sphincs_sk, sphincs_pk = sphincs_instancia.generate_key_pair()
-    
-    # Generar claves Dilithium
-    dilithium_pk, dilithium_sk = ML_DSA_65.keygen()
-    
-    # Preparar datos para guardar
-    sk_data = {
-        "sphincs_sk": sphincs_sk.hex(),
-        "dilithium_sk": dilithium_sk.hex()
-    }
-    
-    pk_data = {
-        "sphincs_pk": sphincs_pk.hex(),
-        "dilithium_pk": dilithium_pk.hex()
-    }
-    
-    # Guardar en archivos
-    with open(SK_ENTIDAD_PATH, "w") as sk_file:
-        json.dump(sk_data, sk_file)
-
-    with open(PK_ENTIDAD_PATH, "w") as pk_file:
-        json.dump(pk_data, pk_file)
-
-    # Actualizar variables globales
-    global ENTIDAD_SK_SPHINCS, ENTIDAD_PK_SPHINCS, ENTIDAD_SK_DILITHIUM, ENTIDAD_PK_DILITHIUM
-    ENTIDAD_SK_SPHINCS, ENTIDAD_PK_SPHINCS = sphincs_sk, sphincs_pk
-    ENTIDAD_SK_DILITHIUM, ENTIDAD_PK_DILITHIUM = dilithium_sk, dilithium_pk
-
-    messagebox.showinfo("Éxito", "Nuevas claves de entidad (SPHINCS y Dilithium) generadas correctamente.")"""
-
-def leer_claves_entidad():
+def leer_todas_claves_entidad_debug():
     """
-    Lee las claves de la entidad generadora si existen.
-    Retorna (sphincs_sk, sphincs_pk, dilithium_sk, dilithium_pk) o (None, None, None, None) si alguna falta.
+    Versión de depuración para identificar el problema con Dilithium
     """
-    if not os.path.exists(SK_ENTIDAD_PATH) or not os.path.exists(PK_ENTIDAD_PATH):
-        return None, None, None, None  # Indica que faltan claves y hay que generarlas
-
+    import traceback
+    
+    # Verificación de archivos
+    print("\n---------- DEPURACIÓN DE CARGA DE CLAVES ----------")
+    print(f"Archivo SK existe: {os.path.exists(SK_ENTIDAD_PATH)}")
+    print(f"Archivo PK existe: {os.path.exists(PK_ENTIDAD_PATH)}")
+    
     try:
-        with open(SK_ENTIDAD_PATH, "r") as sk_file, open(PK_ENTIDAD_PATH, "r") as pk_file:
-            sk_data = json.load(sk_file)
-            pk_data = json.load(pk_file)
-            
-            sphincs_sk = bytes.fromhex(sk_data["sphincs_sk"])
-            sphincs_pk = bytes.fromhex(pk_data["sphincs_pk"])
-            
-            dilithium_sk = bytes.fromhex(sk_data["dilithium_sk"])
-            dilithium_pk = bytes.fromhex(pk_data["dilithium_pk"])
-            
-            return sphincs_sk, sphincs_pk, dilithium_sk, dilithium_pk
-    except (KeyError, json.JSONDecodeError) as e:
-        print(f"Error al leer claves: {e}")
-        return None, None, None, None
+        # Cargar archivos como texto primero para verificar JSON válido
+        with open(SK_ENTIDAD_PATH, "r") as file:
+            sk_text = file.read()
+            print(f"Archivo SK cargado: {len(sk_text)} bytes")
+        
+        with open(PK_ENTIDAD_PATH, "r") as file:
+            pk_text = file.read()
+            print(f"Archivo PK cargado: {len(pk_text)} bytes")
+        
+        # Intentar parsear JSON
+        try:
+            sk_data = json.loads(sk_text)
+            print(f"SK JSON parseado correctamente: {type(sk_data)}, {len(sk_data)} elementos")
+        except json.JSONDecodeError as e:
+            print(f"Error al parsear SK JSON: {e}")
+            return None
+        
+        try:
+            pk_data = json.loads(pk_text)
+            print(f"PK JSON parseado correctamente: {type(pk_data)}, {len(pk_data)} elementos")
+        except json.JSONDecodeError as e:
+            print(f"Error al parsear PK JSON: {e}")
+            return None
+        
+        # Análisis de claves por tipo
+        print("\n--- Análisis de claves en archivo ---")
+        sphincs_count = 0
+        dilithium_count = 0
+        unknown_count = 0
+        
+        for idx, entry in enumerate(sk_data):
+            algo = entry.get("algoritmo", "desconocido").lower()
+            if algo == "sphincs":
+                sphincs_count += 1
+            elif algo == "dilithium":
+                dilithium_count += 1
+                print(f"Dilithium #{idx+1}: {entry.get('titulo')} (ID: {entry.get('id')})")
+            else:
+                unknown_count += 1
+                
+        print(f"Total claves: {len(sk_data)} ({sphincs_count} SPHINCS, {dilithium_count} Dilithium, {unknown_count} desconocidas)")
+        
+        # Inicializar diccionario de claves procesadas
+        claves_procesadas = {
+            "sphincs": [],
+            "dilithium": []
+        }
+        
+        # Procesar cada clave individualmente con manejo de errores detallado
+        for idx, sk_entry in enumerate(sk_data):
+            try:
+                # Extraer información básica
+                algoritmo = sk_entry.get("algoritmo", "").lower()
+                titulo = sk_entry.get("titulo", "Sin título")
+                clave_id = sk_entry.get("id", "")
+                
+                if algoritmo not in ["sphincs", "dilithium"]:
+                    print(f"Saltando clave #{idx+1} con algoritmo desconocido: {algoritmo}")
+                    continue
+                
+                print(f"\nProcesando clave #{idx+1}: {titulo} ({algoritmo})")
+                
+                # Buscar clave pública correspondiente
+                pk_entry = None
+                for pk in pk_data:
+                    if pk.get("id") == clave_id:
+                        pk_entry = pk
+                        break
+                
+                if pk_entry is None:
+                    print(f"  ERROR: No se encontró clave pública para {titulo} (ID: {clave_id})")
+                    continue
+                
+                # Convertir claves a bytes con verificación detallada
+                try:
+                    sk_hex = sk_entry.get("clave", "")
+                    if not sk_hex:
+                        print(f"  ERROR: Clave privada vacía para {titulo}")
+                        continue
+                    
+                    print(f"  SK hex: {sk_hex[:50]}... ({len(sk_hex)} caracteres)")
+                    
+                    # Validar que solo contiene caracteres hexadecimales válidos
+                    if not all(c in "0123456789abcdefABCDEF" for c in sk_hex):
+                        print(f"  ERROR: Clave privada contiene caracteres no hexadecimales")
+                        invalid_chars = [c for c in sk_hex if c not in "0123456789abcdefABCDEF"]
+                        print(f"  Caracteres inválidos: {invalid_chars[:20]}...")
+                        continue
+                    
+                    sk_bytes = bytes.fromhex(sk_hex)
+                    print(f"  SK bytes: {sk_bytes[:10].hex()}... ({len(sk_bytes)} bytes)")
+                    
+                    # Similar para clave pública
+                    pk_hex = pk_entry.get("clave", "")
+                    if not pk_hex:
+                        print(f"  ERROR: Clave pública vacía para {titulo}")
+                        continue
+                    
+                    print(f"  PK hex: {pk_hex[:50]}... ({len(pk_hex)} caracteres)")
+                    pk_bytes = bytes.fromhex(pk_hex)
+                    print(f"  PK bytes: {pk_bytes[:10].hex()}... ({len(pk_bytes)} bytes)")
+                    
+                except ValueError as e:
+                    print(f"  ERROR al convertir clave a bytes: {e}")
+                    continue
+                    
+                # Verificar fechas
+                try:
+                    fecha_exp = sk_entry.get("fecha_expedicion", "")
+                    fecha_cad = sk_entry.get("fecha_caducidad", "")
+                    fecha_actual = datetime.date.today().isoformat()
+                    vigente = fecha_cad >= fecha_actual
+                    
+                    print(f"  Fechas: {fecha_exp} - {fecha_cad} (Vigente: {vigente})")
+                except Exception as e:
+                    print(f"  ERROR procesando fechas: {e}")
+                    vigente = False
+                
+                # Añadir a diccionario de claves procesadas
+                claves_procesadas[algoritmo].append({
+                    "id": clave_id,
+                    "titulo": titulo,
+                    "algoritmo": algoritmo,
+                    "fecha_expedicion": fecha_exp,
+                    "fecha_caducidad": fecha_cad,
+                    "vigente": vigente,
+                    "sk": sk_bytes,
+                    "pk": pk_bytes
+                })
+                
+                print(f"  ✓ Clave {algoritmo} añadida correctamente")
+                
+            except Exception as e:
+                print(f"  ERROR general procesando clave #{idx+1}: {e}")
+                traceback.print_exc()
+        
+        # Resumen final
+        print("\n--- RESUMEN DE CLAVES PROCESADAS ---")
+        print(f"SPHINCS: {len(claves_procesadas['sphincs'])} claves procesadas")
+        print(f"Dilithium: {len(claves_procesadas['dilithium'])} claves procesadas")
+        
+        return claves_procesadas
+        
+    except Exception as e:
+        print(f"ERROR CRÍTICO: {e}")
+        traceback.print_exc()
+        return None
 
-# Intentar leer claves existentes
-ENTIDAD_SK_SPHINCS, ENTIDAD_PK_SPHINCS, ENTIDAD_SK_DILITHIUM, ENTIDAD_PK_DILITHIUM = leer_claves_entidad()
-# Para mantener compatibilidad con el código existente
-ENTIDAD_SK, ENTIDAD_PK = ENTIDAD_SK_SPHINCS, ENTIDAD_PK_SPHINCS
+def leer_todas_claves_entidad():
+    """
+    Lee todas las claves disponibles de los archivos JSON.
+    Retorna un diccionario con claves agrupadas por algoritmo.
+    """
+    claves = {
+        "sphincs": [],
+        "dilithium": []
+    }
+    
+    if not os.path.exists(SK_ENTIDAD_PATH) or not os.path.exists(PK_ENTIDAD_PATH):
+        return claves
+        
+    try:
+        # Leer archivos
+        with open(SK_ENTIDAD_PATH, "r") as sk_file:
+            sk_data = json.load(sk_file)
+            
+        with open(PK_ENTIDAD_PATH, "r") as pk_file:
+            pk_data = json.load(pk_file)
+        
+        # Procesar claves privadas y buscar sus correspondientes públicas
+        for sk_entry in sk_data:
+            algoritmo = sk_entry.get("algoritmo", "").lower()
+            if algoritmo not in ["sphincs", "dilithium"]:
+                print(f"Algoritmo no reconocido: {algoritmo}")
+                continue
+            
+            # Buscar la clave pública correspondiente
+            pk_entry = None
+            for pk in pk_data:
+                if pk.get("id") == sk_entry.get("id"):
+                    pk_entry = pk
+                    break
+            
+            if pk_entry is None:
+                print(f"No se encontró clave pública para {sk_entry.get('titulo')}")
+                continue
+            
+            # Verificar validez de fechas
+            try:
+                fecha_caducidad = sk_entry.get("fecha_caducidad", "")
+                fecha_actual = datetime.date.today().isoformat()
+                vigente = fecha_caducidad >= fecha_actual
+            except Exception as e:
+                print(f"Error al procesar fecha: {e}")
+                vigente = False
+            
+            # Extraer claves en bytes
+            try:
+                sk_bytes = bytes.fromhex(sk_entry.get("clave", ""))
+                pk_bytes = bytes.fromhex(pk_entry.get("clave", ""))
+                
+                # Debug info
+                print(f"Cargando clave {algoritmo}: {sk_entry.get('titulo')}")
+                print(f"  SK length: {len(sk_bytes)} bytes")
+                print(f"  PK length: {len(pk_bytes)} bytes")
+            except Exception as e:
+                print(f"Error al convertir clave a bytes: {e}")
+                continue
+            
+            # Añadir información completa
+            claves[algoritmo].append({
+                "id": sk_entry.get("id", ""),
+                "titulo": sk_entry.get("titulo", "Sin título"),
+                "algoritmo": algoritmo,
+                "fecha_expedicion": sk_entry.get("fecha_expedicion", ""),
+                "fecha_caducidad": sk_entry.get("fecha_caducidad", ""),
+                "vigente": vigente,
+                "sk": sk_bytes,
+                "pk": pk_bytes
+            })
+            
+        # Resumen de claves cargadas
+        print(f"Total claves SPHINCS cargadas: {len(claves['sphincs'])}")
+        print(f"Total claves Dilithium cargadas: {len(claves['dilithium'])}")
+        
+        return claves
+    
+    except Exception as e:
+        print(f"Error al leer claves de entidad: {e}")
+        traceback.print_exc()  # Añade esta línea para mostrar el stack trace completo
+        return claves
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -112,23 +300,16 @@ class CertificadoDigitalApp:
         self.title_label.pack(pady=10)
 
         # Botón para generar claves de la entidad (ahora está arriba)
-        """ self.generate_keys_button = tk.Button(
-                root,
-                text="Generar Claves de Entidad",
-                font=("Arial", 12),
-                command=generar_claves_entidad,  # Llama directamente al único método
-                bg="#D9534F",
-                fg="white",
-                width=25,
-            )
-            self.generate_keys_button.pack(pady=10)"""
-
-        # Verificar si existen las claves, si no, mostrar advertencia
-        global ENTIDAD_SK, ENTIDAD_PK
-        if ENTIDAD_SK is None or ENTIDAD_PK is None:
-            messagebox.showwarning(
-                "Faltan claves", "No se encontraron claves de la entidad. Debes generarlas."
-            )
+        self.generate_keys_button = tk.Button(
+            root,
+            text="Generar Claves de Entidad",
+            font=("Arial", 12),
+            command=self.generar_claves_entidad,  # Ahora llama al método de clase
+            bg="#D9534F",
+            fg="white",
+            width=25,
+        )
+        self.generate_keys_button.pack(pady=10)
 
         # Campos para nombre y DNI (ahora están debajo del botón)
         self.name_label = tk.Label(root, text="Nombre:", font=("Arial", 12))
@@ -163,6 +344,189 @@ class CertificadoDigitalApp:
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.config(state=tk.DISABLED)
         self.log_text.see(tk.END)
+
+    def generar_claves_entidad(self):
+        """Genera nuevas claves de entidad con parámetros personalizados."""
+        try:
+            # Crear ventana para recoger datos de la nueva clave
+            key_window = tk.Toplevel(self.root)
+            key_window.title("Generar Nuevas Claves de Entidad")
+            key_window.geometry("450x350")  # Aumentado para acomodar más campos
+            key_window.transient(self.root)
+            key_window.grab_set()
+
+            # Variables
+            titulo_var = tk.StringVar()
+            algoritmo_var = tk.StringVar(value="sphincs")
+            
+            # Variables para las fechas
+            fecha_ini_var = tk.StringVar()
+            fecha_cad_var = tk.StringVar()
+            
+            # Establecer fecha por defecto como hoy en formato DD/MM/AAAA
+            hoy = datetime.date.today()
+            fecha_ini_var.set(hoy.strftime("%d/%m/%Y"))
+            
+            # Fecha de caducidad por defecto a 2 años
+            fecha_cad = hoy + datetime.timedelta(days=2*365)
+            fecha_cad_var.set(fecha_cad.strftime("%d/%m/%Y"))
+
+            # Crear formulario
+            tk.Label(key_window, text="Datos de la Nueva Clave de Entidad", 
+                    font=("Arial", 14, "bold")).pack(pady=10)
+
+            # Título/Entidad
+            frame_titulo = tk.Frame(key_window)
+            frame_titulo.pack(fill=tk.X, padx=20, pady=5)
+            tk.Label(frame_titulo, text="Nombre de Entidad:", width=15, anchor="w").pack(side=tk.LEFT)
+            tk.Entry(frame_titulo, textvariable=titulo_var, width=30).pack(side=tk.LEFT, padx=5)
+
+            # Algoritmo
+            frame_algoritmo = tk.Frame(key_window)
+            frame_algoritmo.pack(fill=tk.X, padx=20, pady=5)
+            tk.Label(frame_algoritmo, text="Algoritmo:", width=15, anchor="w").pack(side=tk.LEFT)
+            tk.Radiobutton(frame_algoritmo, text="SPHINCS", variable=algoritmo_var, 
+                        value="sphincs").pack(side=tk.LEFT)
+            tk.Radiobutton(frame_algoritmo, text="Dilithium", variable=algoritmo_var, 
+                        value="dilithium").pack(side=tk.LEFT)
+
+            # Fecha de inicio de validez
+            frame_fecha_ini = tk.Frame(key_window)
+            frame_fecha_ini.pack(fill=tk.X, padx=20, pady=5)
+            tk.Label(frame_fecha_ini, text="Fecha de inicio:", width=15, anchor="w").pack(side=tk.LEFT)
+            tk.Entry(frame_fecha_ini, textvariable=fecha_ini_var, width=15).pack(side=tk.LEFT, padx=5)
+            tk.Label(frame_fecha_ini, text="(DD/MM/AAAA)").pack(side=tk.LEFT)
+            
+            # Fecha de caducidad
+            frame_fecha_cad = tk.Frame(key_window)
+            frame_fecha_cad.pack(fill=tk.X, padx=20, pady=5)
+            tk.Label(frame_fecha_cad, text="Fecha caducidad:", width=15, anchor="w").pack(side=tk.LEFT)
+            tk.Entry(frame_fecha_cad, textvariable=fecha_cad_var, width=15).pack(side=tk.LEFT, padx=5)
+            tk.Label(frame_fecha_cad, text="(DD/MM/AAAA)").pack(side=tk.LEFT)
+
+            def validate_date(date_str):
+                """Valida una fecha en formato DD/MM/AAAA y la convierte a formato ISO."""
+                try:
+                    day, month, year = map(int, date_str.split('/'))
+                    date_obj = datetime.date(year, month, day)
+                    return date_obj.isoformat()
+                except (ValueError, TypeError):
+                    return None
+
+            def generate_and_save():
+                titulo = titulo_var.get().strip()
+                algoritmo = algoritmo_var.get()
+                fecha_ini_str = fecha_ini_var.get().strip()
+                fecha_cad_str = fecha_cad_var.get().strip()
+
+                if not titulo:
+                    messagebox.showerror("Error", "Debe especificar un nombre para la entidad")
+                    return
+
+                # Validar fechas
+                fecha_expedicion = validate_date(fecha_ini_str)
+                if not fecha_expedicion:
+                    messagebox.showerror("Error", "Fecha de inicio inválida. Use formato DD/MM/AAAA")
+                    return
+                    
+                fecha_caducidad = validate_date(fecha_cad_str)
+                if not fecha_caducidad:
+                    messagebox.showerror("Error", "Fecha de caducidad inválida. Use formato DD/MM/AAAA")
+                    return
+                    
+                # Verificar que la fecha de caducidad sea posterior a la de expedición
+                if fecha_caducidad <= fecha_expedicion:
+                    messagebox.showerror("Error", "La fecha de caducidad debe ser posterior a la fecha de inicio")
+                    return
+
+                try:
+                    # Generar ID único para esta clave
+                    import uuid
+                    key_id = str(uuid.uuid4())
+                    
+                    # Generar las claves según el algoritmo seleccionado
+                    if algoritmo == "sphincs":
+                        sk, pk = self.sphincs.generate_key_pair()
+                    else:  # dilithium
+                        pk, sk = ML_DSA_65.keygen()
+                    
+                    # Crear estructura para guardar las claves
+                    nueva_sk = {
+                        "id": key_id,
+                        "titulo": titulo,
+                        "algoritmo": algoritmo,
+                        "fecha_expedicion": fecha_expedicion,
+                        "fecha_caducidad": fecha_caducidad,
+                        "clave": sk.hex()
+                    }
+                    
+                    nueva_pk = {
+                        "id": key_id,
+                        "titulo": titulo,
+                        "algoritmo": algoritmo,
+                        "fecha_expedicion": fecha_expedicion,
+                        "fecha_caducidad": fecha_caducidad,
+                        "clave": pk.hex()
+                    }
+
+                    # Leer claves existentes o crear estructura inicial
+                    claves_sk = []
+                    claves_pk = []
+                    
+                    if os.path.exists(SK_ENTIDAD_PATH):
+                        with open(SK_ENTIDAD_PATH, "r") as file:
+                            try:
+                                claves_sk = json.load(file)
+                            except json.JSONDecodeError:
+                                claves_sk = []
+                    
+                    if os.path.exists(PK_ENTIDAD_PATH):
+                        with open(PK_ENTIDAD_PATH, "r") as file:
+                            try:
+                                claves_pk = json.load(file)
+                            except json.JSONDecodeError:
+                                claves_pk = []
+                    
+                    # Añadir nuevas claves
+                    claves_sk.append(nueva_sk)
+                    claves_pk.append(nueva_pk)
+                    
+                    # Guardar en archivos
+                    with open(SK_ENTIDAD_PATH, "w") as file:
+                        json.dump(claves_sk, file, indent=4)
+                    
+                    with open(PK_ENTIDAD_PATH, "w") as file:
+                        json.dump(claves_pk, file, indent=4)
+                    
+                    # Convertir fechas ISO a formato legible para el mensaje
+                    fecha_exp_obj = datetime.date.fromisoformat(fecha_expedicion)
+                    fecha_cad_obj = datetime.date.fromisoformat(fecha_caducidad)
+                    
+                    self.log_message(f"Nuevas claves generadas: {titulo} ({algoritmo.upper()})")
+                    messagebox.showinfo("Éxito", 
+                                    f"Nuevas claves de entidad generadas correctamente:\n"
+                                    f"Entidad: {titulo}\n"
+                                    f"Algoritmo: {algoritmo.upper()}\n"
+                                    f"Válida desde: {fecha_exp_obj.strftime('%d/%m/%Y')}\n"
+                                    f"Válida hasta: {fecha_cad_obj.strftime('%d/%m/%Y')}")
+                    
+                    key_window.destroy()
+                    
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error al generar claves: {str(e)}")
+                    self.log_message(f"Error al generar claves: {str(e)}")
+
+            # Botones
+            frame_botones = tk.Frame(key_window)
+            frame_botones.pack(pady=20)
+            tk.Button(frame_botones, text="Generar y Guardar", command=generate_and_save,
+                    bg="#4CAF50", fg="white", width=20).pack(side=tk.LEFT, padx=5)
+            tk.Button(frame_botones, text="Cancelar", command=key_window.destroy,
+                    bg="#f44336", fg="white", width=10).pack(side=tk.LEFT, padx=5)
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al abrir ventana de generación de claves: {str(e)}")
+            self.log_message(f"Error al abrir ventana de generación de claves: {str(e)}")
 
     def calcular_hash(self, data):
         """Calcula el hash SHA-256 de los datos serializados asegurando el mismo orden."""
@@ -243,51 +607,173 @@ class CertificadoDigitalApp:
             if not nombre or not dni:
                 raise ValueError("El nombre y el DNI son obligatorios.")
             
-            # Preguntar qué algoritmo usar
-            algorithm_window = tk.Toplevel(self.root)
-            algorithm_window.title("Selección de Algoritmo")
-            algorithm_window.geometry("400x150")
-            algorithm_window.resizable(False, False)
-            algorithm_window.transient(self.root)  # Hacer la ventana modal
-            algorithm_window.grab_set()  # Bloquear la ventana principal
+            # Leer todas las claves disponibles
+            claves_disponibles = leer_todas_claves_entidad_debug()
             
-            algorithm_choice = tk.StringVar(value="sphincs")  # Valor por defecto
+            # Verificar si hay claves disponibles
+            total_claves = len(claves_disponibles["sphincs"]) + len(claves_disponibles["dilithium"])
+            if total_claves == 0:
+                messagebox.showerror("Error", "No hay claves de entidad disponibles. Debe generar al menos una.")
+                return
             
-            tk.Label(algorithm_window, text="Seleccione el algoritmo para firmar el certificado:", 
-                     font=("Arial", 12)).pack(pady=10)
+            # Crear ventana para selección de clave
+            key_window = tk.Toplevel(self.root)
+            key_window.title("Selección de Clave de Entidad")
+            key_window.geometry("500x400")
+            key_window.transient(self.root)
+            key_window.grab_set()
             
-            tk.Radiobutton(algorithm_window, text="SPHINCS (hash-based)", variable=algorithm_choice, 
-                          value="sphincs", font=("Arial", 11)).pack(anchor=tk.W, padx=20)
-            tk.Radiobutton(algorithm_window, text="Dilithium (lattice-based)", variable=algorithm_choice, 
-                          value="dilithium", font=("Arial", 11)).pack(anchor=tk.W, padx=20)
+            # Variables para la selección
+            selected_key_id = tk.StringVar()
+            selected_key = [None]  # Usamos lista para modificarla en función interna
             
-            # Variable para almacenar si se confirmó la selección
+            # Título
+            tk.Label(key_window, text="Seleccione la clave para firmar el certificado", 
+                    font=("Arial", 12, "bold")).pack(pady=10)
+            
+            # Frame con scroll para las claves
+            frame = tk.Frame(key_window)
+            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # Scrollbar y canvas
+            scrollbar = tk.Scrollbar(frame)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            canvas = tk.Canvas(frame, yscrollcommand=scrollbar.set)
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            scrollbar.config(command=canvas.yview)
+            
+            # Frame interior para contenido
+            interior = tk.Frame(canvas)
+            canvas.create_window((0, 0), window=interior, anchor=tk.NW)
+            interior.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            
+            # Agregar claves por algoritmo
+            found_keys = False
+            
+            # Depuración: imprimir claves disponibles
+            print(f"\n--- ANÁLISIS DE CLAVES RECUPERADAS PARA UI ---")
+            print(f"Claves SPHINCS: {len(claves_disponibles['sphincs'])}")
+            print(f"Claves Dilithium: {len(claves_disponibles['dilithium'])}")
+            
+            for algoritmo in ["sphincs", "dilithium"]:
+                print(f"\nProcesando bloque de claves {algoritmo.upper()}")
+                if not claves_disponibles[algoritmo]:
+                    print(f"  No hay claves disponibles para {algoritmo}")
+                    continue
+                    
+                # Título del algoritmo
+                tk.Label(interior, text=f"Claves {algoritmo.upper()}", 
+                        font=("Arial", 11, "bold")).pack(anchor=tk.W, pady=(10, 5))
+                
+                for idx, key in enumerate(claves_disponibles[algoritmo]):
+                    print(f"  Agregando clave {idx+1}: {key['titulo']} (ID: {key['id']})")
+                    found_keys = True
+                    
+                    # Frame para esta clave
+                    key_frame = tk.Frame(interior, relief=tk.RIDGE, bd=1)
+                    key_frame.pack(fill=tk.X, pady=5, padx=5)
+                    
+                    # Color según vigencia
+                    bg_color = "#e8f5e9" if key["vigente"] else "#ffebee"
+                    key_frame.configure(bg=bg_color)
+                    
+                    # Radiobutton para selección
+                    rb = tk.Radiobutton(key_frame, variable=selected_key_id, 
+                                    value=f"{algoritmo}:{key['id']}", bg=bg_color)
+                    rb.pack(side=tk.LEFT, padx=5)
+                    
+                    # Panel de información
+                    info_frame = tk.Frame(key_frame, bg=bg_color)
+                    info_frame.pack(fill=tk.X, expand=True, padx=5)
+                    
+                    # Título y estado
+                    estado = "Vigente" if key["vigente"] else "Caducada"
+                    titulo_label = tk.Label(info_frame, 
+                                        text=f"{key['titulo']} - {estado}", 
+                                        font=("Arial", 10, "bold"),
+                                        fg="#388e3c" if key["vigente"] else "#d32f2f",
+                                        bg=bg_color)
+                    titulo_label.pack(anchor=tk.W)
+                    
+                    # Fechas formateadas
+                    try:
+                        fecha_exp = datetime.date.fromisoformat(key["fecha_expedicion"]).strftime("%d/%m/%Y")
+                        fecha_cad = datetime.date.fromisoformat(key["fecha_caducidad"]).strftime("%d/%m/%Y")
+                        fechas_text = f"Válida: {fecha_exp} - {fecha_cad}"
+                    except:
+                        fechas_text = "Fechas no disponibles"
+                    
+                    fechas_label = tk.Label(info_frame, text=fechas_text, bg=bg_color)
+                    fechas_label.pack(anchor=tk.W)
+            
+            # IMPORTANTE: Todo lo siguiente debe estar FUERA del bucle for
+            if not found_keys:
+                tk.Label(interior, text="No hay claves disponibles.", 
+                        font=("Arial", 10, "italic"), fg="#d32f2f").pack(pady=20)
+            else:
+                # Seleccionar primera clave por defecto
+                first_algo = "sphincs" if claves_disponibles["sphincs"] else "dilithium"
+                if claves_disponibles[first_algo]:
+                    first_key = claves_disponibles[first_algo][0]
+                    selected_key_id.set(f"{first_algo}:{first_key['id']}")
+
+            # Variable para confirmar selección
             selection_confirmed = [False]
             
             def confirm_selection():
+                key_id = selected_key_id.get()
+                if not key_id:
+                    messagebox.showerror("Error", "Debe seleccionar una clave de entidad")
+                    return
+                
+                # Extraer algoritmo e ID
+                algoritmo, id_clave = key_id.split(":")
+                
+                # Buscar clave seleccionada
+                for key in claves_disponibles[algoritmo]:
+                    if key["id"] == id_clave:
+                        selected_key[0] = key
+                        break
+                
+                if not selected_key[0]:
+                    messagebox.showerror("Error", "Clave no encontrada")
+                    return
+                
+                # Advertir si está caducada
+                if not selected_key[0]["vigente"]:
+                    if not messagebox.askyesno("Advertencia", 
+                                            "La clave seleccionada está caducada. ¿Desea continuar?"):
+                        return
+                
                 selection_confirmed[0] = True
-                algorithm_window.destroy()
+                key_window.destroy()
             
-            tk.Button(algorithm_window, text="Confirmar", command=confirm_selection, 
-                     bg="#0078D4", fg="white", font=("Arial", 11)).pack(pady=10)
+            # IMPORTANTE: Los botones deben estar FUERA de confirm_selection
+            button_frame = tk.Frame(key_window)
+            button_frame.pack(pady=10)
+            
+            tk.Button(button_frame, text="Usar clave seleccionada", command=confirm_selection,
+                    bg="#0078D4", fg="white", width=20).pack(side=tk.LEFT, padx=5)
+            
+            tk.Button(button_frame, text="Cancelar", command=key_window.destroy,
+                    width=10).pack(side=tk.LEFT, padx=5)
             
             # Esperar a que se cierre la ventana
-            self.root.wait_window(algorithm_window)
+            self.root.wait_window(key_window)
             
-            # Si el usuario cerró la ventana sin confirmar, cancelar la operación
-            if not selection_confirmed[0]:
+            # Verificar si se confirmó la selección
+            if not selection_confirmed[0] or not selected_key[0]:
                 return
             
-            # Determinar qué algoritmo y claves usar
-            algorithm = algorithm_choice.get()
-            if algorithm == "sphincs":
-                algoritmo = "Sphincs"
-                entity_sk = ENTIDAD_SK_SPHINCS
-                entity_pk = ENTIDAD_PK_SPHINCS
-            else:  # dilithium
-                algoritmo = "Dilithium"
-                entity_sk = ENTIDAD_SK_DILITHIUM
-                entity_pk = ENTIDAD_PK_DILITHIUM
+            # Usar la clave seleccionada
+            clave_seleccionada = selected_key[0]
+            algoritmo = clave_seleccionada["algoritmo"].capitalize()
+            entity_sk = clave_seleccionada["sk"]
+            entity_pk = clave_seleccionada["pk"]
+            
+            self.log_message(f"Usando clave de entidad: {clave_seleccionada['titulo']} ({algoritmo})")
             
             # Solicitar contraseña de cifrado al usuario con validación
             password = None

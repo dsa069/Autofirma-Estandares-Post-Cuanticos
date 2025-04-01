@@ -142,26 +142,40 @@ class AutoFirmaApp:
             else:
                 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Carpeta actual del script
             pk_entidad_path = os.path.join(BASE_DIR, "pk_entidad.json")
-            
+
             if not os.path.exists(pk_entidad_path):
-                raise ValueError("No se encontró la clave pública de la entidad.")
+                raise ValueError("No se encontró el archivo de claves públicas de la entidad.")
 
-            # Leer el archivo de claves públicas según el algoritmo del certificado
+            # Leer el archivo de claves públicas de la entidad (ahora contiene una lista de objetos)
             with open(pk_entidad_path, "r") as pk_file:
-                pk_data = json.load(pk_file)
-
-                if algoritmo.lower() == "sphincs":
-                    # Para certificados SPHINCS+
-                    ent_pk_real = bytes.fromhex(pk_data["sphincs_pk"])
-                elif algoritmo.lower() == "dilithium":
-                    # Para certificados Dilithium
-                    ent_pk_real = bytes.fromhex(pk_data["dilithium_pk"])
-                else:
-                    raise ValueError(f"Algoritmo no reconocido: {algoritmo}")
+                pk_data_list = json.load(pk_file)
                 
-            if ent_pk_cert != ent_pk_real:
-                raise ValueError("La clave pública de la entidad en el certificado no coincide con la clave pública oficial.")
-
+                # Verificar que el archivo contiene datos
+                if not pk_data_list or not isinstance(pk_data_list, list):
+                    raise ValueError("El archivo de claves públicas está vacío o no tiene el formato esperado.")
+                
+                # Filtrar las claves que coinciden con el algoritmo del certificado
+                algoritmo_lower = algoritmo.lower()
+                claves_algoritmo = [pk for pk in pk_data_list if pk.get("algoritmo", "").lower() == algoritmo_lower]
+                
+                if not claves_algoritmo:
+                    raise ValueError(f"No se encontraron claves públicas para el algoritmo {algoritmo}.")
+                
+                # Comprobar si la clave del certificado coincide con alguna de las claves almacenadas
+                clave_encontrada = False
+                for pk_entry in claves_algoritmo:
+                    try:
+                        ent_pk_candidata = bytes.fromhex(pk_entry.get("clave", ""))
+                        if ent_pk_cert == ent_pk_candidata:
+                            clave_encontrada = True
+                            self.log_message(f"Clave pública de entidad verificada: {pk_entry.get('titulo', 'Sin título')}")
+                            break
+                    except Exception as e:
+                        self.log_message(f"Error al procesar clave candidata: {e}")
+                
+                if not clave_encontrada:
+                    raise ValueError("La clave pública de la entidad en el certificado no coincide con ninguna clave oficial.")
+                
             # -------------------- VALIDACIÓN FIRMA --------------------
             recalculated_hash_firma = self.calcular_hash_firma(cert_copy)
             
@@ -177,11 +191,11 @@ class AutoFirmaApp:
             # Verificar firma según el algoritmo usado
             if algoritmo.lower() == "sphincs":
                 # Utilizar SPHINCS+ para verificar
-                firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk_real)
+                firma_valida = self.sphincs.verify(recalculated_hash_firma, firma_bytes, ent_pk_cert)
             elif algoritmo.lower() == "dilithium":
                 # Utilizar Dilithium para verificar
                 # Nota: ML_DSA_65 usa un orden diferente de parámetros: verify(pk, msg, sig)
-                firma_valida = ML_DSA_65.verify(ent_pk_real, recalculated_hash_firma, firma_bytes)
+                firma_valida = ML_DSA_65.verify(ent_pk_cert, recalculated_hash_firma, firma_bytes)
             else:
                 raise ValueError(f"Algoritmo no soportado para verificación: {algoritmo}")
 
