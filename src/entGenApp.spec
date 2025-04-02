@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+#python -m PyInstaller --clean entGenApp.spec
 import os
 
 block_cipher = None
@@ -6,7 +7,9 @@ block_cipher = None
 # Preparar lista de datos de forma correcta
 datas = [('../package', 'package'), 
         ('sk_entidad.json', '.'),  # Copiar sk_entidad.json en el mismo directorio del EXE
-        ('pk_entidad.json', '.')   # Copiar pk_entidad.json en el mismo directorio del EXE
+        ('pk_entidad.json', '.'),   # Copiar pk_entidad.json en el mismo directorio del EXE
+        ('img/AlterDiego.ico', '.'),
+        ('img/AlterDiego.png', '.')
 ]  # Esto siempre se incluye
 
 a = Analysis(
@@ -47,4 +50,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='img/AlterDiego.ico',
 )

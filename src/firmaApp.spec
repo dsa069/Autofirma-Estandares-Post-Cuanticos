@@ -5,7 +5,9 @@ block_cipher = None
 
 # Preparar lista de datos de forma correcta
 datas = [('../package', 'package'), 
-        ('pk_entidad.json', '.')   # Copiar pk_entidad.json en el mismo directorio del EXE
+        ('pk_entidad.json', '.'),   # Copiar pk_entidad.json en el mismo directorio del EXE
+        ('img/Diego.ico', '.'),
+        ('img/Diego.png', '.')
 ]  # Esto siempre se incluye
 
 a = Analysis(
@@ -46,4 +48,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='img/Diego.ico',
 )

@@ -1,3 +1,4 @@
+import ctypes
 import sys
 import os
 
@@ -11,11 +12,16 @@ import hashlib
 import tkinter as tk
 from Crypto.Cipher import AES
 import base64
-from tkinter import messagebox, filedialog, simpledialog
+from tkinter import PhotoImage, messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 from dilithium_py.ml_dsa import ML_DSA_65  # Usamos ML_DSA_65 (Dilithium3)
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = sys._MEIPASS  # Carpeta temporal de PyInstaller
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class AutoFirmaApp:
@@ -24,6 +30,36 @@ class AutoFirmaApp:
         self.root.title("AutoFirma - Sphincs")
         self.root.geometry("600x400")
         self.root.resizable(False, False)
+        # 🔹 Rutas del icono
+        if getattr(sys, 'frozen', False):
+            # Ejecutando como archivo compilado
+            ruta_icono = os.path.join(BASE_DIR, "Diego.ico")
+            ruta_icono_png = os.path.join(BASE_DIR, "Diego.png")
+        else:
+            # Ejecutando como script Python
+            ruta_icono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.ico")
+            ruta_icono_png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.png")
+        # 🔹 Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
+        myappid = 'miapp.certificadosdigitales'  # Nombre único
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+        # 🔹 (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
+        self.ventana_oculta = tk.Toplevel()
+        self.ventana_oculta.withdraw()  # Oculta la ventana
+
+        # 🔹 Intentar establecer el icono .ico
+        if os.path.exists(ruta_icono):
+            self.root.iconbitmap(ruta_icono)  # Icono en la cabecera
+            self.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
+        else:
+            messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
+
+        # 🔹 Intentar establecer el icono .png en la barra de tareas
+        if os.path.exists(ruta_icono_png):
+            icono = PhotoImage(file=ruta_icono_png)
+            self.root.iconphoto(True, icono)  # Icono en la barra de tareas
+        else:
+            messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
         # Instancia de Sphincs
         self.sphincs = Sphincs()
