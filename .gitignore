@@ -6,6 +6,3 @@ preguntas/
 src/dist
 src/build
 src/*.log
-
-dist/
-build/
