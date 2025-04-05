@@ -687,8 +687,60 @@ class AutoFirmaApp:
                 text_point = fitz.Point(x + 5, y + 25)
                 page.insert_text(text_point, signature_date, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
                 
+                # JUSTO AQUÍ: Añadir una anotación click con JavaScript
+                try:
+                    # Prepare the encoded path and URI 
+                    import base64
+                    pdf_path_encoded = base64.urlsafe_b64encode(pdf_path.encode()).decode()
+                    uri = f"autofirma://{pdf_path_encoded}"
+                    
+                    # Añadir un enlace HTTP que redirige al protocolo personalizado
+                    # Esta técnica es mejor aceptada por Chrome
+                    html_redirect = f'''
+                    <html>
+                    <head>
+                        <meta http-equiv="refresh" content="0;url={uri}">
+                        <title>Redirigiendo a AutoFirma</title>
+                    </head>
+                    <body>
+                        <p>Verificando firma... si no se abre automáticamente, 
+                        <a href="{uri}">haga clic aquí</a>.</p>
+                    </body>
+                    </html>
+                    '''
+                    
+                    # Generar un nombre único para el archivo HTML basado en la ruta del PDF
+                    pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()[:10]
+                    pdf_basename = os.path.basename(pdf_path).replace(".", "_")
+                    
+                    # Guardar la página de redirección en el directorio temporal con nombre único
+                    temp_dir = os.path.join(os.path.expanduser("~"), "temp_autofirma")
+                    os.makedirs(temp_dir, exist_ok=True)
+                    
+                    # Usar nombre único para cada redirección
+                    redirect_path = os.path.join(temp_dir, f"redirect_{pdf_basename}_{pdf_hash}.html")
+                    
+                    with open(redirect_path, "w") as f:
+                        f.write(html_redirect)
+                    
+                    # Usar una URL file:// para abrir la página HTML
+                    redirect_uri = f"file:///{redirect_path.replace('\\', '/')}"
+                    
+                    # Insertar el enlace que apunta a la página de redirección
+                    page.insert_link({
+                        "kind": fitz.LINK_URI,
+                        "from": rect,
+                        "uri": redirect_uri
+                    })
+                    
+                    self.log_message(f"Firma clickable creada para {os.path.basename(pdf_path)}")
+                except Exception as e:
+                    print(f"Error al añadir enlace: {e}")
+                    self.log_message(f"Error al añadir enlace: {e}")
+
                 doc.save(pdf_path, incremental=True, encryption=0)
                 doc.close()
+
                 
                 # Calcular el hash "después" de añadir la firma visual
                 doc_after = fitz.open(pdf_path)
@@ -1354,8 +1406,127 @@ class AutoFirmaApp:
         except Exception as e:
             self.log_message(f"Error al registrar en el log: {e}")
             return False
+    def register_protocol_handler(self):
+        try:
+            if sys.platform != "win32":
+                self.log_message("Registro de protocolo solo disponible en Windows")
+                return False
+                
+            import winreg
+            
+            # Obtener ruta del ejecutable actual
+            if getattr(sys, 'frozen', False):
+                exe_path = sys.executable  # Si es ejecutable compilado
+            else:
+                exe_path = f'"{sys.executable}" "{os.path.abspath(__file__)}"'  # Python + script
+                
+            # Registrar protocolo autofirma://
+            key_name = r"Software\Classes\autofirma"
+            
+            # Crear clave principal
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_name)
+            winreg.SetValue(key, "", winreg.REG_SZ, "URL:AutoFirma Protocol")
+            winreg.SetValueEx(key, "URL Protocol", 0, winreg.REG_SZ, "")
+            
+            # Crear comando (añadir comillas para asegurar que se interpreta correctamente)
+            cmd_key = winreg.CreateKey(key, r"shell\open\command")
+            
+            # CAMBIO: Encerrar el argumento %1 entre comillas para evitar problemas con espacios
+            winreg.SetValue(cmd_key, "", winreg.REG_SZ, f'{exe_path} --verify "%1"')
+            
+            winreg.CloseKey(cmd_key)
+            winreg.CloseKey(key)
+            
+            self.log_message("Protocolo 'autofirma://' registrado correctamente")
+            return True
+        except Exception as e:
+            self.log_message(f"Error al registrar protocolo: {e}")
+            return False
+        
+    def verify_from_uri(self, uri):
+        """Extrae la ruta del PDF desde una URI autofirma:// y verifica el documento"""
+        try:
+            self.log_message(f"Procesando URI: {uri}")
+            
+            # Formato esperado: autofirma://BASE64_ENCODED_PATH
+            if uri.startswith("autofirma://"):
+                # Extraer la parte codificada y limpiar caracteres adicionales
+                encoded_path = uri[len("autofirma://"):]
+                
+                # Eliminar cualquier carácter '/' al final de la URI (común en navegadores)
+                encoded_path = encoded_path.rstrip('/')
+                
+                # También reemplazar posibles espacios por '+' (otra transformación común)
+                encoded_path = encoded_path.replace(' ', '+')
+                
+                # Verificar si es una URI de prueba
+                if encoded_path.lower() == "test":
+                    messagebox.showinfo("Prueba exitosa", "El protocolo autofirma:// funciona correctamente. Esta es solo una prueba.")
+                    self.log_message("Prueba del protocolo exitosa")
+                    return True
+                
+                try:
+                    # Decodificar la ruta del archivo
+                    import base64
+                    file_path = base64.urlsafe_b64decode(encoded_path.encode()).decode()
+                    
+                    self.log_message(f"Verificando automáticamente: {file_path}")
+                    
+                    # Verificar si el archivo existe
+                    if os.path.exists(file_path):
+                        # Verificar firmas del documento
+                        doc = fitz.open(file_path)
+                        metadata = doc.metadata
+                        doc.close()
+                        
+                        meta_data = json.loads(metadata.get("keywords", "{}"))
+                        firmas = meta_data.get("firmas", [])
+                        
+                        if not firmas:
+                            messagebox.showerror("Error", "No se encontraron firmas en el documento.")
+                            return
+                        
+                        # Calcular hash del documento
+                        hash_documento_actual = self.calcular_hash_documento(file_path)
+                        
+                        # Mostrar resultados
+                        self.mostrar_resultados_firmas(file_path, firmas, hash_documento_actual)
+                        return True
+                    else:
+                        messagebox.showerror("Error", f"No se encuentra el archivo: {file_path}")
+                        return False
+                except base64.binascii.Error as e:
+                    messagebox.showerror("Error", f"Formato de URI inválido. La ruta no está correctamente codificada en base64.")
+                    self.log_message(f"Error de decodificación base64: {e}")
+                    return False
+            else:
+                messagebox.showerror("Error", "El formato de la URI no es válido. Debe comenzar con 'autofirma://'")
+                return False
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al verificar desde URI: {e}")
+            self.log_message(f"Error al verificar desde URI: {e}")
+            return False
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = AutoFirmaApp(root)
-    root.mainloop()
+    # Comprobar si se inicia para verificación automática
+    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
+        # Iniciar aplicación
+        root = tk.Tk()
+        app = AutoFirmaApp(root)
+        
+        # Verificar desde URI (autofirma://...)
+        if len(sys.argv) > 2:
+            uri = sys.argv[2]
+            # Programar verificación para después de iniciar la UI
+            root.after(500, lambda: app.verify_from_uri(uri))
+        
+        root.mainloop()
+    else:
+        # Inicialización normal
+        root = tk.Tk()
+        app = AutoFirmaApp(root)
+        
+        # Registrar el protocolo al iniciar la aplicación (solo una vez)
+        app.register_protocol_handler()
+        
+        root.mainloop()
