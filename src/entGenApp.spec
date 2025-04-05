@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-#python -m PyInstaller --clean entGenApp.spec
+# python -m PyInstaller --clean entGenApp.spec
 import os
 
 block_cipher = None

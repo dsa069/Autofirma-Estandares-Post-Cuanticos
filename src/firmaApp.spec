@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+# python -m PyInstaller --clean firmaApp.spec
 import os
 
 block_cipher = None

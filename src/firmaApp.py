@@ -690,9 +690,8 @@ class AutoFirmaApp:
                 # JUSTO AQUÍ: Añadir una anotación click con JavaScript
                 try:
                     # Prepare the encoded path and URI 
-                    import base64
-                    pdf_path_encoded = base64.urlsafe_b64encode(pdf_path.encode()).decode()
-                    uri = f"autofirma://{pdf_path_encoded}"
+                    uri = "autofirma://CURRENT_PDF"
+
                     
                     # Añadir un enlace HTTP que redirige al protocolo personalizado
                     # Esta técnica es mejor aceptada por Chrome
@@ -1448,65 +1447,186 @@ class AutoFirmaApp:
         try:
             self.log_message(f"Procesando URI: {uri}")
             
-            # Formato esperado: autofirma://BASE64_ENCODED_PATH
             if uri.startswith("autofirma://"):
-                # Extraer la parte codificada y limpiar caracteres adicionales
                 encoded_path = uri[len("autofirma://"):]
-                
-                # Eliminar cualquier carácter '/' al final de la URI (común en navegadores)
                 encoded_path = encoded_path.rstrip('/')
                 
-                # También reemplazar posibles espacios por '+' (otra transformación común)
-                encoded_path = encoded_path.replace(' ', '+')
-                
-                # Verificar si es una URI de prueba
-                if encoded_path.lower() == "test":
-                    messagebox.showinfo("Prueba exitosa", "El protocolo autofirma:// funciona correctamente. Esta es solo una prueba.")
+                # Caso especial para el nuevo marcador "CURRENT_PDF"
+                if encoded_path.upper() == "CURRENT_PDF":
+                    # Detectar automáticamente el PDF activo
+                    file_path = self.detect_active_pdf()
+                    
+                    if not file_path:
+                        messagebox.showerror("Error", "No se pudo detectar automáticamente el PDF activo. Por favor, asegúrese de que el PDF esté abierto y visible en primer plano.")
+                        return False
+                    
+                    self.log_message(f"PDF activo detectado: {file_path}")
+                elif encoded_path.lower() == "test":
+                    messagebox.showinfo("Prueba exitosa", "El protocolo autofirma:// funciona correctamente.")
                     self.log_message("Prueba del protocolo exitosa")
                     return True
-                
-                try:
-                    # Decodificar la ruta del archivo
-                    import base64
-                    file_path = base64.urlsafe_b64decode(encoded_path.encode()).decode()
-                    
-                    self.log_message(f"Verificando automáticamente: {file_path}")
-                    
-                    # Verificar si el archivo existe
-                    if os.path.exists(file_path):
-                        # Verificar firmas del documento
-                        doc = fitz.open(file_path)
-                        metadata = doc.metadata
-                        doc.close()
-                        
-                        meta_data = json.loads(metadata.get("keywords", "{}"))
-                        firmas = meta_data.get("firmas", [])
-                        
-                        if not firmas:
-                            messagebox.showerror("Error", "No se encontraron firmas en el documento.")
-                            return
-                        
-                        # Calcular hash del documento
-                        hash_documento_actual = self.calcular_hash_documento(file_path)
-                        
-                        # Mostrar resultados
-                        self.mostrar_resultados_firmas(file_path, firmas, hash_documento_actual)
-                        return True
-                    else:
-                        messagebox.showerror("Error", f"No se encuentra el archivo: {file_path}")
+                else:
+                    # Manejar el caso de URIs antiguas (con ruta codificada)
+                    try:
+                        import base64
+                        file_path = base64.urlsafe_b64decode(encoded_path.encode()).decode()
+                    except Exception:
+                        messagebox.showerror("Error", "No se pudo decodificar la ruta del PDF. Intente hacer clic en otra firma.")
                         return False
-                except base64.binascii.Error as e:
-                    messagebox.showerror("Error", f"Formato de URI inválido. La ruta no está correctamente codificada en base64.")
-                    self.log_message(f"Error de decodificación base64: {e}")
+                
+                # Verificar el PDF detectado
+                if os.path.exists(file_path):
+                    doc = fitz.open(file_path)
+                    metadata = doc.metadata
+                    doc.close()
+                    
+                    meta_data = json.loads(metadata.get("keywords", "{}"))
+                    firmas = meta_data.get("firmas", [])
+                    
+                    if not firmas:
+                        messagebox.showerror("Error", "No se encontraron firmas en el documento.")
+                        return False
+                    
+                    # Calcular hash del documento
+                    hash_documento_actual = self.calcular_hash_documento(file_path)
+                    
+                    # Mostrar resultados
+                    self.mostrar_resultados_firmas(file_path, firmas, hash_documento_actual)
+                    return True
+                else:
+                    messagebox.showerror("Error", f"No se encuentra el archivo: {file_path}")
                     return False
             else:
-                messagebox.showerror("Error", "El formato de la URI no es válido. Debe comenzar con 'autofirma://'")
+                messagebox.showerror("Error", "El formato de la URI no es válido.")
                 return False
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar desde URI: {e}")
             self.log_message(f"Error al verificar desde URI: {e}")
             return False
+        
 
+    def detect_active_pdf(self):
+        """Detecta automáticamente el PDF activo incluso cuando esta app está en primer plano"""
+        try:
+            self.log_message("Intentando detectar el PDF activo...")
+            
+            if sys.platform == "win32":
+                try:
+                    import win32gui
+                    import win32process
+                    import psutil
+                    import os
+                    import re
+                    import glob
+                    from datetime import datetime, timedelta
+                    
+                    # Estrategia 1: Buscar PDFs abiertos por cualquier proceso de visor PDF
+                    self.log_message("Buscando PDFs abiertos en procesos activos...")
+                    pdf_viewers = ["acrord32.exe", "acrobat.exe", "chrome.exe", "msedge.exe", 
+                                "firefox.exe", "SumatraPDF.exe", "FoxitReader.exe"]
+                    
+                    pdf_files_found = []
+                    
+                    # Buscar en todos los procesos, no solo el activo
+                    for proc in psutil.process_iter(['pid', 'name']):
+                        if any(viewer.lower() in proc.info['name'].lower() for viewer in pdf_viewers):
+                            try:
+                                p = psutil.Process(proc.info['pid'])
+                                for file in p.open_files():
+                                    if file.path.lower().endswith('.pdf'):
+                                        pdf_files_found.append((file.path, p.create_time()))
+                                        self.log_message(f"PDF encontrado en proceso {p.name()}: {file.path}")
+                            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                                continue
+                    
+                    # Si encontramos PDFs, devolver el más reciente
+                    if pdf_files_found:
+                        # Ordenar por tiempo de creación del proceso, más reciente primero
+                        pdf_files_found.sort(key=lambda x: x[1], reverse=True)
+                        self.log_message(f"PDF seleccionado (proceso más reciente): {pdf_files_found[0][0]}")
+                        return pdf_files_found[0][0]
+                    
+                    # Estrategia 2: Buscar PDFs recientemente modificados
+                    self.log_message("Buscando PDFs recientemente modificados...")
+                    recent_files = []
+                    locations = [
+                        os.path.join(os.path.expanduser("~"), "Desktop"),
+                        os.path.join(os.path.expanduser("~"), "Documents"),
+                        os.path.join(os.path.expanduser("~"), "Downloads"),
+                        "C:\\Temp",
+                        os.environ.get('TEMP', '')
+                    ]
+                    
+                    # Buscar PDFs modificados en los últimos 5 minutos
+                    cutoff_time = datetime.now() - timedelta(minutes=5)
+                    
+                    for location in locations:
+                        if os.path.exists(location):
+                            for root, _, files in os.walk(location):
+                                for file in files:
+                                    if file.lower().endswith('.pdf'):
+                                        file_path = os.path.join(root, file)
+                                        try:
+                                            mtime = os.path.getmtime(file_path)
+                                            mtime_dt = datetime.fromtimestamp(mtime)
+                                            if mtime_dt > cutoff_time:
+                                                recent_files.append((file_path, mtime_dt))
+                                        except:
+                                            pass
+                    
+                    # Si encontramos archivos recientes, devolver el más reciente
+                    if recent_files:
+                        recent_files.sort(key=lambda x: x[1], reverse=True)
+                        self.log_message(f"PDF seleccionado (modificado recientemente): {recent_files[0][0]}")
+                        return recent_files[0][0]
+                    
+                    # Estrategia 3: Buscar en archivos temporales de navegadores
+                    self.log_message("Buscando PDFs en archivos temporales...")
+                    temp_files = []
+                    
+                    # Ubicaciones típicas de archivos temporales de navegadores
+                    browser_temp_locations = [
+                        os.path.join(os.environ.get('TEMP', ''), '*'),
+                        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Google', 'Chrome', 'User Data', 'Default', 'Cache', '*'),
+                        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Edge', 'User Data', 'Default', 'Cache', '*')
+                    ]
+                    
+                    for pattern in browser_temp_locations:
+                        for file_path in glob.glob(pattern):
+                            if os.path.isfile(file_path):
+                                try:
+                                    with open(file_path, 'rb') as f:
+                                        # Leer los primeros bytes para comprobar si es un PDF
+                                        header = f.read(4)
+                                        if header == b'%PDF':
+                                            mtime = os.path.getmtime(file_path)
+                                            temp_files.append((file_path, mtime))
+                                except:
+                                    pass
+                    
+                    if temp_files:
+                        temp_files.sort(key=lambda x: x[1], reverse=True)
+                        self.log_message(f"PDF temporal seleccionado: {temp_files[0][0]}")
+                        return temp_files[0][0]
+                    
+                    # No se pudo encontrar ningún PDF activo
+                    self.log_message("No se pudo detectar automáticamente el PDF activo")
+                    return None
+                    
+                except ImportError as e:
+                    self.log_message(f"Error: módulo necesario no instalado: {e}")
+                    self.log_message("Para detección automática, instale los paquetes requeridos:")
+                    self.log_message("pip install pywin32 psutil")
+                    return None
+            else:
+                self.log_message("Detección automática solo disponible en Windows")
+                return None
+        except Exception as e:
+            self.log_message(f"Error en detección automática: {e}")
+            import traceback
+            self.log_message(traceback.format_exc())
+            return None
+        
 if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática
     if len(sys.argv) > 1 and sys.argv[1] == "--verify":
