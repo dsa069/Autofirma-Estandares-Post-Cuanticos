@@ -41,250 +41,6 @@ ENTITY_KEYS = {
 
 sphincs_instancia = Sphincs()
 
-def leer_todas_claves_entidad_debug():
-    """
-    Versión de depuración para identificar el problema con Dilithium
-    """
-    import traceback
-    
-    # Verificación de archivos
-    print("\n---------- DEPURACIÓN DE CARGA DE CLAVES ----------")
-    print(f"Archivo SK existe: {os.path.exists(SK_ENTIDAD_PATH)}")
-    print(f"Archivo PK existe: {os.path.exists(PK_ENTIDAD_PATH)}")
-    
-    try:
-        # Cargar archivos como texto primero para verificar JSON válido
-        with open(SK_ENTIDAD_PATH, "r") as file:
-            sk_text = file.read()
-            print(f"Archivo SK cargado: {len(sk_text)} bytes")
-        
-        with open(PK_ENTIDAD_PATH, "r") as file:
-            pk_text = file.read()
-            print(f"Archivo PK cargado: {len(pk_text)} bytes")
-        
-        # Intentar parsear JSON
-        try:
-            sk_data = json.loads(sk_text)
-            print(f"SK JSON parseado correctamente: {type(sk_data)}, {len(sk_data)} elementos")
-        except json.JSONDecodeError as e:
-            print(f"Error al parsear SK JSON: {e}")
-            return None
-        
-        try:
-            pk_data = json.loads(pk_text)
-            print(f"PK JSON parseado correctamente: {type(pk_data)}, {len(pk_data)} elementos")
-        except json.JSONDecodeError as e:
-            print(f"Error al parsear PK JSON: {e}")
-            return None
-        
-        # Análisis de claves por tipo
-        print("\n--- Análisis de claves en archivo ---")
-        sphincs_count = 0
-        dilithium_count = 0
-        unknown_count = 0
-        
-        for idx, entry in enumerate(sk_data):
-            algo = entry.get("algoritmo", "desconocido").lower()
-            if algo == "sphincs":
-                sphincs_count += 1
-            elif algo == "dilithium":
-                dilithium_count += 1
-                print(f"Dilithium #{idx+1}: {entry.get('titulo')} (ID: {entry.get('id')})")
-            else:
-                unknown_count += 1
-                
-        print(f"Total claves: {len(sk_data)} ({sphincs_count} SPHINCS, {dilithium_count} Dilithium, {unknown_count} desconocidas)")
-        
-        # Inicializar diccionario de claves procesadas
-        claves_procesadas = {
-            "sphincs": [],
-            "dilithium": []
-        }
-        
-        # Procesar cada clave individualmente con manejo de errores detallado
-        for idx, sk_entry in enumerate(sk_data):
-            try:
-                # Extraer información básica
-                algoritmo = sk_entry.get("algoritmo", "").lower()
-                titulo = sk_entry.get("titulo", "Sin título")
-                clave_id = sk_entry.get("id", "")
-                
-                if algoritmo not in ["sphincs", "dilithium"]:
-                    print(f"Saltando clave #{idx+1} con algoritmo desconocido: {algoritmo}")
-                    continue
-                
-                print(f"\nProcesando clave #{idx+1}: {titulo} ({algoritmo})")
-                
-                # Buscar clave pública correspondiente
-                pk_entry = None
-                for pk in pk_data:
-                    if pk.get("id") == clave_id:
-                        pk_entry = pk
-                        break
-                
-                if pk_entry is None:
-                    print(f"  ERROR: No se encontró clave pública para {titulo} (ID: {clave_id})")
-                    continue
-                
-                # Convertir claves a bytes con verificación detallada
-                try:
-                    sk_hex = sk_entry.get("clave", "")
-                    if not sk_hex:
-                        print(f"  ERROR: Clave privada vacía para {titulo}")
-                        continue
-                    
-                    print(f"  SK hex: {sk_hex[:50]}... ({len(sk_hex)} caracteres)")
-                    
-                    # Validar que solo contiene caracteres hexadecimales válidos
-                    if not all(c in "0123456789abcdefABCDEF" for c in sk_hex):
-                        print(f"  ERROR: Clave privada contiene caracteres no hexadecimales")
-                        invalid_chars = [c for c in sk_hex if c not in "0123456789abcdefABCDEF"]
-                        print(f"  Caracteres inválidos: {invalid_chars[:20]}...")
-                        continue
-                    
-                    sk_bytes = bytes.fromhex(sk_hex)
-                    print(f"  SK bytes: {sk_bytes[:10].hex()}... ({len(sk_bytes)} bytes)")
-                    
-                    # Similar para clave pública
-                    pk_hex = pk_entry.get("clave", "")
-                    if not pk_hex:
-                        print(f"  ERROR: Clave pública vacía para {titulo}")
-                        continue
-                    
-                    print(f"  PK hex: {pk_hex[:50]}... ({len(pk_hex)} caracteres)")
-                    pk_bytes = bytes.fromhex(pk_hex)
-                    print(f"  PK bytes: {pk_bytes[:10].hex()}... ({len(pk_bytes)} bytes)")
-                    
-                except ValueError as e:
-                    print(f"  ERROR al convertir clave a bytes: {e}")
-                    continue
-                    
-                # Verificar fechas
-                try:
-                    fecha_exp = sk_entry.get("fecha_expedicion", "")
-                    fecha_cad = sk_entry.get("fecha_caducidad", "")
-                    fecha_actual = datetime.date.today().isoformat()
-                    vigente = fecha_cad >= fecha_actual
-                    
-                    print(f"  Fechas: {fecha_exp} - {fecha_cad} (Vigente: {vigente})")
-                except Exception as e:
-                    print(f"  ERROR procesando fechas: {e}")
-                    vigente = False
-                
-                # Añadir a diccionario de claves procesadas
-                claves_procesadas[algoritmo].append({
-                    "id": clave_id,
-                    "titulo": titulo,
-                    "algoritmo": algoritmo,
-                    "fecha_expedicion": fecha_exp,
-                    "fecha_caducidad": fecha_cad,
-                    "vigente": vigente,
-                    "sk": sk_bytes,
-                    "pk": pk_bytes
-                })
-                
-                print(f"  ✓ Clave {algoritmo} añadida correctamente")
-                
-            except Exception as e:
-                print(f"  ERROR general procesando clave #{idx+1}: {e}")
-                traceback.print_exc()
-        
-        # Resumen final
-        print("\n--- RESUMEN DE CLAVES PROCESADAS ---")
-        print(f"SPHINCS: {len(claves_procesadas['sphincs'])} claves procesadas")
-        print(f"Dilithium: {len(claves_procesadas['dilithium'])} claves procesadas")
-        
-        return claves_procesadas
-        
-    except Exception as e:
-        print(f"ERROR CRÍTICO: {e}")
-        traceback.print_exc()
-        return None
-
-def leer_todas_claves_entidad():
-    """
-    Lee todas las claves disponibles de los archivos JSON.
-    Retorna un diccionario con claves agrupadas por algoritmo.
-    """
-    claves = {
-        "sphincs": [],
-        "dilithium": []
-    }
-    
-    if not os.path.exists(SK_ENTIDAD_PATH) or not os.path.exists(PK_ENTIDAD_PATH):
-        return claves
-        
-    try:
-        # Leer archivos
-        with open(SK_ENTIDAD_PATH, "r") as sk_file:
-            sk_data = json.load(sk_file)
-            
-        with open(PK_ENTIDAD_PATH, "r") as pk_file:
-            pk_data = json.load(pk_file)
-        
-        # Procesar claves privadas y buscar sus correspondientes públicas
-        for sk_entry in sk_data:
-            algoritmo = sk_entry.get("algoritmo", "").lower()
-            if algoritmo not in ["sphincs", "dilithium"]:
-                print(f"Algoritmo no reconocido: {algoritmo}")
-                continue
-            
-            # Buscar la clave pública correspondiente
-            pk_entry = None
-            for pk in pk_data:
-                if pk.get("id") == sk_entry.get("id"):
-                    pk_entry = pk
-                    break
-            
-            if pk_entry is None:
-                print(f"No se encontró clave pública para {sk_entry.get('titulo')}")
-                continue
-            
-            # Verificar validez de fechas
-            try:
-                fecha_caducidad = sk_entry.get("fecha_caducidad", "")
-                fecha_actual = datetime.date.today().isoformat()
-                vigente = fecha_caducidad >= fecha_actual
-            except Exception as e:
-                print(f"Error al procesar fecha: {e}")
-                vigente = False
-            
-            # Extraer claves en bytes
-            try:
-                sk_bytes = bytes.fromhex(sk_entry.get("clave", ""))
-                pk_bytes = bytes.fromhex(pk_entry.get("clave", ""))
-                
-                # Debug info
-                print(f"Cargando clave {algoritmo}: {sk_entry.get('titulo')}")
-                print(f"  SK length: {len(sk_bytes)} bytes")
-                print(f"  PK length: {len(pk_bytes)} bytes")
-            except Exception as e:
-                print(f"Error al convertir clave a bytes: {e}")
-                continue
-            
-            # Añadir información completa
-            claves[algoritmo].append({
-                "id": sk_entry.get("id", ""),
-                "titulo": sk_entry.get("titulo", "Sin título"),
-                "algoritmo": algoritmo,
-                "fecha_expedicion": sk_entry.get("fecha_expedicion", ""),
-                "fecha_caducidad": sk_entry.get("fecha_caducidad", ""),
-                "vigente": vigente,
-                "sk": sk_bytes,
-                "pk": pk_bytes
-            })
-            
-        # Resumen de claves cargadas
-        print(f"Total claves SPHINCS cargadas: {len(claves['sphincs'])}")
-        print(f"Total claves Dilithium cargadas: {len(claves['dilithium'])}")
-        
-        return claves
-    
-    except Exception as e:
-        print(f"Error al leer claves de entidad: {e}")
-        traceback.print_exc()  # Añade esta línea para mostrar el stack trace completo
-        return claves
-
 class CertificadoDigitalApp:
     def __init__(self, root):
         self.root = root
@@ -372,11 +128,235 @@ class CertificadoDigitalApp:
         self.log_text.pack(pady=10)
 
     def log_message(self, message):
-        """Añade mensajes al área de logs."""
-        self.log_text.config(state=tk.NORMAL)
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.config(state=tk.DISABLED)
-        self.log_text.see(tk.END)
+        """Registra un mensaje en un archivo de log."""
+        try:
+            # Obtener la ruta de la carpeta src (directorio actual del script)
+            log_folder = current_dir  # current_dir ya está definido al inicio del archivo
+            
+            # Crear la carpeta de logs si no existe
+            if not os.path.exists(log_folder):
+                os.makedirs(log_folder)
+            
+            log_file_path = os.path.join(log_folder, "entGenApp.log")
+            
+            # Fecha y hora actual
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Crear la entrada de log
+            log_entry = f"[{timestamp}] {message}\n"
+            
+            # Escribir en el archivo de log (modo append)
+            with open(log_file_path, "a", encoding="utf-8") as log_file:
+                log_file.write(log_entry)
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error al registrar en el log: {e}")
+            return False
+
+    def leer_claves_entidad(self):
+        """
+        Versión de depuración para identificar el problema con Dilithium
+        """
+        import traceback
+        
+        # Verificación de archivos
+        sk_exists = os.path.exists(SK_ENTIDAD_PATH)
+        pk_exists = os.path.exists(PK_ENTIDAD_PATH)
+        
+        self.log_message(f"Archivo SK existe: {sk_exists}")
+        self.log_message(f"Archivo PK existe: {pk_exists}")
+    
+        # Si no existen los archivos, crearlos como arrays JSON vacíos
+        if not sk_exists:
+            self.log_message(f"Creando archivo de claves privadas en {SK_ENTIDAD_PATH}")
+            try:
+                with open(SK_ENTIDAD_PATH, "w") as file:
+                    json.dump([], file)
+                sk_exists = True
+            except Exception as e:
+                error_msg = f"ERROR: No se pudo crear el archivo de claves privadas: {e}"
+                self.log_message(error_msg)
+                messagebox.showerror("Error", error_msg)
+                return claves_procesadas
+            
+        if not pk_exists:
+            self.log_message(f"Creando archivo de claves públicas en {PK_ENTIDAD_PATH}")
+            try:
+                with open(PK_ENTIDAD_PATH, "w") as file:
+                    json.dump([], file)
+                pk_exists = True
+            except Exception as e:
+                error_msg = f"ERROR: No se pudo crear el archivo de claves públicas: {e}"
+                self.log_message(error_msg)
+                messagebox.showerror("Error", error_msg)
+                return claves_procesadas
+    
+        try:
+            # Cargar archivos como texto primero para verificar JSON válido
+            with open(SK_ENTIDAD_PATH, "r") as file:
+                sk_text = file.read()
+                self.log_message(f"Archivo SK cargado: {len(sk_text)} bytes")
+            
+            with open(PK_ENTIDAD_PATH, "r") as file:
+                pk_text = file.read()
+                self.log_message(f"Archivo PK cargado: {len(pk_text)} bytes")
+
+            # Intentar parsear JSON
+            try:
+                sk_data = json.loads(sk_text)
+                self.log_message(f"SK JSON parseado correctamente: {type(sk_data)}, {len(sk_data)} elementos")
+            
+                # Verificar si hay elementos en el archivo
+                if not sk_data:
+                    error_msg = "No hay claves privadas en el archivo. Debe generar al menos una clave."
+                    self.log_message(error_msg)
+                    messagebox.showinfo("Información", error_msg + "\nUtilice el botón 'Generar Claves de Entidad'.")
+                    return claves_procesadas
+                
+            except json.JSONDecodeError as e:
+                self.log_message(f"Error al parsear SK JSON: {e}")
+                return None
+            
+            try:
+                pk_data = json.loads(pk_text)
+                self.log_message(f"PK JSON parseado correctamente: {type(pk_data)}, {len(pk_data)} elementos")
+
+               # Verificar si hay elementos en el archivo
+                if not pk_data:
+                    error_msg = "No hay claves públicas en el archivo. Debe generar al menos una clave."
+                    self.log_message(error_msg)
+                    messagebox.showinfo("Información", error_msg + "\nUtilice el botón 'Generar Claves de Entidad'.")
+                    return claves_procesadas
+                     
+            except json.JSONDecodeError as e:
+                self.log_message(f"Error al parsear PK JSON: {e}")
+                return None
+            
+            # Análisis de claves por tipo
+            self.log_message("\n--- Análisis de claves en archivo ---")
+            sphincs_count = 0
+            dilithium_count = 0
+            unknown_count = 0
+            
+            for idx, entry in enumerate(sk_data):
+                algo = entry.get("algoritmo", "desconocido").lower()
+                if algo == "sphincs":
+                    sphincs_count += 1
+                elif algo == "dilithium":
+                    dilithium_count += 1
+                    self.log_message(f"Dilithium #{idx+1}: {entry.get('titulo')} (ID: {entry.get('id')})")
+                else:
+                    unknown_count += 1
+                    
+            self.log_message(f"Total claves: {len(sk_data)} ({sphincs_count} SPHINCS, {dilithium_count} Dilithium, {unknown_count} desconocidas)")
+            
+            # Inicializar diccionario de claves procesadas
+            claves_procesadas = {
+                "sphincs": [],
+                "dilithium": []
+            }
+            
+            # Procesar cada clave individualmente con manejo de errores detallado
+            for idx, sk_entry in enumerate(sk_data):
+                try:
+                    # Extraer información básica
+                    algoritmo = sk_entry.get("algoritmo", "").lower()
+                    titulo = sk_entry.get("titulo", "Sin título")
+                    clave_id = sk_entry.get("id", "")
+                    
+                    if algoritmo not in ["sphincs", "dilithium"]:
+                        self.log_message(f"Saltando clave #{idx+1} con algoritmo desconocido: {algoritmo}")
+                        continue
+                    
+                    self.log_message(f"\nProcesando clave #{idx+1}: {titulo} ({algoritmo})")
+                    
+                    # Buscar clave pública correspondiente
+                    pk_entry = None
+                    for pk in pk_data:
+                        if pk.get("id") == clave_id:
+                            pk_entry = pk
+                            break
+                    
+                    if pk_entry is None:
+                        self.log_message(f"  ERROR: No se encontró clave pública para {titulo} (ID: {clave_id})")
+                        continue
+                    
+                    # Convertir claves a bytes con verificación detallada
+                    try:
+                        sk_hex = sk_entry.get("clave", "")
+                        if not sk_hex:
+                            self.log_message(f"  ERROR: Clave privada vacía para {titulo}")
+                            continue
+                        
+                        self.log_message(f"  SK hex: {sk_hex[:50]}... ({len(sk_hex)} caracteres)")
+                        
+                        # Validar que solo contiene caracteres hexadecimales válidos
+                        if not all(c in "0123456789abcdefABCDEF" for c in sk_hex):
+                            self.log_message(f"  ERROR: Clave privada contiene caracteres no hexadecimales")
+                            invalid_chars = [c for c in sk_hex if c not in "0123456789abcdefABCDEF"]
+                            self.log_message(f"  Caracteres inválidos: {invalid_chars[:20]}...")
+                            continue
+                        
+                        sk_bytes = bytes.fromhex(sk_hex)
+                        self.log_message(f"  SK bytes: {sk_bytes[:10].hex()}... ({len(sk_bytes)} bytes)")
+                        
+                        # Similar para clave pública
+                        pk_hex = pk_entry.get("clave", "")
+                        if not pk_hex:
+                            self.log_message(f"  ERROR: Clave pública vacía para {titulo}")
+                            continue
+                        
+                        self.log_message(f"  PK hex: {pk_hex[:50]}... ({len(pk_hex)} caracteres)")
+                        pk_bytes = bytes.fromhex(pk_hex)
+                        self.log_message(f"  PK bytes: {pk_bytes[:10].hex()}... ({len(pk_bytes)} bytes)")
+                        
+                    except ValueError as e:
+                        self.log_message(f"  ERROR al convertir clave a bytes: {e}")
+                        continue
+                        
+                    # Verificar fechas
+                    try:
+                        fecha_exp = sk_entry.get("fecha_expedicion", "")
+                        fecha_cad = sk_entry.get("fecha_caducidad", "")
+                        fecha_actual = datetime.date.today().isoformat()
+                        vigente = fecha_cad >= fecha_actual
+                        
+                        self.log_message(f"  Fechas: {fecha_exp} - {fecha_cad} (Vigente: {vigente})")
+                    except Exception as e:
+                        self.log_message(f"  ERROR procesando fechas: {e}")
+                        vigente = False
+                    
+                    # Añadir a diccionario de claves procesadas
+                    claves_procesadas[algoritmo].append({
+                        "id": clave_id,
+                        "titulo": titulo,
+                        "algoritmo": algoritmo,
+                        "fecha_expedicion": fecha_exp,
+                        "fecha_caducidad": fecha_cad,
+                        "vigente": vigente,
+                        "sk": sk_bytes,
+                        "pk": pk_bytes
+                    })
+                    
+                    self.log_message(f"  ✓ Clave {algoritmo} añadida correctamente")
+                    
+                except Exception as e:
+                    self.log_message(f"  ERROR general procesando clave #{idx+1}: {e}")
+                    traceback.self.log_message_exc()
+            
+            # Resumen final
+            self.log_message("\n--- RESUMEN DE CLAVES PROCESADAS ---")
+            self.log_message(f"SPHINCS: {len(claves_procesadas['sphincs'])} claves procesadas")
+            self.log_message(f"Dilithium: {len(claves_procesadas['dilithium'])} claves procesadas")
+            
+            return claves_procesadas
+            
+        except Exception as e:
+            self.log_message(f"ERROR CRÍTICO: {e}")
+            traceback.self.log_message_exc()
+            return None
 
     def generar_claves_entidad(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
@@ -641,7 +621,7 @@ class CertificadoDigitalApp:
                 raise ValueError("El nombre y el DNI son obligatorios.")
             
             # Leer todas las claves disponibles
-            claves_disponibles = leer_todas_claves_entidad_debug()
+            claves_disponibles = self.leer_claves_entidad()
             
             # Verificar si hay claves disponibles
             total_claves = len(claves_disponibles["sphincs"]) + len(claves_disponibles["dilithium"])
@@ -686,14 +666,14 @@ class CertificadoDigitalApp:
             found_keys = False
             
             # Depuración: imprimir claves disponibles
-            print(f"\n--- ANÁLISIS DE CLAVES RECUPERADAS PARA UI ---")
-            print(f"Claves SPHINCS: {len(claves_disponibles['sphincs'])}")
-            print(f"Claves Dilithium: {len(claves_disponibles['dilithium'])}")
+            self.log_message(f"\n--- ANÁLISIS DE CLAVES RECUPERADAS PARA UI ---")
+            self.log_message(f"Claves SPHINCS: {len(claves_disponibles['sphincs'])}")
+            self.log_message(f"Claves Dilithium: {len(claves_disponibles['dilithium'])}")
             
             for algoritmo in ["sphincs", "dilithium"]:
-                print(f"\nProcesando bloque de claves {algoritmo.upper()}")
+                self.log_message(f"\nProcesando bloque de claves {algoritmo.upper()}")
                 if not claves_disponibles[algoritmo]:
-                    print(f"  No hay claves disponibles para {algoritmo}")
+                    self.log_message(f"  No hay claves disponibles para {algoritmo}")
                     continue
                     
                 # Título del algoritmo
@@ -701,7 +681,7 @@ class CertificadoDigitalApp:
                         font=("Arial", 11, "bold")).pack(anchor=tk.W, pady=(10, 5))
                 
                 for idx, key in enumerate(claves_disponibles[algoritmo]):
-                    print(f"  Agregando clave {idx+1}: {key['titulo']} (ID: {key['id']})")
+                    self.log_message(f"  Agregando clave {idx+1}: {key['titulo']} (ID: {key['id']})")
                     found_keys = True
                     
                     # Frame para esta clave

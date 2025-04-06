@@ -94,31 +94,37 @@ class AutoFirmaApp:
         )
         self.verify_signature_button.pack(pady=10)
 
-        # Botón para depuración (temporal)
-        self.debug_button = tk.Button(
-            root,
-            text="Depurar Firmas Visuales",
-            font=("Arial", 12),
-            command=lambda: self.debug_firmas_visuales(filedialog.askopenfilename(
-                title="Seleccionar archivo firmado para depurar",
-                filetypes=[("Archivos PDF", "*.pdf")],
-            )),
-            bg="#9C27B0",
-            fg="white",
-            width=20,
-        )
-        self.debug_button.pack(pady=10)
-
         # Área de texto para logs
         self.log_text = tk.Text(root, width=70, height=15, state=tk.DISABLED)
         self.log_text.pack(pady=10)
 
     def log_message(self, message):
-        """Añade mensajes al área de logs."""
-        self.log_text.config(state=tk.NORMAL)
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.config(state=tk.DISABLED)
-        self.log_text.see(tk.END)
+        """Registra un mensaje en un archivo de log."""
+        try:
+            # Obtener la ruta de la carpeta src (directorio actual del script)
+            log_folder = current_dir  # current_dir ya está definido al inicio del archivo
+            
+            # Crear la carpeta de logs si no existe
+            if not os.path.exists(log_folder):
+                os.makedirs(log_folder)
+            
+            log_file_path = os.path.join(log_folder, "firmaApp.log")
+            
+            # Fecha y hora actual - CORREGIDO
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Crear la entrada de log
+            log_entry = f"[{timestamp}] {message}\n"
+            
+            # Escribir en el archivo de log (modo append)
+            with open(log_file_path, "a", encoding="utf-8") as log_file:
+                log_file.write(log_entry)
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error al registrar en el log: {e}")
+            return False
 
     def calcular_hash_firma(self, cert_copy):
         cert_copy.pop("firma", None)
@@ -276,8 +282,8 @@ class AutoFirmaApp:
         """Muestra una alerta simple en la consola cuando hay intentos fallidos."""
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
-        print("-" * 50)
+        self.log_message(f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
+        self.log_message("-" * 50)
         
         return True
                 
@@ -734,7 +740,6 @@ class AutoFirmaApp:
                     
                     self.log_message(f"Firma clickable creada para {os.path.basename(pdf_path)}")
                 except Exception as e:
-                    print(f"Error al añadir enlace: {e}")
                     self.log_message(f"Error al añadir enlace: {e}")
 
                 doc.save(pdf_path, incremental=True, encryption=0)
@@ -881,8 +886,7 @@ class AutoFirmaApp:
 
             # Registrar en el log el documento firmado
             titulo_doc = os.path.basename(save_path)
-            self.log_documento_firmado(titulo_doc, hash_documento, nombre_certificado)
-
+            self.log_message(f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
             messagebox.showinfo("Éxito", f"Documento firmado correctamente y guardado en:\n{save_path}")
 
         except Exception as e:
@@ -1178,233 +1182,6 @@ class AutoFirmaApp:
             width=10
         ).pack(pady=10)
 
-    def debug_firmas_visuales(self, file_path):
-        """Método temporal para depurar el sistema de firmas visuales."""
-        try:
-            # Abrir documento y obtener metadatos
-            doc = fitz.open(file_path)
-            metadata = doc.metadata
-            doc.close()
-            
-            # Crear ventana de depuración
-            debug_window = tk.Toplevel(self.root)
-            debug_window.title(f"Depuración de Firmas: {os.path.basename(file_path)}")
-            debug_window.geometry("900x600")
-            debug_window.transient(self.root)
-            debug_window.grab_set()
-            
-            # Crear área de texto con scroll
-            frame = tk.Frame(debug_window)
-            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            scrollbar = tk.Scrollbar(frame)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            text_area = tk.Text(frame, wrap=tk.WORD, yscrollcommand=scrollbar.set, font=("Courier", 10))
-            text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            
-            scrollbar.config(command=text_area.yview)
-            
-            # Función para añadir texto
-            def add_text(msg, tag=None):
-                text_area.configure(state=tk.NORMAL)
-                if tag:
-                    text_area.insert(tk.END, msg, tag)
-                else:
-                    text_area.insert(tk.END, msg)
-                text_area.configure(state=tk.DISABLED)
-                text_area.see(tk.END)
-            
-            # Configurar etiquetas de estilo
-            text_area.tag_configure("header", font=("Courier", 11, "bold"))
-            text_area.tag_configure("subheader", font=("Courier", 10, "bold"))
-            text_area.tag_configure("success", foreground="#388e3c")
-            text_area.tag_configure("error", foreground="#d32f2f")
-            text_area.tag_configure("info", foreground="#0277bd")
-            text_area.tag_configure("warning", foreground="#FF9800")
-            
-            # Título
-            add_text("DEPURACIÓN DE FIRMAS VISUALES\n", "header")
-            add_text(f"Documento: {file_path}\n\n", "info")
-            
-            # Calcular hash del documento actual
-            hash_documento_actual = self.calcular_hash_documento(file_path)
-            add_text(f"Hash del documento completo actual: \n{hash_documento_actual.hex()}\n\n", "subheader")
-            
-            # Extraer metadatos del documento
-            try:
-                meta_data = json.loads(metadata.get("keywords", "{}"))
-                
-                # Verificar si hay múltiples firmas
-                if "firmas" in meta_data and meta_data["firmas"]:
-                    firmas = meta_data["firmas"]
-                    total_firmas = len(firmas)
-                    add_text(f"Total de firmas encontradas: {total_firmas}\n\n", "info")
-                    
-                    # Calcular todos los hash resultado para cada firma, 
-                    # empezando con la más reciente
-                    hash_resultados = {}
-                    hash_inicial_actual = hash_documento_actual
-                    
-                    # Primero calculamos los hashes resultado para cada firma
-                    # El más reciente usa el hash actual del documento
-                    for i in range(total_firmas-1, -1, -1):
-                        firma_data = firmas[i]
-                        if "hash_visual_signature" in firma_data:
-                            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
-                            
-                            # El hash resultado es la resta conceptual
-                            hash_resultados[i] = bytes(a ^ b for a, b in zip(hash_inicial_actual, hash_visual))
-                            
-                            # Para la siguiente firma, el hash inicial será este hash_resultado
-                            if i > 0:  # Si no es la primera firma
-                                hash_inicial_actual = hash_resultados[i]
-                        else:
-                            # Si no hay hash visual, usar el mismo hash inicial
-                            hash_resultados[i] = hash_inicial_actual
-                    
-                    # Ahora procesamos las firmas de la más antigua a la más reciente
-                    # mostrando el resultado correcto en cada una
-                    for i in range(total_firmas):
-                        firma_data = firmas[i]
-                        
-                        add_text(f"FIRMA #{i+1}\n", "header")
-                        
-                        # Obtener información básica
-                        nombre = firma_data["certificado_autenticacion"].get("nombre", "Desconocido")
-                        fecha_firma = firma_data.get("fecha_firma", "Desconocida")
-                        
-                        add_text(f"Firmante: {nombre}\n", "subheader")
-                        add_text(f"Fecha: {fecha_firma}\n", "info")
-                        
-                        # Mostrar los tres hashes solicitados
-                        add_text("HASHES PARA VERIFICACIÓN:\n", "subheader")
-                        
-                        # 1. Hash inicial para esta firma (resultado de la firma posterior o hash actual)
-                        if i == total_firmas - 1:  # La firma más reciente
-                            hash_inicial = hash_documento_actual
-                            add_text(f"1. Hash del documento actual: \n{hash_inicial.hex()}\n", "info")
-                        else:
-                            # Para firmas anteriores a la última, usar el resultado de la firma posterior
-                            hash_inicial = hash_resultados[i+1]
-                            add_text(f"1. Hash del documento (del resultado de firma posterior): \n{hash_inicial.hex()}\n", "info")
-                        
-                        # 2. Hash del documento cuando se firmó (si existe)
-                        if "hash_visual_signature" in firma_data:
-                            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
-                            add_text(f"2. Hash almacenado en la firma: \n{hash_visual.hex()}\n", "info")
-                            
-                            # 3. Hash resultado: la resta conceptual calculada anteriormente
-                            hash_resultado = hash_resultados[i]
-                            add_text(f"3. Hash resultado (resta conceptual): \n{hash_resultado.hex()}\n\n", "success")
-                        else:
-                            add_text("2. No tiene hash almacenado\n", "error")
-                            add_text(f"3. No se puede calcular el hash resultado sin el hash almacenado\n\n", "warning")
-                        
-                        # Verificar la firma
-                        firma = bytes.fromhex(firma_data["firma"])
-                        cert_data = firma_data["certificado_autenticacion"]
-                        algoritmo = cert_data.get("algoritmo", "sphincs").lower()
-                        user_pk = bytes.fromhex(cert_data["user_public_key"])
-                        
-                        # Determinar hash a usar para verificación
-                        hash_para_verificar = hash_visual if "hash_visual_signature" in firma_data else hash_inicial
-                        
-                        # Verificar certificado
-                        cert_valido = self.verificar_certificado(cert_data)
-                        
-                        # Probar ambos hashes para comparación
-                        if cert_valido:
-                            add_text("RESULTADOS DE VERIFICACIÓN:\n", "subheader")
-                            if algoritmo == "sphincs":
-                                # Verificar con el hash almacenado (si existe)
-                                if "hash_visual_signature" in firma_data:
-                                    firma_valida_almacenado = self.sphincs.verify(hash_para_verificar, firma, user_pk)
-                                    # También verificar con el hash actual para comparación
-                                    firma_valida_actual = self.sphincs.verify(hash_inicial, firma, user_pk)
-                                    add_text(f"- Verificación con hash almacenado: {'VÁLIDA' if firma_valida_almacenado else 'NO VÁLIDA'}\n", 
-                                            "success" if firma_valida_almacenado else "error")
-                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida_actual else 'NO VÁLIDA'}\n", 
-                                            "success" if firma_valida_actual else "error")
-                                    firma_valida = firma_valida_almacenado
-                                else:
-                                    firma_valida = self.sphincs.verify(hash_inicial, firma, user_pk)
-                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida else 'NO VÁLIDA'}\n", 
-                                            "success" if firma_valida else "error")
-                            elif algoritmo == "dilithium":
-                                # Lo mismo para Dilithium
-                                if "hash_visual_signature" in firma_data:
-                                    firma_valida_almacenado = ML_DSA_65.verify(user_pk, hash_para_verificar, firma)
-                                    firma_valida_actual = ML_DSA_65.verify(user_pk, hash_inicial, firma)
-                                    add_text(f"- Verificación con hash almacenado: {'VÁLIDA' if firma_valida_almacenado else 'NO VÁLIDA'}\n", 
-                                            "success" if firma_valida_almacenado else "error")
-                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida_actual else 'NO VÁLIDA'}\n", 
-                                            "success" if firma_valida_actual else "error")
-                                    firma_valida = firma_valida_almacenado
-                                else:
-                                    firma_valida = ML_DSA_65.verify(user_pk, hash_inicial, firma)
-                                    add_text(f"- Verificación con hash inicial: {'VÁLIDA' if firma_valida else 'NO VÁLIDA'}\n", 
-                                            "success" if firma_valida else "error")
-                            else:
-                                firma_valida = False
-                        else:
-                            firma_valida = False
-                            add_text("Certificado inválido, no se realizó verificación\n", "error")
-                        
-                        # Mostrar resultado final
-                        resultado = "VÁLIDA" if firma_valida else "NO VÁLIDA"
-                        tag = "success" if firma_valida else "error"
-                        add_text(f"\nVERDICTO FINAL: {resultado}\n\n", tag)
-                        
-                        add_text("=" * 80 + "\n\n")
-                else:
-                    add_text("No se encontraron firmas en el documento.\n", "error")
-                    
-            except Exception as e:
-                add_text(f"Error al analizar metadatos: {str(e)}\n", "error")
-                import traceback
-                add_text(f"Detalle del error: {traceback.format_exc()}\n", "error")
-            
-            # Botón para cerrar
-            tk.Button(
-                debug_window, 
-                text="Cerrar", 
-                command=debug_window.destroy,
-                width=10
-            ).pack(pady=10)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al depurar firmas: {str(e)}")
-            self.log_message(f"Error al depurar firmas: {str(e)}")
-
-    def log_documento_firmado(self, titulo_doc, hash_doc, nombre_firmante):
-        """Registra información de cada documento firmado en un archivo de log."""
-        try:
-            # Obtener la ruta de la carpeta src (directorio actual del script)
-            log_folder = current_dir  # current_dir ya está definido al inicio del archivo
-            
-            # Crear la carpeta de logs si no existe (no debería ser necesario ya que src ya existe)
-            if not os.path.exists(log_folder):
-                os.makedirs(log_folder)
-            
-            log_file_path = os.path.join(log_folder, "documentos_firmados.log")
-            
-            # Fecha y hora actual
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Crear la entrada de log
-            log_entry = f"[{timestamp}] Documento: '{titulo_doc}' | Hash: {hash_doc.hex()} | Firmante: {nombre_firmante}\n"
-            
-            # Escribir en el archivo de log (modo append)
-            with open(log_file_path, "a", encoding="utf-8") as log_file:
-                log_file.write(log_entry)
-                
-            self.log_message(f"Registro añadido al log: {log_file_path}")
-            return True
-            
-        except Exception as e:
-            self.log_message(f"Error al registrar en el log: {e}")
-            return False
     def register_protocol_handler(self):
         try:
             if sys.platform != "win32":
