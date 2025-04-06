@@ -5,4 +5,4 @@ preguntas/
 
 src/dist
 src/build
-src/*.log
+src/logs

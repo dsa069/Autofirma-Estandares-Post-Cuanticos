@@ -5,9 +5,11 @@ import os
 block_cipher = None
 
 # Preparar lista de datos de forma correcta
-datas = [('../package', 'package'), 
-        ('sk_entidad.json', '.'),  # Copiar sk_entidad.json en el mismo directorio del EXE
-        ('pk_entidad.json', '.'),   # Copiar pk_entidad.json en el mismo directorio del EXE
+datas = [('../package', 'package'),
+        ('backend/funcComunes.py', '.'),
+        ('backend/funcEntGen.py', '.'),
+        ('sk_entidad.json', '.'),
+        ('pk_entidad.json', '.'),
         ('img/AlterDiego.ico', '.'),
         ('img/AlterDiego.png', '.')
 ]  # Esto siempre se incluye

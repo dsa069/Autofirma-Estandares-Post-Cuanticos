@@ -1,11 +1,9 @@
 import ctypes
 import sys
 import os
+from backend.funcComunes import log_message, calcular_hash_firma, calcular_hash_huella, init_paths
 
-# Añadir la carpeta padre (donde está 'package') a sys.path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)  # Subir un nivel desde 'src'
-sys.path.insert(0, parent_dir)
+BASE_DIR = init_paths()
 
 import json
 import hashlib
@@ -17,12 +15,6 @@ from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 from dilithium_py.ml_dsa import ML_DSA_65  # Usamos ML_DSA_65 (Dilithium3)
-
-if getattr(sys, 'frozen', False):
-    BASE_DIR = sys._MEIPASS  # Carpeta temporal de PyInstaller
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -98,50 +90,18 @@ class AutoFirmaApp:
         self.log_text = tk.Text(root, width=70, height=15, state=tk.DISABLED)
         self.log_text.pack(pady=10)
 
-    def log_message(self, message):
-        """Registra un mensaje en un archivo de log."""
-        try:
-            # Obtener la ruta de la carpeta src (directorio actual del script)
-            log_folder = current_dir  # current_dir ya está definido al inicio del archivo
-            
-            # Crear la carpeta de logs si no existe
-            if not os.path.exists(log_folder):
-                os.makedirs(log_folder)
-            
-            log_file_path = os.path.join(log_folder, "firmaApp.log")
-            
-            # Fecha y hora actual - CORREGIDO
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Crear la entrada de log
-            log_entry = f"[{timestamp}] {message}\n"
-            
-            # Escribir en el archivo de log (modo append)
-            with open(log_file_path, "a", encoding="utf-8") as log_file:
-                log_file.write(log_entry)
-                
-            return True
-            
-        except Exception as e:
-            print(f"Error al registrar en el log: {e}")
-            return False
-
     def calcular_hash_firma(self, cert_copy):
         cert_copy.pop("firma", None)
         cert_copy.pop("user_secret_key", None)  # No debe estar en la firma
 
-        ordered_keys_firma = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", "user_public_key", "entity_public_key", "algoritmo"]
-        ordered_data_firma = {key: cert_copy[key] for key in ordered_keys_firma}
-
-        serialized_data_firma = json.dumps(ordered_data_firma, separators=(",", ":"), ensure_ascii=False)
-        return hashlib.sha256(serialized_data_firma.encode()).digest()
+        return calcular_hash_firma(cert_copy)
     
     def verificar_certificado(self, cert_data):
         """Verifica la validez de un certificado (SPHINCS+ o Dilithium)."""
         try:
             # Detectar algoritmo del certificado
             algoritmo = cert_data.get("algoritmo")  # Por defecto SPHINCS+ para compatibilidad
-            self.log_message(f"Verificando certificado con algoritmo: {algoritmo.upper()}")
+            log_message("firmaApp.log",f"Verificando certificado con algoritmo: {algoritmo.upper()}")
             
             expected_hash = cert_data.get("huella_digital")
             firma = cert_data.get("firma")
@@ -150,21 +110,7 @@ class AutoFirmaApp:
             cert_copy = cert_data.copy()
             cert_copy.pop("huella_digital", None)
 
-            # Campos ordenados para calcular la huella digital (con algoritmo)
-            ordered_keys_huella = ["nombre", "dni", "fecha_expedicion", "fecha_caducidad", 
-                                "user_public_key", "entity_public_key", "algoritmo", 
-                                "firma", "user_secret_key"]
-            ordered_data_huella = {key: cert_copy[key] for key in ordered_keys_huella if key in cert_copy}
-
-            serialized_data_huella = json.dumps(ordered_data_huella, separators=(",", ":"), ensure_ascii=False)
-            recalculated_hash = hashlib.sha256(serialized_data_huella.encode()).hexdigest()
-
-            #self.log_message(f"Hash recalculado: {recalculated_hash}")
-            # Guardar en archivo para depuración
-            #with open("serializado_huella.json", "w", encoding="utf-8") as f:
-            #    f.write(serialized_data_huella)
-
-            if recalculated_hash != expected_hash:
+            if calcular_hash_huella(cert_copy) != expected_hash:
                 raise ValueError("La huella digital del certificado no es válida.")
             # -------------------- VERIFICACIÓN DE FECHAS --------------------
             fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
@@ -210,22 +156,16 @@ class AutoFirmaApp:
                         ent_pk_candidata = bytes.fromhex(pk_entry.get("clave", ""))
                         if ent_pk_cert == ent_pk_candidata:
                             clave_encontrada = True
-                            self.log_message(f"Clave pública de entidad verificada: {pk_entry.get('titulo', 'Sin título')}")
+                            log_message("firmaApp.log",f"Clave pública de entidad verificada: {pk_entry.get('titulo', 'Sin título')}")
                             break
                     except Exception as e:
-                        self.log_message(f"Error al procesar clave candidata: {e}")
+                        log_message("firmaApp.log",f"Error al procesar clave candidata: {e}")
                 
                 if not clave_encontrada:
                     raise ValueError("La clave pública de la entidad en el certificado no coincide con ninguna clave oficial.")
                 
             # -------------------- VALIDACIÓN FIRMA --------------------
             recalculated_hash_firma = self.calcular_hash_firma(cert_copy)
-            
-            #self.log_message(f"Hash recalculado para firma: {recalculated_hash_firma}")
-
-            # Guardar en archivo para depuración
-            #with open("serializado_verificacion_firma.json", "w", encoding="utf-8") as f:
-            #   f.write(serialized_data_firma)
 
             # Convertir la firma a bytes
             firma_bytes = bytes.fromhex(firma)
@@ -247,7 +187,7 @@ class AutoFirmaApp:
             return True
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar certificado: {e}")
-            self.log_message(f"Error al verificar certificado: {e}")
+            log_message("firmaApp.log",f"Error al verificar certificado: {e}")
             return False
         
     def decrypt_private_key(self, encrypted_sk, password):
@@ -282,8 +222,8 @@ class AutoFirmaApp:
         """Muestra una alerta simple en la consola cuando hay intentos fallidos."""
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.log_message(f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
-        self.log_message("-" * 50)
+        log_message("firmaApp.log",f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
+        log_message("firmaApp.log","-" * 50)
         
         return True
                 
@@ -297,7 +237,7 @@ class AutoFirmaApp:
             # Verificar si la carpeta existe
             if not os.path.exists(certs_folder):
                 messagebox.showerror("Error", "No se encuentra la carpeta certificados_postC en su directorio de usuario.")
-                self.log_message("Error: No se encuentra la carpeta certificados_postC")
+                log_message("firmaApp.log","Error: No se encuentra la carpeta certificados_postC")
                 return None, None, None, None, None, None
                 
             cert_path = filedialog.askopenfilename(
@@ -345,11 +285,11 @@ class AutoFirmaApp:
                         if intento == 3:  # Mostrar alerta cada 3 intentos
                             self.enviar_alerta_certificado(cert_data["nombre"], cert_data["dni"])
 
-            self.log_message(f"Certificado {tipo} cargado correctamente.")
+            log_message("firmaApp.log",f"Certificado {tipo} cargado correctamente.")
             return user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar certificado {tipo}: {e}")
-            self.log_message(f"Error al cargar certificado {tipo}: {e}")
+            log_message("firmaApp.log",f"Error al cargar certificado {tipo}: {e}")
             return None, None, None, None, None, None
 
     def add_metadata_to_pdf(self, pdf_path, firma, cert_data, visual_signature_hash=None):
@@ -393,12 +333,12 @@ class AutoFirmaApp:
             doc.save(pdf_path, incremental=True, encryption=0)
             doc.close()
             
-            self.log_message(f"PDF firmado con metadatos guardado en: {pdf_path}")
+            log_message("firmaApp.log",f"PDF firmado con metadatos guardado en: {pdf_path}")
             messagebox.showinfo("Éxito", f"PDF firmado guardado en: {pdf_path}\nFecha de firma: {fecha_firma}")
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al añadir metadatos al PDF: {e}")
-            self.log_message(f"Error al añadir metadatos al PDF: {e}")
+            log_message("firmaApp.log",f"Error al añadir metadatos al PDF: {e}")
 
 
     def calcular_hash_documento(self, file_path):
@@ -738,9 +678,9 @@ class AutoFirmaApp:
                         "uri": redirect_uri
                     })
                     
-                    self.log_message(f"Firma clickable creada para {os.path.basename(pdf_path)}")
+                    log_message("firmaApp.log",f"Firma clickable creada para {os.path.basename(pdf_path)}")
                 except Exception as e:
-                    self.log_message(f"Error al añadir enlace: {e}")
+                    log_message("firmaApp.log",f"Error al añadir enlace: {e}")
 
                 doc.save(pdf_path, incremental=True, encryption=0)
                 doc.close()
@@ -756,16 +696,16 @@ class AutoFirmaApp:
                 visual_signature_hash = bytes(a ^ b for a, b in zip(hash_before, hash_after))
 
                 
-                self.log_message(f"Firma visual añadida en la página {result['page']+1}")
+                log_message("firmaApp.log",f"Firma visual añadida en la página {result['page']+1}")
                 return True, visual_signature_hash
                 
             except Exception as e:
-                self.log_message(f"Error al añadir firma visual: {e}")
+                log_message("firmaApp.log",f"Error al añadir firma visual: {e}")
                 return False, None
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error al seleccionar posición: {e}")
-            self.log_message(f"Error al seleccionar posición: {e}")
+            log_message("firmaApp.log",f"Error al seleccionar posición: {e}")
             return False
 
     def sign_message(self):
@@ -788,7 +728,7 @@ class AutoFirmaApp:
             # Verificar si existe el certificado de autenticación
             if not os.path.exists(cert_auth_path):
                 messagebox.showerror("Error", f"No se encontró el certificado de autenticación para el DNI {dni}.")
-                self.log_message(f"Error: No se encontró certificado de autenticación para DNI {dni}")
+                log_message("firmaApp.log",f"Error: No se encontró certificado de autenticación para DNI {dni}")
                 return
                 
             # Cargar el certificado de autenticación
@@ -799,13 +739,13 @@ class AutoFirmaApp:
                 # Verificar el certificado de autenticación
                 if not self.verificar_certificado(cert_auth):
                     messagebox.showerror("Error", "El certificado de autenticación no es válido.")
-                    self.log_message("Error: Certificado de autenticación inválido.")
+                    log_message("firmaApp.log","Error: Certificado de autenticación inválido.")
                     return
                     
-                self.log_message(f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
+                log_message("firmaApp.log",f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al cargar certificado de autenticación: {e}")
-                self.log_message(f"Error al cargar certificado de autenticación: {e}")
+                log_message("firmaApp.log",f"Error al cargar certificado de autenticación: {e}")
                 return
 
             # OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
@@ -821,7 +761,7 @@ class AutoFirmaApp:
 
             if hash_firma_cd != hash_auth_cd:
                 messagebox.showerror("Error", "Los certificados de firma y autenticación no están asociados.")
-                self.log_message("Error: Los certificados de firma y autenticación no coinciden.")
+                log_message("firmaApp.log","Error: Los certificados de firma y autenticación no coinciden.")
                 return
 
             # SELECCIONAR DOCUMENTO PARA FIRMAR
@@ -861,15 +801,15 @@ class AutoFirmaApp:
                     visual_signature_hash = visual_hash
                 else:
                     # Si se cancela la firma escrita, seguimos con la firma digital normal
-                    self.log_message("Firma escrita cancelada, continuando con firma digital.")
+                    log_message("firmaApp.log","Firma escrita cancelada, continuando con firma digital.")
 
             # CALCULAR HASH DEL DOCUMENTO (después de añadir la firma escrita si se solicitó)
             hash_documento = self.calcular_hash_documento(save_path)
-            self.log_message(f"Hash del documento: {hash_documento.hex()}")
+            log_message("firmaApp.log",f"Hash del documento: {hash_documento.hex()}")
 
             # OBTENER EL ALGORITMO DEL CERTIFICADO
             algoritmo = cert_firma.get("algoritmo", "sphincs").lower()
-            self.log_message(f"Firmando con algoritmo: {algoritmo.upper()}")
+            log_message("firmaApp.log",f"Firmando con algoritmo: {algoritmo.upper()}")
 
             # FIRMAR EL HASH DIGITALMENTE SEGÚN EL ALGORITMO
             if algoritmo == "sphincs":
@@ -886,12 +826,12 @@ class AutoFirmaApp:
 
             # Registrar en el log el documento firmado
             titulo_doc = os.path.basename(save_path)
-            self.log_message(f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
+            log_message("firmaApp.log",f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
             messagebox.showinfo("Éxito", f"Documento firmado correctamente y guardado en:\n{save_path}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
-            self.log_message(f"Error al firmar documento: {e}")
+            log_message("firmaApp.log",f"Error al firmar documento: {e}")
 
     def verify_signature(self):
         """Verifica todas las firmas en un documento PDF."""
@@ -927,12 +867,12 @@ class AutoFirmaApp:
                     
             except Exception as e:
                 messagebox.showerror("Error", f"Error al extraer firmas: {e}")
-                self.log_message(f"Error al extraer firmas: {e}")
+                log_message("firmaApp.log",f"Error al extraer firmas: {e}")
                 return
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar firmas: {e}")
-            self.log_message(f"Error al verificar firmas: {e}")
+            log_message("firmaApp.log",f"Error al verificar firmas: {e}")
 
     def mostrar_resultados_firmas(self, file_path, firmas, hash_documento_actual):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
@@ -1003,7 +943,7 @@ class AutoFirmaApp:
         resultados_validacion = []
         
         # FASE 1: Procesar las firmas de la más reciente a la más antigua
-        self.log_message("Iniciando verificación en cascada de firmas...")
+        log_message("firmaApp.log","Iniciando verificación en cascada de firmas...")
         for i in range(total_firmas - 1, -1, -1):
             firma_data = firmas[i]
             
@@ -1025,7 +965,7 @@ class AutoFirmaApp:
                     firma_valida = ML_DSA_65.verify(user_pk, hash_actual, firma)
                 else:
                     firma_valida = False
-                    self.log_message(f"Algoritmo desconocido: {algoritmo}")
+                    log_message("firmaApp.log",f"Algoritmo desconocido: {algoritmo}")
             else:
                 firma_valida = False
             
@@ -1043,7 +983,7 @@ class AutoFirmaApp:
                 hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
                 # Operación "resta" conceptual para obtener el hash anterior
                 hash_actual = bytes(a ^ b for a, b in zip(hash_actual, hash_visual))
-                self.log_message(f"Hash calculado para firma {i}: {hash_actual.hex()[:10]}...")
+                log_message("firmaApp.log",f"Hash calculado para firma {i}: {hash_actual.hex()[:10]}...")
         
         # FASE 2: Mostrar los resultados en orden original (de la más antigua a la más reciente)
         resultados_validacion.reverse()
@@ -1185,7 +1125,7 @@ class AutoFirmaApp:
     def register_protocol_handler(self):
         try:
             if sys.platform != "win32":
-                self.log_message("Registro de protocolo solo disponible en Windows")
+                log_message("firmaApp.log","Registro de protocolo solo disponible en Windows")
                 return False
                 
             import winreg
@@ -1213,16 +1153,16 @@ class AutoFirmaApp:
             winreg.CloseKey(cmd_key)
             winreg.CloseKey(key)
             
-            self.log_message("Protocolo 'autofirma://' registrado correctamente")
+            log_message("firmaApp.log","Protocolo 'autofirma://' registrado correctamente")
             return True
         except Exception as e:
-            self.log_message(f"Error al registrar protocolo: {e}")
+            log_message("firmaApp.log",f"Error al registrar protocolo: {e}")
             return False
         
     def verify_from_uri(self, uri):
         """Extrae la ruta del PDF desde una URI autofirma:// y verifica el documento"""
         try:
-            self.log_message(f"Procesando URI: {uri}")
+            log_message("firmaApp.log",f"Procesando URI: {uri}")
             
             if uri.startswith("autofirma://"):
                 encoded_path = uri[len("autofirma://"):]
@@ -1237,10 +1177,10 @@ class AutoFirmaApp:
                         messagebox.showerror("Error", "No se pudo detectar automáticamente el PDF activo. Por favor, asegúrese de que el PDF esté abierto y visible en primer plano.")
                         return False
                     
-                    self.log_message(f"PDF activo detectado: {file_path}")
+                    log_message("firmaApp.log",f"PDF activo detectado: {file_path}")
                 elif encoded_path.lower() == "test":
                     messagebox.showinfo("Prueba exitosa", "El protocolo autofirma:// funciona correctamente.")
-                    self.log_message("Prueba del protocolo exitosa")
+                    log_message("firmaApp.log","Prueba del protocolo exitosa")
                     return True
                 else:
                     # Manejar el caso de URIs antiguas (con ruta codificada)
@@ -1278,14 +1218,14 @@ class AutoFirmaApp:
                 return False
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar desde URI: {e}")
-            self.log_message(f"Error al verificar desde URI: {e}")
+            log_message("firmaApp.log",f"Error al verificar desde URI: {e}")
             return False
         
 
     def detect_active_pdf(self):
         """Detecta automáticamente el PDF activo incluso cuando esta app está en primer plano"""
         try:
-            self.log_message("Intentando detectar el PDF activo...")
+            log_message("firmaApp.log","Intentando detectar el PDF activo...")
             
             if sys.platform == "win32":
                 try:
@@ -1298,7 +1238,7 @@ class AutoFirmaApp:
                     from datetime import datetime, timedelta
                     
                     # Estrategia 1: Buscar PDFs abiertos por cualquier proceso de visor PDF
-                    self.log_message("Buscando PDFs abiertos en procesos activos...")
+                    log_message("firmaApp.log","Buscando PDFs abiertos en procesos activos...")
                     pdf_viewers = ["acrord32.exe", "acrobat.exe", "chrome.exe", "msedge.exe", 
                                 "firefox.exe", "SumatraPDF.exe", "FoxitReader.exe"]
                     
@@ -1312,7 +1252,7 @@ class AutoFirmaApp:
                                 for file in p.open_files():
                                     if file.path.lower().endswith('.pdf'):
                                         pdf_files_found.append((file.path, p.create_time()))
-                                        self.log_message(f"PDF encontrado en proceso {p.name()}: {file.path}")
+                                        log_message("firmaApp.log",f"PDF encontrado en proceso {p.name()}: {file.path}")
                             except (psutil.AccessDenied, psutil.NoSuchProcess):
                                 continue
                     
@@ -1320,11 +1260,11 @@ class AutoFirmaApp:
                     if pdf_files_found:
                         # Ordenar por tiempo de creación del proceso, más reciente primero
                         pdf_files_found.sort(key=lambda x: x[1], reverse=True)
-                        self.log_message(f"PDF seleccionado (proceso más reciente): {pdf_files_found[0][0]}")
+                        log_message("firmaApp.log",f"PDF seleccionado (proceso más reciente): {pdf_files_found[0][0]}")
                         return pdf_files_found[0][0]
                     
                     # Estrategia 2: Buscar PDFs recientemente modificados
-                    self.log_message("Buscando PDFs recientemente modificados...")
+                    log_message("firmaApp.log","Buscando PDFs recientemente modificados...")
                     recent_files = []
                     locations = [
                         os.path.join(os.path.expanduser("~"), "Desktop"),
@@ -1354,11 +1294,11 @@ class AutoFirmaApp:
                     # Si encontramos archivos recientes, devolver el más reciente
                     if recent_files:
                         recent_files.sort(key=lambda x: x[1], reverse=True)
-                        self.log_message(f"PDF seleccionado (modificado recientemente): {recent_files[0][0]}")
+                        log_message("firmaApp.log",f"PDF seleccionado (modificado recientemente): {recent_files[0][0]}")
                         return recent_files[0][0]
                     
                     # Estrategia 3: Buscar en archivos temporales de navegadores
-                    self.log_message("Buscando PDFs en archivos temporales...")
+                    log_message("firmaApp.log","Buscando PDFs en archivos temporales...")
                     temp_files = []
                     
                     # Ubicaciones típicas de archivos temporales de navegadores
@@ -1383,25 +1323,25 @@ class AutoFirmaApp:
                     
                     if temp_files:
                         temp_files.sort(key=lambda x: x[1], reverse=True)
-                        self.log_message(f"PDF temporal seleccionado: {temp_files[0][0]}")
+                        log_message("firmaApp.log",f"PDF temporal seleccionado: {temp_files[0][0]}")
                         return temp_files[0][0]
                     
                     # No se pudo encontrar ningún PDF activo
-                    self.log_message("No se pudo detectar automáticamente el PDF activo")
+                    log_message("firmaApp.log","No se pudo detectar automáticamente el PDF activo")
                     return None
                     
                 except ImportError as e:
-                    self.log_message(f"Error: módulo necesario no instalado: {e}")
-                    self.log_message("Para detección automática, instale los paquetes requeridos:")
-                    self.log_message("pip install pywin32 psutil")
+                    log_message("firmaApp.log",f"Error: módulo necesario no instalado: {e}")
+                    log_message("firmaApp.log","Para detección automática, instale los paquetes requeridos:")
+                    log_message("firmaApp.log","pip install pywin32 psutil")
                     return None
             else:
-                self.log_message("Detección automática solo disponible en Windows")
+                log_message("firmaApp.log","Detección automática solo disponible en Windows")
                 return None
         except Exception as e:
-            self.log_message(f"Error en detección automática: {e}")
+            log_message("firmaApp.log",f"Error en detección automática: {e}")
             import traceback
-            self.log_message(traceback.format_exc())
+            log_message("firmaApp.log",traceback.format_exc())
             return None
         
 if __name__ == "__main__":
