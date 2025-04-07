@@ -14,7 +14,7 @@ from tkinter import simpledialog
 from tkinter import messagebox
 from package.sphincs import Sphincs  # Importar la clase Sphincs
 from dilithium_py.ml_dsa import ML_DSA_65  # Utilizamos Dilithium3 
-from backend.funcEntGen import encrypt_private_key, validate_password, leer_claves_entidad
+from backend.funcEntGen import encrypt_private_key, validate_password, cargar_claves_entidad, generar_claves_entidad_backend, verificar_campos_generacion_claves
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
@@ -166,111 +166,39 @@ class CertificadoDigitalApp:
             tk.Entry(frame_fecha_cad, textvariable=fecha_cad_var, width=15).pack(side=tk.LEFT, padx=5)
             tk.Label(frame_fecha_cad, text="(DD/MM/AAAA)").pack(side=tk.LEFT)
 
-            def validate_date(date_str):
-                """Valida una fecha en formato DD/MM/AAAA y la convierte a formato ISO."""
-                try:
-                    day, month, year = map(int, date_str.split('/'))
-                    date_obj = datetime.date(year, month, day)
-                    return date_obj.isoformat()
-                except (ValueError, TypeError):
-                    return None
-
             def generate_and_save():
                 titulo = titulo_var.get().strip()
                 algoritmo = algoritmo_var.get()
                 fecha_ini_str = fecha_ini_var.get().strip()
                 fecha_cad_str = fecha_cad_var.get().strip()
 
-                if not titulo:
-                    messagebox.showerror("Error", "Debe especificar un nombre para la entidad")
-                    return
-
-                # Validar fechas
-                fecha_expedicion = validate_date(fecha_ini_str)
-                if not fecha_expedicion:
-                    messagebox.showerror("Error", "Fecha de inicio inválida. Use formato DD/MM/AAAA")
-                    return
-                    
-                fecha_caducidad = validate_date(fecha_cad_str)
-                if not fecha_caducidad:
-                    messagebox.showerror("Error", "Fecha de caducidad inválida. Use formato DD/MM/AAAA")
-                    return
-                    
-                # Verificar que la fecha de caducidad sea posterior a la de expedición
-                if fecha_caducidad <= fecha_expedicion:
-                    messagebox.showerror("Error", "La fecha de caducidad debe ser posterior a la fecha de inicio")
+                # Verificar campos usando la nueva función
+                mensaje, fecha_expedicion, fecha_caducidad = verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str)
+                if not fecha_expedicion or not fecha_caducidad:
+                    messagebox.showerror("Error", mensaje)
                     return
 
                 try:
-                    # Generar ID único para esta clave
-                    import uuid
-                    key_id = str(uuid.uuid4())
+                    id = generar_claves_entidad_backend(
+                        titulo, 
+                        algoritmo, 
+                        fecha_expedicion, 
+                        fecha_caducidad, 
+                        SK_ENTIDAD_PATH, 
+                        PK_ENTIDAD_PATH,
+                    )
                     
-                    # Generar las claves según el algoritmo seleccionado
-                    if algoritmo == "sphincs":
-                        sk, pk = self.sphincs.generate_key_pair()
-                    else:  # dilithium
-                        pk, sk = ML_DSA_65.keygen()
-                    
-                    # Crear estructura para guardar las claves
-                    nueva_sk = {
-                        "id": key_id,
-                        "titulo": titulo,
-                        "algoritmo": algoritmo,
-                        "fecha_expedicion": fecha_expedicion,
-                        "fecha_caducidad": fecha_caducidad,
-                        "clave": sk.hex()
-                    }
-                    
-                    nueva_pk = {
-                        "id": key_id,
-                        "titulo": titulo,
-                        "algoritmo": algoritmo,
-                        "fecha_expedicion": fecha_expedicion,
-                        "fecha_caducidad": fecha_caducidad,
-                        "clave": pk.hex()
-                    }
-
-                    # Leer claves existentes o crear estructura inicial
-                    claves_sk = []
-                    claves_pk = []
-                    
-                    if os.path.exists(SK_ENTIDAD_PATH):
-                        with open(SK_ENTIDAD_PATH, "r") as file:
-                            try:
-                                claves_sk = json.load(file)
-                            except json.JSONDecodeError:
-                                claves_sk = []
-                    
-                    if os.path.exists(PK_ENTIDAD_PATH):
-                        with open(PK_ENTIDAD_PATH, "r") as file:
-                            try:
-                                claves_pk = json.load(file)
-                            except json.JSONDecodeError:
-                                claves_pk = []
-                    
-                    # Añadir nuevas claves
-                    claves_sk.append(nueva_sk)
-                    claves_pk.append(nueva_pk)
-                    
-                    # Guardar en archivos
-                    with open(SK_ENTIDAD_PATH, "w") as file:
-                        json.dump(claves_sk, file, indent=4)
-                    
-                    with open(PK_ENTIDAD_PATH, "w") as file:
-                        json.dump(claves_pk, file, indent=4)
-                    
-                    # Convertir fechas ISO a formato legible para el mensaje
-                    fecha_exp_obj = datetime.date.fromisoformat(fecha_expedicion)
-                    fecha_cad_obj = datetime.date.fromisoformat(fecha_caducidad)
+                    if id == -1:
+                        raise Exception("Error al generar claves de entidad")
                     
                     log_message("entGenApp.log",f"Nuevas claves generadas: {titulo} ({algoritmo.upper()})")
                     messagebox.showinfo("Éxito", 
                                     f"Nuevas claves de entidad generadas correctamente:\n"
+                                    f"id: {id}\n"
                                     f"Entidad: {titulo}\n"
                                     f"Algoritmo: {algoritmo.upper()}\n"
-                                    f"Válida desde: {fecha_exp_obj.strftime('%d/%m/%Y')}\n"
-                                    f"Válida hasta: {fecha_cad_obj.strftime('%d/%m/%Y')}")
+                                    f"Válida desde: {fecha_expedicion}\n"
+                                    f"Válida hasta: {fecha_caducidad}")
                     
                     key_window.destroy()
                     
@@ -300,7 +228,7 @@ class CertificadoDigitalApp:
                 raise ValueError("El nombre y el DNI son obligatorios.")
             
             # Leer todas las claves disponibles
-            claves_disponibles = leer_claves_entidad(SK_ENTIDAD_PATH, PK_ENTIDAD_PATH)
+            claves_disponibles = cargar_claves_entidad(SK_ENTIDAD_PATH, PK_ENTIDAD_PATH)
             
             # Verificar si hay claves disponibles
             total_claves = len(claves_disponibles["sphincs"]) + len(claves_disponibles["dilithium"])

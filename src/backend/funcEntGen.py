@@ -5,6 +5,10 @@ import os
 import secrets
 import base64
 from Crypto.Cipher import AES
+from dilithium_py.ml_dsa import ML_DSA_65
+from package.sphincs import Sphincs
+
+
 from backend.funcComunes import log_message, calcular_hash_firma, calcular_hash_huella
 
 
@@ -56,97 +60,102 @@ def validate_password(password):
     
     return True, "Contraseña válida"
 
-def leer_claves_entidad(sk_entidad_path, pk_entidad_path):
-        """
-        Versión de depuración para identificar el problema con Dilithium
-        """
-        
-        # Verificación de archivos
-        sk_exists = os.path.exists(sk_entidad_path)
-        pk_exists = os.path.exists(pk_entidad_path)
-        
-        log_message("entGenApp.log",f"Archivo SK existe: {sk_exists}")
-        log_message("entGenApp.log",f"Archivo PK existe: {pk_exists}")
+def validate_date(date_str):
+    """Valida una fecha en formato DD/MM/AAAA y la convierte a formato ISO."""
+    try:
+        day, month, year = map(int, date_str.split('/'))
+        date_obj = datetime.date(year, month, day)
+        return date_obj.isoformat()
+    except (ValueError, TypeError):
+        return None
     
-        # Si no existen los archivos, crearlos como arrays JSON vacíos
-        if not sk_exists:
-            log_message("entGenApp.log",f"Creando archivo de claves privadas en {sk_entidad_path}")
-            try:
-                with open(sk_entidad_path, "w") as file:
-                    json.dump([], file)
-                sk_exists = True
-            except Exception as e:
-                error_msg = f"ERROR: No se pudo crear el archivo de claves privadas: {e}"
-                log_message("entGenApp.log",error_msg)
-                return claves_procesadas
-            
-        if not pk_exists:
-            log_message("entGenApp.log",f"Creando archivo de claves públicas en {pk_entidad_path}")
-            try:
-                with open(pk_entidad_path, "w") as file:
-                    json.dump([], file)
-                pk_exists = True
-            except Exception as e:
-                error_msg = f"ERROR: No se pudo crear el archivo de claves públicas: {e}"
-                log_message("entGenApp.log",error_msg)
-                return claves_procesadas
+def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
+    """
+    Verifica que los campos para generar una nueva clave sean válidos.
     
+    Args:
+        titulo (str): Nombre o título de la entidad
+        fecha_ini_str (str): Fecha de inicio en formato DD/MM/AAAA
+        fecha_cad_str (str): Fecha de caducidad en formato DD/MM/AAAA
+        
+    Returns:
+        tuple: Mensaje de error o éxito, fecha de expedición y fecha de caducidad
+    """
+    # Validar título
+    if not titulo or not titulo.strip():
+        return "Debe especificar un nombre para la entidad", None, None
+
+    # Validar fechas
+    fecha_expedicion = validate_date(fecha_ini_str)
+    if not fecha_expedicion:
+        return "Fecha de inicio inválida. Use formato DD/MM/AAAA", None, None
+        
+    fecha_caducidad = validate_date(fecha_cad_str)
+    if not fecha_caducidad:
+        return "Fecha de caducidad inválida. Use formato DD/MM/AAAA", None, None
+        
+    # Verificar que la fecha de caducidad sea posterior a la de expedición
+    if fecha_caducidad <= fecha_expedicion:
+        return "La fecha de caducidad debe ser posterior a la fecha de inicio", None, None
+    
+    # Si todo está correcto, devolver datos validados
+    return "Datos válidos", fecha_expedicion, fecha_caducidad
+    
+
+def cargar_json(ruta_archivo):      
+    """Carga un archivo JSON o crea uno nuevo y devuelve lista vacía."""
+    if not os.path.exists(ruta_archivo):
         try:
-            # Cargar archivos como texto primero para verificar JSON válido
-            with open(sk_entidad_path, "r") as file:
-                sk_text = file.read()
-                log_message("entGenApp.log",f"Archivo SK cargado: {len(sk_text)} bytes")
-            
-            with open(pk_entidad_path, "r") as file:
-                pk_text = file.read()
-                log_message("entGenApp.log",f"Archivo PK cargado: {len(pk_text)} bytes")
+            with open(ruta_archivo, "w") as file:
+                json.dump([], file)
+            log_message("entGenApp.log", f"Creando archivo JSON en {ruta_archivo}")
+        except Exception as e:
+            log_message("entGenApp.log", f"ERROR: No se pudo crear {ruta_archivo}: {e}")
+        return []
+    
+    try:
+        with open(ruta_archivo, "r") as file:
+            return json.load(file)
+    except json.JSONDecodeError:
+        return []
 
-            # Intentar parsear JSON
-            try:
-                sk_data = json.loads(sk_text)
-                log_message("entGenApp.log",f"SK JSON parseado correctamente: {type(sk_data)}, {len(sk_data)} elementos")
-            
-                # Verificar si hay elementos en el archivo
-                if not sk_data:
-                    error_msg = "No hay claves privadas en el archivo. Debe generar al menos una clave."
-                    log_message("entGenApp.log",error_msg)
-                    return claves_procesadas
-                
-            except json.JSONDecodeError as e:
-                log_message("entGenApp.log",f"Error al parsear SK JSON: {e}")
-                return None
-            
-            try:
-                pk_data = json.loads(pk_text)
-                log_message("entGenApp.log",f"PK JSON parseado correctamente: {type(pk_data)}, {len(pk_data)} elementos")
+def validar_y_convertir_clave(hex_clave):
+    """
+    Valida que una clave en formato hexadecimal sea válida y la convierte a bytes.
+    
+    Args:
+        hex_clave (str): Clave en formato hexadecimal
+        tipo_clave (str): "privada" o "pública" para mensajes específicos
+        
+    Returns:
+        bytes: Clave convertida a bytes o None si hay error
+    """
+    try:
+        # Verificar si la clave está vacía
+        if not hex_clave:
+            log_message("entGenApp.log", f"  ERROR: Clave vacía")
+            return None
+        
+        log_message("entGenApp.log", f"hex: {hex_clave[:50]}... ({len(hex_clave)} caracteres)")
+        
+        # Validar que solo contiene caracteres hexadecimales válidos
+        if not all(c in "0123456789abcdefABCDEF" for c in hex_clave):
+            log_message("entGenApp.log", f"  ERROR: Clave contiene caracteres no hexadecimales")
+            invalid_chars = [c for c in hex_clave if c not in "0123456789abcdefABCDEF"]
+            log_message("entGenApp.log", f"  Caracteres inválidos: {invalid_chars[:20]}...")
+            return None
+        
+        return bytes.fromhex(hex_clave)
+        
+    except ValueError as e:
+        log_message("entGenApp.log", f"  ERROR al convertir clave a bytes: {e}")
+        return None
 
-               # Verificar si hay elementos en el archivo
-                if not pk_data:
-                    error_msg = "No hay claves públicas en el archivo. Debe generar al menos una clave."
-                    log_message("entGenApp.log",error_msg)
-                    return claves_procesadas
-                     
-            except json.JSONDecodeError as e:
-                log_message("entGenApp.log",f"Error al parsear PK JSON: {e}")
-                return None
-            
-            # Análisis de claves por tipo
-            log_message("entGenApp.log","\n--- Análisis de claves en archivo ---")
-            sphincs_count = 0
-            dilithium_count = 0
-            unknown_count = 0
-            
-            for idx, entry in enumerate(sk_data):
-                algo = entry.get("algoritmo", "desconocido").lower()
-                if algo == "sphincs":
-                    sphincs_count += 1
-                elif algo == "dilithium":
-                    dilithium_count += 1
-                    log_message("entGenApp.log",f"Dilithium #{idx+1}: {entry.get('titulo')} (ID: {entry.get('id')})")
-                else:
-                    unknown_count += 1
-                    
-            log_message("entGenApp.log",f"Total claves: {len(sk_data)} ({sphincs_count} SPHINCS, {dilithium_count} Dilithium, {unknown_count} desconocidas)")
+def cargar_claves_entidad(sk_entidad_path, pk_entidad_path):
+        """Carga las claves de entidad desde archivos JSON y las procesa."""
+        try:
+            sk_data= cargar_json(sk_entidad_path)
+            pk_data = cargar_json(pk_entidad_path)
             
             # Inicializar diccionario de claves procesadas
             claves_procesadas = {
@@ -178,35 +187,17 @@ def leer_claves_entidad(sk_entidad_path, pk_entidad_path):
                     if pk_entry is None:
                         log_message("entGenApp.log",f"  ERROR: No se encontró clave pública para {titulo} (ID: {clave_id})")
                         continue
-                    
-                    # Convertir claves a bytes con verificación detallada
                     try:
-                        sk_hex = sk_entry.get("clave", "")
-                        if not sk_hex:
-                            log_message("entGenApp.log",f"  ERROR: Clave privada vacía para {titulo}")
+                        # Convertir claves a bytes con verificación detallada
+                        log_message("entGenApp.log",f"Validando clave privada de {titulo}...")
+                        sk_bytes = validar_y_convertir_clave(sk_entry.get("clave", ""))
+                        if sk_bytes is None:
                             continue
                         
-                        log_message("entGenApp.log",f"  SK hex: {sk_hex[:50]}... ({len(sk_hex)} caracteres)")
-                        
-                        # Validar que solo contiene caracteres hexadecimales válidos
-                        if not all(c in "0123456789abcdefABCDEF" for c in sk_hex):
-                            log_message("entGenApp.log",f"  ERROR: Clave privada contiene caracteres no hexadecimales")
-                            invalid_chars = [c for c in sk_hex if c not in "0123456789abcdefABCDEF"]
-                            log_message("entGenApp.log",f"  Caracteres inválidos: {invalid_chars[:20]}...")
+                        log_message("entGenApp.log",f"Validando clave pública de {titulo}...")
+                        pk_bytes = validar_y_convertir_clave(pk_entry.get("clave", ""))
+                        if pk_bytes is None:
                             continue
-                        
-                        sk_bytes = bytes.fromhex(sk_hex)
-                        log_message("entGenApp.log",f"  SK bytes: {sk_bytes[:10].hex()}... ({len(sk_bytes)} bytes)")
-                        
-                        # Similar para clave pública
-                        pk_hex = pk_entry.get("clave", "")
-                        if not pk_hex:
-                            log_message("entGenApp.log",f"  ERROR: Clave pública vacía para {titulo}")
-                            continue
-                        
-                        log_message("entGenApp.log",f"  PK hex: {pk_hex[:50]}... ({len(pk_hex)} caracteres)")
-                        pk_bytes = bytes.fromhex(pk_hex)
-                        log_message("entGenApp.log",f"  PK bytes: {pk_bytes[:10].hex()}... ({len(pk_bytes)} bytes)")
                         
                     except ValueError as e:
                         log_message("entGenApp.log",f"  ERROR al convertir clave a bytes: {e}")
@@ -251,3 +242,69 @@ def leer_claves_entidad(sk_entidad_path, pk_entidad_path):
         except Exception as e:
             log_message("entGenApp.log",f"ERROR CRÍTICO: {e}")
             return None
+        
+def generar_claves_entidad_backend(titulo, algoritmo, fecha_expedicion, fecha_caducidad, sk_path, pk_path):
+    """
+    Genera un nuevo par de claves de entidad y las guarda en los archivos correspondientes.
+    
+    Args:
+        titulo (str): Nombre de la entidad
+        algoritmo (str): 'sphincs' o 'dilithium'
+        fecha_expedicion (str): Fecha de expedición en formato ISO
+        fecha_caducidad (str): Fecha de caducidad en formato ISO
+        sk_path (str): Ruta al archivo de claves privadas
+        pk_path (str): Ruta al archivo de claves públicas
+        sphincs_instance: Instancia de Sphincs para generar claves (opcional)
+        
+    Returns:
+        key_id (str) : ID de la clave generada
+    """
+    try:
+        # Generar ID único para esta clave
+        import uuid
+        key_id = str(uuid.uuid4())
+        
+        # Generar las claves según el algoritmo seleccionado
+        if algoritmo == "sphincs":
+            sphincs_inst = Sphincs()
+            sk, pk = sphincs_inst.generate_key_pair()
+        else:  # dilithium
+            pk, sk = ML_DSA_65.keygen()
+        
+        clave_base = {
+            "id": key_id,
+            "titulo": titulo,
+            "algoritmo": algoritmo,
+            "fecha_expedicion": fecha_expedicion,
+            "fecha_caducidad": fecha_caducidad
+        }
+        
+        # Crear estructuras específicas añadiendo la clave correspondiente
+        nueva_sk = clave_base.copy()
+        nueva_sk["clave"] = sk.hex()
+        
+        nueva_pk = clave_base.copy()
+        nueva_pk["clave"] = pk.hex()
+
+        # Leer claves existentes o crear estructura inicial
+        claves_sk = cargar_json(sk_path)
+        claves_pk = cargar_json(pk_path)
+        
+        # Añadir nuevas claves
+        claves_sk.append(nueva_sk)
+        claves_pk.append(nueva_pk)
+        
+        # Guardar en archivos
+        with open(sk_path, "w") as file:
+            json.dump(claves_sk, file, indent=4)
+        
+        with open(pk_path, "w") as file:
+            json.dump(claves_pk, file, indent=4)
+            
+        log_message("entGenApp.log", f"Clave generada y guardada: {titulo} ({algoritmo})")
+        return key_id
+
+        
+    except Exception as e:
+        log_message("entGenApp.log", f"Error al generar claves: {e}")
+        return -1
