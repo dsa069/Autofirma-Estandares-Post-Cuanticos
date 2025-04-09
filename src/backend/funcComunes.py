@@ -100,7 +100,7 @@ def firmar_hash(hash_data, clave_privada, algoritmo):
     from package.sphincs import Sphincs
 
     # Firmar según el algoritmo seleccionado
-    if algoritmo == "Sphincs":
+    if algoritmo.lower() == "sphincs":
         sphincs = Sphincs()
         firma = sphincs.sign(hash_data, clave_privada)
     else:  # Dilithium
