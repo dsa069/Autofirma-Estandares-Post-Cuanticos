@@ -5,21 +5,16 @@ from backend.funcComunes import log_message, calcular_hash_firma, calcular_hash_
 
 BASE_DIR = init_paths()
 
-import json
 import datetime
 import tkinter as tk
 from tkinter import PhotoImage
 from Crypto.Cipher import AES
 from tkinter import simpledialog
 from tkinter import messagebox
-from package.sphincs import Sphincs  # Importar la clase Sphincs
-from dilithium_py.ml_dsa import ML_DSA_65  # Utilizamos Dilithium3 
-from backend.funcEntGen import encrypt_private_key, validate_password, cargar_claves_entidad, generar_claves_entidad_backend, verificar_campos_generacion_claves
+from backend.funcEntGen import encrypt_private_key, generar_certificado, validar_datos_usuario, validate_password, cargar_claves_entidad, generar_claves_entidad, verificar_campos_generacion_claves
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
-
-sphincs_instancia = Sphincs()
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -59,9 +54,6 @@ class CertificadoDigitalApp:
         else:
             messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
-        # Instancia de Sphincs
-        self.sphincs = sphincs_instancia
-
         # Título
         self.title_label = tk.Label(
             root, text="Generador de Certificados Digitales", font=("Arial", 16, "bold")
@@ -73,7 +65,7 @@ class CertificadoDigitalApp:
             root,
             text="Generar Claves de Entidad",
             font=("Arial", 12),
-            command=self.generar_claves_entidad,  # Ahora llama al método de clase
+            command=self.generar_clave_UI,  # Ahora llama al método de clase
             bg="#D9534F",
             fg="white",
             width=25,
@@ -107,7 +99,7 @@ class CertificadoDigitalApp:
         self.log_text = tk.Text(root, width=70, height=15, state=tk.DISABLED)
         self.log_text.pack(pady=10)
 
-    def generar_claves_entidad(self):
+    def generar_clave_UI(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
         try:
             # Crear ventana para recoger datos de la nueva clave
@@ -179,7 +171,7 @@ class CertificadoDigitalApp:
                     return
 
                 try:
-                    id = generar_claves_entidad_backend(
+                    id = generar_claves_entidad(
                         titulo, 
                         algoritmo, 
                         fecha_expedicion, 
@@ -224,8 +216,11 @@ class CertificadoDigitalApp:
             # Obtener datos del usuario
             nombre = self.name_entry.get().strip()
             dni = self.dni_entry.get().strip()
-            if not nombre or not dni:
-                raise ValueError("El nombre y el DNI son obligatorios.")
+
+            valid, msg= validar_datos_usuario(nombre, dni)
+            if not valid:
+                raise Exception(msg)
+            
             
             # Leer todas las claves disponibles
             claves_disponibles = cargar_claves_entidad(SK_ENTIDAD_PATH, PK_ENTIDAD_PATH)
@@ -387,13 +382,10 @@ class CertificadoDigitalApp:
             if not selection_confirmed[0] or not selected_key[0]:
                 return
             
-            # Usar la clave seleccionada
+            # -----------------------Usar la clave seleccionada----------------------------
             clave_seleccionada = selected_key[0]
-            algoritmo = clave_seleccionada["algoritmo"].capitalize()
-            entity_sk = clave_seleccionada["sk"]
-            entity_pk = clave_seleccionada["pk"]
             
-            log_message("entGenApp.log",f"Usando clave de entidad: {clave_seleccionada['titulo']} ({algoritmo})")
+            log_message("entGenApp.log",f"Usando clave de entidad: {clave_seleccionada['titulo']} ({clave_seleccionada["algoritmo"].capitalize()})")
             
             # Solicitar contraseña de cifrado al usuario con validación
             password = None
@@ -415,76 +407,15 @@ class CertificadoDigitalApp:
                     messagebox.showerror("Contraseña insegura", message)
                     password = None
 
-            # Generar clave privada y pública del usuario según el algoritmo seleccionado
-            if algoritmo == "Sphincs":
-                # Para certificados SPHINCS+, usar el algoritmo SPHINCS+
-                user_sk, user_pk = self.sphincs.generate_key_pair()
-            else:  # Dilithium
-                # Para certificados Dilithium, usar el algoritmo Dilithium
-                user_pk_raw, user_sk_raw = ML_DSA_65.keygen()  # Nota el orden invertido en Dilithium
-                # Convertir a bytes para mantener compatibilidad con el resto del código
-                user_sk = bytes.fromhex(user_sk_raw.hex())
-                user_pk = bytes.fromhex(user_pk_raw.hex())
-
-            log_message("entGenApp.log",f"Generadas claves de usuario con algoritmo {algoritmo}")
-
-            # Fechas de expedición y caducidad
-            fecha_expedicion = datetime.date.today().isoformat()
-            fecha_caducidad = (datetime.date.today() + datetime.timedelta(days=2*365)).isoformat()
-
-            # Crear estructura del certificado SIN la clave privada (para autenticación)
-            certificado_autenticacion = {
-                "nombre": nombre,
-                "dni": dni,  # Añadir DNI al certificado
-                "fecha_expedicion": fecha_expedicion,
-                "fecha_caducidad": fecha_caducidad,
-                "user_public_key": user_pk.hex(),
-                "entity_public_key": entity_pk.hex(),
-                "algoritmo": algoritmo  # Añadir información del algoritmo usado
-            }
-
-            # --------- Generar HASH PARA FIRMA (EXCLUYENDO firma y huella) ---------
-            hash_certificado = calcular_hash_firma(certificado_autenticacion)
-
-            # Firmar según el algoritmo seleccionado
-            if algoritmo == "Sphincs":
-                firma = self.sphincs.sign(hash_certificado, entity_sk)
-            else:  # Dilithium
-                firma = ML_DSA_65.sign(entity_sk, hash_certificado)
-
-            # Agregar firma al certificado de autenticación
-            certificado_autenticacion["firma"] = firma.hex()
-
-            # Calcular huella digital (hash de todo el certificado de autenticación)
-            certificado_autenticacion["huella_digital"] = calcular_hash_huella(certificado_autenticacion)
-
-            user_sk_encrypted = encrypt_private_key(user_sk, password)
-
-            # Crear certificado de firma (incluye la clave privada del usuario)
-            certificado_firma = certificado_autenticacion.copy()
-            certificado_firma["user_secret_key"] = user_sk_encrypted  # Solo en el certificado de firma
-
-            # Calcular huella digital (hash de todo el certificado de firma)
-            certificado_firma["huella_digital"] = calcular_hash_huella(certificado_firma)
-
-            # Guardar certificados 
-            user_home = os.path.expanduser("~")
-            certs_folder = os.path.join(user_home, "certificados_postC")
+            cert_auth_path, cert_sign_path = generar_certificado(
+                clave_seleccionada,
+                nombre=nombre,
+                dni=dni,
+                password=password
+            )
             
-            # Crear la carpeta si no existe
-            if not os.path.exists(certs_folder):
-                os.makedirs(certs_folder)
-            cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo.lower()}.json")
-            cert_sign_path = os.path.join(certs_folder, f"certificado_digital_firmar_{dni}_{algoritmo.lower()}.json")
-
-            with open(cert_auth_path, "w") as cert_auth_file:
-                json.dump(certificado_autenticacion, cert_auth_file, indent=4)
-
-            with open(cert_sign_path, "w") as cert_sign_file:
-                json.dump(certificado_firma, cert_sign_file, indent=4)
-
-            log_message("entGenApp.log",f"Certificados generados con {algoritmo} y guardados en:\n- {cert_auth_path}\n- {cert_sign_path}")
-            messagebox.showinfo("Éxito", f"Certificados generados con {algoritmo} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
+            messagebox.showinfo("Éxito", 
+                            f"Certificados generados con {algoritmo} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")

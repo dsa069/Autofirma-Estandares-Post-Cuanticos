@@ -3,6 +3,7 @@ import json
 import os
 import datetime
 import sys
+from dilithium_py.ml_dsa import ML_DSA_65
 
 def init_paths():
     """
@@ -94,3 +95,14 @@ def calcular_hash_ordenado(data, ordered_keys):
     ordered_data = {key: data[key] for key in ordered_keys if key in data}
     serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(serialized_data.encode())
+
+def firmar_hash(hash_data, clave_privada, algoritmo):
+    from package.sphincs import Sphincs
+
+    # Firmar según el algoritmo seleccionado
+    if algoritmo == "Sphincs":
+        sphincs = Sphincs()
+        firma = sphincs.sign(hash_data, clave_privada)
+    else:  # Dilithium
+        firma = ML_DSA_65.sign(clave_privada, hash_data)
+    return firma

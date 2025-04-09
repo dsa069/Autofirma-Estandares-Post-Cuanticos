@@ -9,7 +9,7 @@ from dilithium_py.ml_dsa import ML_DSA_65
 from package.sphincs import Sphincs
 
 
-from backend.funcComunes import log_message, calcular_hash_firma, calcular_hash_huella
+from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, calcular_hash_huella
 
 
 def encrypt_private_key(secret_key, password):
@@ -101,6 +101,25 @@ def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
     # Si todo está correcto, devolver datos validados
     return "Datos válidos", fecha_expedicion, fecha_caducidad
     
+def validar_datos_usuario(nombre, dni):
+    """
+    Valida que los datos básicos del usuario sean correctos.
+    
+    Args:
+        nombre (str): Nombre del usuario
+        dni (str): DNI del usuario
+    
+    Returns:
+        tuple: (bool, str) - (éxito, mensaje_error)
+    """
+    if not nombre or not dni:
+        return False, "El nombre y el DNI son obligatorios."
+    
+    # Aquí podrían añadirse validaciones adicionales:
+    # - Formato del DNI (usando expresiones regulares)
+    # - Longitud mínima del nombre
+    
+    return True, ""
 
 def cargar_json(ruta_archivo):      
     """Carga un archivo JSON o crea uno nuevo y devuelve lista vacía."""
@@ -242,8 +261,17 @@ def cargar_claves_entidad(sk_entidad_path, pk_entidad_path):
         except Exception as e:
             log_message("entGenApp.log",f"ERROR CRÍTICO: {e}")
             return None
-        
-def generar_claves_entidad_backend(titulo, algoritmo, fecha_expedicion, fecha_caducidad, sk_path, pk_path):
+
+def generar_par_claves(algoritmo):
+        # Generar las claves según el algoritmo seleccionado
+        if algoritmo.lower() == "sphincs":
+            sphincs_inst = Sphincs()
+            sk, pk = sphincs_inst.generate_key_pair()
+        else:  # dilithium
+            pk, sk = ML_DSA_65.keygen()
+        return sk, pk    
+
+def generar_claves_entidad(titulo, algoritmo, fecha_expedicion, fecha_caducidad, sk_path, pk_path):
     """
     Genera un nuevo par de claves de entidad y las guarda en los archivos correspondientes.
     
@@ -254,7 +282,6 @@ def generar_claves_entidad_backend(titulo, algoritmo, fecha_expedicion, fecha_ca
         fecha_caducidad (str): Fecha de caducidad en formato ISO
         sk_path (str): Ruta al archivo de claves privadas
         pk_path (str): Ruta al archivo de claves públicas
-        sphincs_instance: Instancia de Sphincs para generar claves (opcional)
         
     Returns:
         key_id (str) : ID de la clave generada
@@ -264,13 +291,6 @@ def generar_claves_entidad_backend(titulo, algoritmo, fecha_expedicion, fecha_ca
         import uuid
         key_id = str(uuid.uuid4())
         
-        # Generar las claves según el algoritmo seleccionado
-        if algoritmo == "sphincs":
-            sphincs_inst = Sphincs()
-            sk, pk = sphincs_inst.generate_key_pair()
-        else:  # dilithium
-            pk, sk = ML_DSA_65.keygen()
-        
         clave_base = {
             "id": key_id,
             "titulo": titulo,
@@ -279,6 +299,8 @@ def generar_claves_entidad_backend(titulo, algoritmo, fecha_expedicion, fecha_ca
             "fecha_caducidad": fecha_caducidad
         }
         
+        sk, pk = generar_par_claves(algoritmo)
+
         # Crear estructuras específicas añadiendo la clave correspondiente
         nueva_sk = clave_base.copy()
         nueva_sk["clave"] = sk.hex()
@@ -308,3 +330,80 @@ def generar_claves_entidad_backend(titulo, algoritmo, fecha_expedicion, fecha_ca
     except Exception as e:
         log_message("entGenApp.log", f"Error al generar claves: {e}")
         return -1
+    
+def guardar_certificados(certificado_autenticacion, certificado_firma, dni, algoritmo):
+    """
+    Guarda los certificados de autenticación y firma en archivos JSON.
+    """
+    # Crear carpeta de certificados en el directorio del usuario
+    user_home = os.path.expanduser("~")
+    certs_folder = os.path.join(user_home, "certificados_postC")
+    
+    # Crear la carpeta si no existe
+    if not os.path.exists(certs_folder):
+        os.makedirs(certs_folder)
+    
+    # Definir rutas de archivos
+    cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo.lower()}.json")
+    cert_sign_path = os.path.join(certs_folder, f"certificado_digital_firmar_{dni}_{algoritmo.lower()}.json")
+
+    # Guardar certificado de autenticación
+    with open(cert_auth_path, "w") as cert_auth_file:
+        json.dump(certificado_autenticacion, cert_auth_file, indent=4)
+
+    # Guardar certificado de firma
+    with open(cert_sign_path, "w") as cert_sign_file:
+        json.dump(certificado_firma, cert_sign_file, indent=4)
+
+    log_message("entGenApp.log", f"Certificados guardados en:\n- {cert_auth_path}\n- {cert_sign_path}")
+    
+    return cert_auth_path, cert_sign_path
+
+def generar_certificado(clave_seleccionada, nombre, dni, password):
+    """
+    Genera certificados digitales para un usuario.
+    """
+    # Extracción de datos de la clave seleccionada
+    algoritmo = clave_seleccionada["algoritmo"]
+    entity_sk = clave_seleccionada["sk"]
+    entity_pk = clave_seleccionada["pk"]
+    fecha_expedicion = datetime.date.today().isoformat()
+    fecha_caducidad = clave_seleccionada["fecha_caducidad"]
+    log_message("entGenApp.log", f"Generando certificados con algoritmo {algoritmo}")
+    
+    # Generar clave privada y pública del usuario según el algoritmo seleccionado
+    user_sk, user_pk = generar_par_claves(algoritmo)
+    log_message("entGenApp.log", f"Claves de usuario generadas con algoritmo {algoritmo}")
+
+    # Crear estructura del certificado SIN la clave privada (para autenticación)
+    certificado_autenticacion = {
+        "nombre": nombre,
+        "dni": dni,
+        "fecha_expedicion": fecha_expedicion,
+        "fecha_caducidad": fecha_caducidad,
+        "user_public_key": user_pk.hex(),
+        "entity_public_key": entity_pk.hex(),
+        "algoritmo": algoritmo
+    }
+
+    # Calcular hash del certificado común y firmarlo
+    hash_certificado = calcular_hash_firma(certificado_autenticacion)
+    firma = firmar_hash(hash_certificado, entity_sk, algoritmo)
+
+    # Añadir firma y calcular huella digital al certificado de autenticación
+    certificado_autenticacion["firma"] = firma.hex()
+    certificado_autenticacion["huella_digital"] = calcular_hash_huella(certificado_autenticacion)
+
+    # Añadir clave privada encripatda y calcular huella digital al certificado de autenticación
+    user_sk_encrypted = encrypt_private_key(user_sk, password)
+    certificado_firma = certificado_autenticacion.copy()
+    certificado_firma["user_secret_key"] = user_sk_encrypted
+    certificado_firma["huella_digital"] = calcular_hash_huella(certificado_firma)
+
+    # Guardar certificados usando el método dedicado
+    return guardar_certificados(
+                certificado_autenticacion, 
+                certificado_firma, 
+                dni, 
+                algoritmo
+            )
