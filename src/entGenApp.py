@@ -1,17 +1,16 @@
 import ctypes
 import sys
 import os
-from backend.funcComunes import log_message, calcular_hash_firma, calcular_hash_huella, init_paths
+from backend.funcComunes import log_message, init_paths
 
 BASE_DIR = init_paths()
 
 import datetime
 import tkinter as tk
 from tkinter import PhotoImage
-from Crypto.Cipher import AES
 from tkinter import simpledialog
 from tkinter import messagebox
-from backend.funcEntGen import encrypt_private_key, generar_certificado, validar_datos_usuario, validate_password, cargar_claves_entidad, generar_claves_entidad, verificar_campos_generacion_claves
+from backend.funcEntGen import generar_certificado, validar_datos_usuario, validate_password, cargar_claves_entidad, generar_claves_entidad, verificar_campos_generacion_claves
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
