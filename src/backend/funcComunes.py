@@ -103,6 +103,9 @@ def firmar_hash(hash_data, clave_privada, algoritmo):
     if algoritmo.lower() == "sphincs":
         sphincs = Sphincs()
         firma = sphincs.sign(hash_data, clave_privada)
-    else:  # Dilithium
+    elif algoritmo.lower() == "dilithium":
         firma = ML_DSA_65.sign(clave_privada, hash_data)
+    else:
+        return None
     return firma
+

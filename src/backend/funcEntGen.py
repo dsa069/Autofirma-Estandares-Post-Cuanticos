@@ -249,9 +249,12 @@ def generar_par_claves(algoritmo):
         if algoritmo.lower() == "sphincs":
             sphincs_inst = Sphincs()
             sk, pk = sphincs_inst.generate_key_pair()
-        else:  # dilithium
+        elif algoritmo.lower() == "dilithium":
             pk, sk = ML_DSA_65.keygen()
-        return sk, pk    
+        else:
+            return None
+        
+        return sk, pk
     
 def guardar_certificados(certificado_autenticacion, certificado_firma, dni, algoritmo):
     """
