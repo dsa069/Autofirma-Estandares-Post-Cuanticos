@@ -333,7 +333,7 @@ def validar_y_convertir_clave(hex_clave):
         log_message("entGenApp.log", f"  ERROR al convertir clave a bytes: {e}")
         return None
 
-def validate_date(date_str):
+def convert_to_iso_date(date_str):
     """Valida una fecha en formato DD/MM/AAAA y la convierte a formato ISO."""
     try:
         day, month, year = map(int, date_str.split('/'))
@@ -375,11 +375,11 @@ def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
         return "Debe especificar un nombre para la entidad", None, None
 
     # Validar fechas
-    fecha_expedicion = validate_date(fecha_ini_str)
+    fecha_expedicion = convert_to_iso_date(fecha_ini_str)
     if not fecha_expedicion:
         return "Fecha de inicio inválida. Use formato DD/MM/AAAA", None, None
         
-    fecha_caducidad = validate_date(fecha_cad_str)
+    fecha_caducidad = convert_to_iso_date(fecha_cad_str)
     if not fecha_caducidad:
         return "Fecha de caducidad inválida. Use formato DD/MM/AAAA", None, None
         

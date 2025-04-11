@@ -1,7 +1,7 @@
 import ctypes
 import sys
 import os
-from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, calcular_hash_huella, init_paths
+from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, init_paths
 
 BASE_DIR = init_paths()
 
@@ -12,8 +12,7 @@ import tkinter as tk
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
 from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
-from package.sphincs import Sphincs  # Importar la clase Sphincs
-from backend.funcFirma import add_metadata_to_pdf, process_uri, register_protocol_handler, calcular_hash_documento, decrypt_private_key, enviar_alerta_certificado, detect_active_pdf, verificar_certificado, verificar_firmas_cascada
+from backend.funcFirma import add_metadata_to_pdf, cargar_datos_certificado, determinar_estilo_firmas_validiadas, extraer_firmas_documento, format_iso_display, process_uri, register_protocol_handler, calcular_hash_documento, decrypt_private_key, enviar_alerta_certificado, verificar_certificado, verificar_firmas_cascada
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -52,9 +51,6 @@ class AutoFirmaApp:
         else:
             messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
-        # Instancia de Sphincs
-        self.sphincs = Sphincs()
-
         # Título
         self.title_label = tk.Label(
             root, text="AutoFirma con Sphincs", font=("Arial", 16, "bold")
@@ -78,7 +74,7 @@ class AutoFirmaApp:
             root,
             text="Verificar Firma",
             font=("Arial", 12),
-            command=self.verify_signature,
+            command=self.seleccionar_pdf_verificar,
             bg="#FFC107",
             fg="black",
             width=20,
@@ -110,17 +106,7 @@ class AutoFirmaApp:
             if not cert_path:
                 return None, None, None, None, None, None
 
-            with open(cert_path, "r") as cert_file:
-                cert_data = json.load(cert_file)
-
-            if not verificar_certificado(cert_data, BASE_DIR):
-                return None, None, None, None, None, None
-
-            user_pk = bytes.fromhex(cert_data["user_public_key"])
-            ent_pk = bytes.fromhex(cert_data["entity_public_key"])
-            exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
-            issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
-            user_sk = None
+            cert_data, user_pk, ent_pk, exp_date, issue_date = cargar_datos_certificado(cert_path, BASE_DIR)
 
             if tipo == "firmar":
                 encrypted_sk = cert_data.get("user_secret_key")
@@ -619,7 +605,7 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
             log_message("firmaApp.log",f"Error al firmar documento: {e}")
 
-    def verify_signature(self):
+    def seleccionar_pdf_verificar(self):
         """Verifica todas las firmas en un documento PDF."""
         try:
             # Seleccionar documento firmado
@@ -628,39 +614,25 @@ class AutoFirmaApp:
                 filetypes=[("Archivos PDF", "*.pdf")],
             )
             if not file_path:
+                messagebox.showerror("Error", "No se seleccionó ningún archivo válido.")
                 return
 
-            # Extraer metadatos del PDF
-            doc = fitz.open(file_path)
-            metadata = doc.metadata
-            doc.close()
-
-            # Extraer firmas
-            try:
-                meta_data = json.loads(metadata.get("keywords", "{}"))
+            # Llamar a la función del backend
+            success, firmas, hash_documento_actual = extraer_firmas_documento(file_path)
+            
+            # Manejar resultados
+            if not success:
+                messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
+                return
                 
-                # Verificar si hay múltiples firmas o formato antiguo
-                firmas = meta_data["firmas"]
-                if not firmas:
-                    messagebox.showerror("Error", "No se encontraron firmas en el documento.")
-                    return
-                        
-                # Calcular el hash del documento actual (una sola vez para todas las verificaciones)
-                hash_documento_actual = calcular_hash_documento(file_path)
-                
-                # Verificar todas las firmas y mostrar resultados
-                self.mostrar_resultados_firmas(file_path, firmas, hash_documento_actual)
+            # Verificar todas las firmas y mostrar resultados
+            self.verify_signatures(file_path, firmas, hash_documento_actual)
                     
-            except Exception as e:
-                messagebox.showerror("Error", f"Error al extraer firmas: {e}")
-                log_message("firmaApp.log",f"Error al extraer firmas: {e}")
-                return
-
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar firmas: {e}")
             log_message("firmaApp.log",f"Error al verificar firmas: {e}")
 
-    def mostrar_resultados_firmas(self, file_path, firmas, hash_documento_actual):
+    def verify_signatures(self, file_path, firmas, hash_documento_actual):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
         # Crear ventana de resultados
         results_window = tk.Toplevel(self.root)
@@ -731,13 +703,7 @@ class AutoFirmaApp:
             
             # Extraer datos para la visualización
             nombre = firma_data["certificado_autenticacion"].get("nombre", "Desconocido")
-            fecha_firma = firma_data.get("fecha_firma", "Desconocida")
-            if isinstance(fecha_firma, str) and fecha_firma.startswith('20'):
-                try:
-                    fecha_obj = datetime.fromisoformat(fecha_firma)
-                    fecha_firma = fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
-                except:
-                    pass
+            fecha_firma = format_iso_display(firma_data.get("fecha_firma", "Desconocida"))
             
             algoritmo = firma_data["certificado_autenticacion"].get("algoritmo", "sphincs").lower()
             
@@ -824,19 +790,8 @@ class AutoFirmaApp:
         summary_frame = tk.Frame(results_window)
         summary_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        if invalid_count == 0 and valid_count > 0:
-            bg_summary = "#e8f5e9"  # Verde claro
-            fg_summary = "#388e3c"  # Verde oscuro
-            summary_text = f"✓ Todas las firmas son válidas ({valid_count})"
-        elif valid_count == 0:
-            bg_summary = "#ffebee"  # Rojo claro
-            fg_summary = "#d32f2f"  # Rojo oscuro
-            summary_text = f"✗ Ninguna firma es válida ({invalid_count})"
-        else:
-            bg_summary = "#fff3e0"  # Naranja claro
-            fg_summary = "#e65100"  # Naranja oscuro
-            summary_text = f"⚠ Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
-        
+        bg_summary, fg_summary, summary_text = determinar_estilo_firmas_validiadas(valid_count, invalid_count)
+
         summary_label = tk.Label(
             summary_frame, 
             text=summary_text,
@@ -867,7 +822,7 @@ class AutoFirmaApp:
             return False
             
         # Mostrar resultados en la UI usando los valores desempaquetados de la tupla
-        self.mostrar_resultados_firmas(file_path, firmas, hash_documento)
+        self.verify_signatures(file_path, firmas, hash_documento)
         return True
         
 if __name__ == "__main__":

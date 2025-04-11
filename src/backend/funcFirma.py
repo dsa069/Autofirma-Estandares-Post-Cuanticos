@@ -455,3 +455,94 @@ def verificar_firma(hash_data, clave_pública, firma, algoritmo):
     else:
         return None
     return firma
+
+def format_iso_display(iso_date_str):
+    """
+    Convierte una fecha ISO a formato legible por humanos (DD/MM/YYYY HH:MM:SS).
+    """
+    try:          
+        fecha_obj = datetime.fromisoformat(iso_date_str)
+        return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
+    except (ValueError, TypeError):
+        return iso_date_str
+    
+def determinar_estilo_firmas_validiadas(valid_count, invalid_count):
+    """
+    Determina los colores y texto del resumen de firmas.
+    
+    Args:
+        valid_count: Número de firmas válidas
+        invalid_count: Número de firmas inválidas
+        
+    Returns:
+        tuple: (bg_color, fg_color, texto_resumen)
+    """
+    if invalid_count == 0 and valid_count > 0:
+        return (
+            "#e8f5e9",  # Verde claro
+            "#388e3c",  # Verde oscuro
+            f"✓ Todas las firmas son válidas ({valid_count})"
+        )
+    elif valid_count == 0:
+        return (
+            "#ffebee",  # Rojo claro
+            "#d32f2f",  # Rojo oscuro
+            f"✗ Ninguna firma es válida ({invalid_count})"
+        )
+    else:
+        return (
+            "#fff3e0",  # Naranja claro
+            "#e65100",  # Naranja oscuro
+            f"⚠ Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
+        )
+
+def extraer_firmas_documento(file_path):
+    """
+    Extrae los metadatos y firmas de un documento PDF.
+    """
+    try:
+        # Extraer metadatos del PDF
+        doc = fitz.open(file_path)
+        metadata = doc.metadata
+        doc.close()
+
+        # Extraer firmas
+        meta_data = json.loads(metadata.get("keywords", "{}"))
+        
+        # Verificar si hay firmas
+        firmas = meta_data.get("firmas", [])
+        if not firmas:
+            log_message("firmaApp.log", "No se encontraron firmas en el documento.")
+            return False, None, None
+                
+        # Calcular el hash del documento actual
+        hash_documento_actual = calcular_hash_documento(file_path)
+        
+        return True, firmas, hash_documento_actual
+
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al extraer firmas: {e}")
+        return False, None, None
+    
+def cargar_datos_certificado(cert_path, base_dir):
+    """Carga y verifica un certificado desde el archivo especificado"""
+    try:
+        # Leer el certificado
+        with open(cert_path, "r") as cert_file:
+            cert_data = json.load(cert_file)
+        
+        # Verificar el certificado
+        if not verificar_certificado(cert_data, base_dir):
+            log_message("firmaApp.log", "Certificado no válido")
+            return None, None, None, None, None
+        
+        # Extraer datos básicos
+        user_pk = bytes.fromhex(cert_data["user_public_key"])
+        ent_pk = bytes.fromhex(cert_data["entity_public_key"])
+        exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
+        issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
+        
+        return cert_data, user_pk, ent_pk, exp_date, issue_date
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al cargar datos del certificado: {e}")
+        return None, None, None, None, None
