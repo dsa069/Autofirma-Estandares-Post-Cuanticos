@@ -8,6 +8,367 @@ import fitz  # PyMuPDF
 from Crypto.Cipher import AES
 from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, calcular_hash_huella
 
+def firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash=None):
+    """
+    Firma digitalmente un documento PDF.
+    """
+    try:
+        # CALCULAR HASH DEL DOCUMENTO
+        hash_documento = calcular_hash_documento(save_path)
+        log_message("firmaApp.log", f"Hash del documento: {hash_documento.hex()}")
+
+        # OBTENER EL ALGORITMO DEL CERTIFICADO
+        algoritmo = cert_firma.get("algoritmo", "sphincs")
+        log_message("firmaApp.log", f"Firmando con algoritmo: {algoritmo.upper()}")
+
+        # FIRMAR EL HASH DEL DOCUMENTO
+        signature = firmar_hash(hash_documento, user_sk, algoritmo)
+
+        # AÑADIR METADATOS AL PDF (incluida la firma digital)
+        add_metadata_to_pdf(save_path, signature, cert_auth, visual_signature_hash)
+
+        # Registrar en el log el documento firmado
+        titulo_doc = os.path.basename(save_path)
+        nombre_certificado = cert_firma["nombre"]
+        log_message("firmaApp.log", f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
+        
+        return True, f"Documento firmado correctamente y guardado en:\n{save_path}"
+        
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al firmar documento: {e}")
+        return False, f"Error al firmar documento: {e}"
+
+def añadir_firma_visual_pdf(pdf_path, pagina, posicion, signature_width, signature_height, nombre_certificado):
+    """
+    Añade una firma visual al PDF con un enlace clickable para verificación.
+    Returns:
+        tuple: (success, visual_signature_hash)
+    """
+    try:
+        # Guardar el documento antes de añadir la firma visual para calcular el hash "antes"
+        doc_before = fitz.open(pdf_path)
+        hash_before = calcular_hash_documento(pdf_path)
+        doc_before.close()
+
+        doc = fitz.open(pdf_path)
+        page = doc[pagina]
+        x, y = posicion
+        rect = fitz.Rect(x, y, x + signature_width, y + signature_height)
+        
+        signature_text = f"Firmado digitalmente por: {nombre_certificado}"
+        signature_date = f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+        
+        # Firma en blanco y negro
+        page.draw_rect(rect, color=(0, 0, 0), fill=(1, 1, 1), width=1, overlay=True)  # Fondo blanco, borde negro
+        
+        text_point = fitz.Point(x + 5, y + 15)
+        page.insert_text(text_point, signature_text, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
+        
+        text_point = fitz.Point(x + 5, y + 25)
+        page.insert_text(text_point, signature_date, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
+
+        crear_enlace_verificacion(page, rect, pdf_path)
+
+        doc.save(pdf_path, incremental=True, encryption=0)
+        doc.close()
+
+        # Calcular el hash "después" de añadir la firma visual
+        doc_after = fitz.open(pdf_path)
+        hash_after = calcular_hash_documento(pdf_path)
+        doc_after.close()
+        
+        # alcular el hash de la DIFERENCIA entre antes y después
+        # Esto representará más precisamente la firma visual por sí sola
+        visual_signature_hash = bytes(a ^ b for a, b in zip(hash_before, hash_after))
+
+        log_message("firmaApp.log",f"Firma visual añadida en la página {pagina+1}")
+        return True, visual_signature_hash
+        
+    except Exception as e:
+        log_message("firmaApp.log",f"Error al añadir firma visual: {e}")
+        return False, None
+
+def verificar_firma(hash_data, clave_pública, firma, algoritmo):
+    from package.sphincs import Sphincs
+    # Firmar según el algoritmo seleccionado
+    if algoritmo.lower() == "sphincs":
+        sphincs = Sphincs()
+        firma = sphincs.verify(hash_data, firma, clave_pública)
+    elif algoritmo.lower() == "dilithium":
+        from dilithium_py.ml_dsa import ML_DSA_65  # Usamos ML_DSA_65 (Dilithium3)
+        firma = ML_DSA_65.verify(clave_pública, hash_data, firma)
+    else:
+        return None
+    return firma
+
+def verificar_firmas_cascada(firmas, hash_actual, base_dir):  
+# IMPORTANTE: Procesar firmas en orden inverso para la validación en cascada
+    total_firmas = len(firmas)
+    
+    # Lista para almacenar los resultados de validación
+    resultados_validacion = []
+    
+    # FASE 1: Procesar las firmas de la más reciente a la más antigua
+    log_message("firmaApp.log","Iniciando verificación en cascada de firmas...")
+    for i in range(total_firmas - 1, -1, -1):
+        firma_data = firmas[i]
+        
+        # Extraer datos básicos
+        firma = bytes.fromhex(firma_data["firma"])
+        cert_data = firma_data["certificado_autenticacion"]
+        algoritmo = cert_data.get("algoritmo", "sphincs").lower()
+        user_pk = bytes.fromhex(cert_data["user_public_key"])
+        
+        # Verificar certificado
+        cert_valido = verificar_certificado(cert_data, base_dir)
+        
+        # Verificar firma usando el hash actual
+        firma_valida = verificar_firma(hash_actual, user_pk, firma, algoritmo)
+        
+        # Guardar el resultado
+        resultados_validacion.append({
+            "indice": i,
+            "firma_valida": firma_valida,
+            "cert_valido": cert_valido,
+            "hash_verificacion": hash_actual,
+            "firma_data": firma_data
+        })
+        
+        # Calcular el siguiente hash para la cascada si hay más firmas para verificar
+        if i > 0 and "hash_visual_signature" in firma_data:
+            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
+            # Operación "resta" conceptual para obtener el hash anterior
+            hash_actual = bytes(a ^ b for a, b in zip(hash_actual, hash_visual))
+            log_message("firmaApp.log",f"Hash calculado para firma {i}: {hash_actual.hex()[:10]}...")
+
+    resultados_validacion.reverse()
+    return resultados_validacion
+
+def extraer_firmas_documento(file_path):
+    """
+    Extrae los metadatos y firmas de un documento PDF.
+    """
+    try:
+        # Extraer metadatos del PDF
+        doc = fitz.open(file_path)
+        metadata = doc.metadata
+        doc.close()
+
+        # Extraer firmas
+        meta_data = json.loads(metadata.get("keywords", "{}"))
+        
+        # Verificar si hay firmas
+        firmas = meta_data.get("firmas", [])
+        if not firmas:
+            log_message("firmaApp.log", "No se encontraron firmas en el documento.")
+            return False, None, None
+                
+        # Calcular el hash del documento actual
+        hash_documento_actual = calcular_hash_documento(file_path)
+        
+        return True, firmas, hash_documento_actual
+
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al extraer firmas: {e}")
+        return False, None, None
+
+def determinar_estilo_firmas_validiadas(valid_count, invalid_count):
+    """
+    Determina los colores y texto del resumen de firmas.
+    
+    Args:
+        valid_count: Número de firmas válidas
+        invalid_count: Número de firmas inválidas
+        
+    Returns:
+        tuple: (bg_color, fg_color, texto_resumen)
+    """
+    if invalid_count == 0 and valid_count > 0:
+        return (
+            "#e8f5e9",  # Verde claro
+            "#388e3c",  # Verde oscuro
+            f"✓ Todas las firmas son válidas ({valid_count})"
+        )
+    elif valid_count == 0:
+        return (
+            "#ffebee",  # Rojo claro
+            "#d32f2f",  # Rojo oscuro
+            f"✗ Ninguna firma es válida ({invalid_count})"
+        )
+    else:
+        return (
+            "#fff3e0",  # Naranja claro
+            "#e65100",  # Naranja oscuro
+            f"⚠ Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
+        )
+
+def verificar_certificado(cert_data, base_dir):
+    """Verifica la validez de un certificado (SPHINCS+ o Dilithium)."""
+    try:
+        # Detectar algoritmo del certificado
+        algoritmo = cert_data.get("algoritmo")  # Por defecto SPHINCS+ para compatibilidad
+        log_message("firmaApp.log",f"Verificando certificado con algoritmo: {algoritmo.upper()}")
+        
+        expected_hash = cert_data.get("huella_digital")
+        firma = cert_data.get("firma")
+
+        # -------------------- VALIDACIÓN HUELLA DIGITAL --------------------
+        cert_copy = cert_data.copy()
+
+        if calcular_hash_huella(cert_copy) != expected_hash:
+            raise ValueError("La huella digital del certificado no es válida.")
+        # -------------------- VERIFICACIÓN DE FECHAS --------------------
+        fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
+        fecha_caducidad = datetime.fromisoformat(cert_data["fecha_caducidad"])
+        current_date = datetime.now()
+        
+        if current_date < fecha_expedicion:
+            raise ValueError("El certificado aún no es válido (fecha de emisión futura).")
+
+        if current_date > fecha_caducidad:
+            raise ValueError("El certificado ha expirado.")
+        
+        # -------------------- VERIFICACIÓN PK ENTIDAD --------------------
+        ent_pk_cert = bytes.fromhex(cert_data["entity_public_key"])  # Clave pública dentro del certificado
+        pk_entidad_path = os.path.join(base_dir, "pk_entidad.json")
+
+        if not os.path.exists(pk_entidad_path):
+            raise ValueError("No se encontró el archivo de claves públicas de la entidad.")
+
+        # Leer el archivo de claves públicas de la entidad (ahora contiene una lista de objetos)
+        with open(pk_entidad_path, "r") as pk_file:
+            pk_data_list = json.load(pk_file)
+            
+            # Verificar que el archivo contiene datos
+            if not pk_data_list or not isinstance(pk_data_list, list):
+                raise ValueError("El archivo de claves públicas está vacío o no tiene el formato esperado.")
+            
+            # Filtrar las claves que coinciden con el algoritmo del certificado
+            algoritmo_lower = algoritmo.lower()
+            claves_algoritmo = [pk for pk in pk_data_list if pk.get("algoritmo", "").lower() == algoritmo_lower]
+            
+            if not claves_algoritmo:
+                raise ValueError(f"No se encontraron claves públicas para el algoritmo {algoritmo}.")
+            
+            # Comprobar si la clave del certificado coincide con alguna de las claves almacenadas
+            clave_encontrada = False
+            for pk_entry in claves_algoritmo:
+                try:
+                    ent_pk_candidata = bytes.fromhex(pk_entry.get("clave", ""))
+                    if ent_pk_cert == ent_pk_candidata:
+                        clave_encontrada = True
+                        log_message("firmaApp.log",f"Clave pública de entidad verificada: {pk_entry.get('titulo', 'Sin título')}")
+                        break
+                except Exception as e:
+                    log_message("firmaApp.log",f"Error al procesar clave candidata: {e}")
+            
+            if not clave_encontrada:
+                raise ValueError("La clave pública de la entidad en el certificado no coincide con ninguna clave oficial.")
+            
+        # -------------------- VALIDACIÓN FIRMA --------------------
+        recalculated_hash_firma = calcular_hash_firma(cert_copy)
+
+        # Convertir la firma a bytes
+        firma_bytes = bytes.fromhex(firma)
+        
+        # Verificar firma según el algoritmo usado
+        firma_valida = verificar_firma(recalculated_hash_firma, ent_pk_cert, firma_bytes, algoritmo)
+
+
+        if not firma_valida:
+            raise ValueError("La firma del certificado no es válida.")
+
+        return True
+    except Exception as e:
+        log_message("firmaApp.log",f"Error al verificar certificado: {e}")
+        return False
+
+def cargar_datos_certificado(cert_path, base_dir):
+    """Carga y verifica un certificado desde el archivo especificado"""
+    try:
+        # Leer el certificado
+        with open(cert_path, "r") as cert_file:
+            cert_data = json.load(cert_file)
+        
+        # Verificar el certificado
+        if not verificar_certificado(cert_data, base_dir):
+            log_message("firmaApp.log", "Certificado no válido")
+            return None, None, None, None, None
+        
+        # Extraer datos básicos
+        user_pk = bytes.fromhex(cert_data["user_public_key"])
+        ent_pk = bytes.fromhex(cert_data["entity_public_key"])
+        exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
+        issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
+        
+        return cert_data, user_pk, ent_pk, exp_date, issue_date
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al cargar datos del certificado: {e}")
+        return None, None, None, None, None
+
+def cargar_certificado_autenticacion(cert_firma, base_dir):
+    """
+    Carga automáticamente el certificado de autenticación correspondiente al certificado de firma.
+    """
+    try:
+        # Extraer DNI y algoritmo del certificado de firma
+        dni = cert_firma["dni"]
+        algoritmo = cert_firma["algoritmo"].lower()
+        
+        # Buscar automáticamente el certificado de autenticación correspondiente
+        user_home = os.path.expanduser("~")
+        certs_folder = os.path.join(user_home, "certificados_postC")
+        cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo}.json")
+        
+        # Verificar si existe el certificado de autenticación
+        if not os.path.exists(cert_auth_path):
+            error_msg = f"No se encontró el certificado de autenticación para el DNI {dni}."
+            log_message("firmaApp.log", f"Error: No se encontró certificado de autenticación para DNI {dni}")
+            return False, None, error_msg
+            
+        # Cargar el certificado de autenticación
+        try:
+            with open(cert_auth_path, "r") as cert_file:
+                cert_auth = json.load(cert_file)
+                
+            # Verificar el certificado de autenticación
+            if not verificar_certificado(cert_auth, base_dir):
+                error_msg = "El certificado de autenticación no es válido."
+                log_message("firmaApp.log", "Error: Certificado de autenticación inválido.")
+                return False, None, error_msg
+                
+            log_message("firmaApp.log", f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
+
+            # CALCULAR HASH DE LA FIRMA DE LOS CERTIFICADOS
+            hash_firma_cd = calcular_hash_firma(cert_firma)
+            hash_auth_cd = calcular_hash_firma(cert_auth)
+
+            if hash_firma_cd != hash_auth_cd:
+                error_msg = "Los certificados de firma y autenticación no están asociados."
+                log_message("firmaApp.log", "Error: Los certificados de firma y autenticación no coinciden.")
+                return False, None, error_msg
+                
+            return True, cert_auth, None
+                
+        except Exception as e:
+            error_msg = f"Error al cargar certificado de autenticación: {e}"
+            log_message("firmaApp.log", error_msg)
+            return False, None, error_msg
+            
+    except Exception as e:
+        error_msg = f"Error procesando certificado de autenticación: {e}"
+        log_message("firmaApp.log", error_msg)
+        return False, None, error_msg
+
+def enviar_alerta_certificado(nombre, dni):
+    """Muestra una alerta simple en la consola cuando hay intentos fallidos."""
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_message("firmaApp.log",f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
+    log_message("firmaApp.log","-" * 50)
+    
+    return True
+
 def calcular_hash_documento(file_path):
     """Calcula el hash SHA-256 del contenido del documento, ignorando los metadatos."""
     try:
@@ -50,7 +411,76 @@ def decrypt_private_key(encrypted_sk, password):
 
         except Exception:
             return None  # Error → Contraseña incorrecta    
-    
+
+def format_iso_display(iso_date_str):
+    """
+    Convierte una fecha ISO a formato legible por humanos (DD/MM/YYYY HH:MM:SS).
+    """
+    try:          
+        fecha_obj = datetime.fromisoformat(iso_date_str)
+        return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
+    except (ValueError, TypeError):
+        return iso_date_str
+
+def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
+    """Añade la firma y el certificado de autenticación a los metadatos del PDF preservando firmas anteriores."""
+    try:
+        doc = fitz.open(pdf_path)
+        metadata = doc.metadata
+        fecha_firma = datetime.now().isoformat()
+        
+        # Nueva entrada de firma
+        nueva_firma = {
+            "firma": firma.hex(),
+            "certificado_autenticacion": cert_data,
+            "fecha_firma": fecha_firma
+        }
+
+        # Añadir el hash de la firma visual si existe
+        if visual_signature_hash:
+            nueva_firma["hash_visual_signature"] = visual_signature_hash.hex()
+        
+        # Verificar si ya existen metadatos de firmas
+        existing_metadata = {}
+        if "keywords" in metadata and metadata["keywords"]:
+            try:
+                existing_metadata = json.loads(metadata["keywords"])
+            except json.JSONDecodeError:
+                existing_metadata = {}
+        
+        # Verificar si ya existe un array de firmas
+        if "firmas" in existing_metadata:
+            # Añadir la nueva firma al array existente
+            existing_metadata["firmas"].append(nueva_firma)
+        else:
+            # Crear un nuevo array con la primera firma
+            existing_metadata["firmas"] = [nueva_firma]
+        
+        # Actualizar los metadatos
+        metadata["keywords"] = json.dumps(existing_metadata, separators=(',', ':'))
+        
+        doc.set_metadata(metadata)
+        doc.save(pdf_path, incremental=True, encryption=0)
+        doc.close()
+        
+        log_message("firmaApp.log",f"PDF firmado con metadatos guardado en: {pdf_path}")
+        
+    except Exception as e:
+        log_message("firmaApp.log",f"Error al añadir metadatos al PDF: {e}")  
+
+def copiar_contenido_pdf(origen, destino):
+    """
+    Copia el contenido de un archivo PDF de origen a un archivo de destino.
+    """
+    try:
+        with open(destino, "wb") as f:
+            with open(origen, "rb") as original_file:
+                f.write(original_file.read())  # Copiar el contenido original
+        return True
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al copiar contenido PDF: {e}")
+        return False
+
 def detect_active_pdf():
     """Detecta automáticamente el PDF activo incluso cuando esta app está en primer plano"""
     try:
@@ -166,16 +596,61 @@ def detect_active_pdf():
         log_message("firmaApp.log",f"Error en detección automática: {e}")
         import traceback
         log_message("firmaApp.log",traceback.format_exc())
-        return None    
-    
-def enviar_alerta_certificado(nombre, dni):
-    """Muestra una alerta simple en la consola cuando hay intentos fallidos."""
-    
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_message("firmaApp.log",f"[{timestamp}] ALERTA: Intentos fallidos para {nombre} ({dni})")
-    log_message("firmaApp.log","-" * 50)
-    
-    return True
+        return None
+
+def crear_enlace_verificacion(page, rect, pdf_path):
+    """
+    Crea un enlace de verificación en el PDF que redirecciona al protocolo autofirma://
+    """
+    try:
+        # Prepare the encoded path and URI 
+        uri = "autofirma://CURRENT_PDF"
+        
+        # Añadir un enlace HTTP que redirige al protocolo personalizado
+        # Esta técnica es mejor aceptada por Chrome
+        html_redirect = f'''
+        <html>
+        <head>
+            <meta http-equiv="refresh" content="0;url={uri}">
+            <title>Redirigiendo a AutoFirma</title>
+        </head>
+        <body>
+            <p>Verificando firma... si no se abre automáticamente, 
+            <a href="{uri}">haga clic aquí</a>.</p>
+        </body>
+        </html>
+        '''
+        
+        # Generar un nombre único para el archivo HTML basado en la ruta del PDF
+        pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()[:10]
+        pdf_basename = os.path.basename(pdf_path).replace(".", "_")
+        
+        # Guardar la página de redirección en el directorio temporal con nombre único
+        temp_dir = os.path.join(os.path.expanduser("~"), "temp_autofirma")
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Usar nombre único para cada redirección
+        redirect_path = os.path.join(temp_dir, f"redirect_{pdf_basename}_{pdf_hash}.html")
+        
+        with open(redirect_path, "w") as f:
+            f.write(html_redirect)
+        
+        # Usar una URL file:// para abrir la página HTML
+        redirect_uri = f"file:///{redirect_path.replace('\\', '/')}"
+        
+        # Insertar el enlace que apunta a la página de redirección
+        page.insert_link({
+            "kind": fitz.LINK_URI,
+            "from": rect,
+            "uri": redirect_uri
+        })
+        
+        log_message("firmaApp.log", f"Firma clickable creada para {os.path.basename(pdf_path)}")
+        return True
+        
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al añadir enlace: {e}")
+        return False
 
 def register_protocol_handler():
     try:
@@ -214,132 +689,7 @@ def register_protocol_handler():
         log_message("firmaApp.log",f"Error al registrar protocolo: {e}")
         return False
     
-def verificar_certificado(cert_data, base_dir):
-    """Verifica la validez de un certificado (SPHINCS+ o Dilithium)."""
-    try:
-        # Detectar algoritmo del certificado
-        algoritmo = cert_data.get("algoritmo")  # Por defecto SPHINCS+ para compatibilidad
-        log_message("firmaApp.log",f"Verificando certificado con algoritmo: {algoritmo.upper()}")
-        
-        expected_hash = cert_data.get("huella_digital")
-        firma = cert_data.get("firma")
 
-        # -------------------- VALIDACIÓN HUELLA DIGITAL --------------------
-        cert_copy = cert_data.copy()
-
-        if calcular_hash_huella(cert_copy) != expected_hash:
-            raise ValueError("La huella digital del certificado no es válida.")
-        # -------------------- VERIFICACIÓN DE FECHAS --------------------
-        fecha_expedicion = datetime.fromisoformat(cert_data["fecha_expedicion"])
-        fecha_caducidad = datetime.fromisoformat(cert_data["fecha_caducidad"])
-        current_date = datetime.now()
-        
-        if current_date < fecha_expedicion:
-            raise ValueError("El certificado aún no es válido (fecha de emisión futura).")
-
-        if current_date > fecha_caducidad:
-            raise ValueError("El certificado ha expirado.")
-        
-        # -------------------- VERIFICACIÓN PK ENTIDAD --------------------
-        ent_pk_cert = bytes.fromhex(cert_data["entity_public_key"])  # Clave pública dentro del certificado
-        pk_entidad_path = os.path.join(base_dir, "pk_entidad.json")
-
-        if not os.path.exists(pk_entidad_path):
-            raise ValueError("No se encontró el archivo de claves públicas de la entidad.")
-
-        # Leer el archivo de claves públicas de la entidad (ahora contiene una lista de objetos)
-        with open(pk_entidad_path, "r") as pk_file:
-            pk_data_list = json.load(pk_file)
-            
-            # Verificar que el archivo contiene datos
-            if not pk_data_list or not isinstance(pk_data_list, list):
-                raise ValueError("El archivo de claves públicas está vacío o no tiene el formato esperado.")
-            
-            # Filtrar las claves que coinciden con el algoritmo del certificado
-            algoritmo_lower = algoritmo.lower()
-            claves_algoritmo = [pk for pk in pk_data_list if pk.get("algoritmo", "").lower() == algoritmo_lower]
-            
-            if not claves_algoritmo:
-                raise ValueError(f"No se encontraron claves públicas para el algoritmo {algoritmo}.")
-            
-            # Comprobar si la clave del certificado coincide con alguna de las claves almacenadas
-            clave_encontrada = False
-            for pk_entry in claves_algoritmo:
-                try:
-                    ent_pk_candidata = bytes.fromhex(pk_entry.get("clave", ""))
-                    if ent_pk_cert == ent_pk_candidata:
-                        clave_encontrada = True
-                        log_message("firmaApp.log",f"Clave pública de entidad verificada: {pk_entry.get('titulo', 'Sin título')}")
-                        break
-                except Exception as e:
-                    log_message("firmaApp.log",f"Error al procesar clave candidata: {e}")
-            
-            if not clave_encontrada:
-                raise ValueError("La clave pública de la entidad en el certificado no coincide con ninguna clave oficial.")
-            
-        # -------------------- VALIDACIÓN FIRMA --------------------
-        recalculated_hash_firma = calcular_hash_firma(cert_copy)
-
-        # Convertir la firma a bytes
-        firma_bytes = bytes.fromhex(firma)
-        
-        # Verificar firma según el algoritmo usado
-        firma_valida = verificar_firma(recalculated_hash_firma, ent_pk_cert, firma_bytes, algoritmo)
-
-
-        if not firma_valida:
-            raise ValueError("La firma del certificado no es válida.")
-
-        return True
-    except Exception as e:
-        log_message("firmaApp.log",f"Error al verificar certificado: {e}")
-        return False
-    
-def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
-    """Añade la firma y el certificado de autenticación a los metadatos del PDF preservando firmas anteriores."""
-    try:
-        doc = fitz.open(pdf_path)
-        metadata = doc.metadata
-        fecha_firma = datetime.now().isoformat()
-        
-        # Nueva entrada de firma
-        nueva_firma = {
-            "firma": firma.hex(),
-            "certificado_autenticacion": cert_data,
-            "fecha_firma": fecha_firma
-        }
-
-        # Añadir el hash de la firma visual si existe
-        if visual_signature_hash:
-            nueva_firma["hash_visual_signature"] = visual_signature_hash.hex()
-        
-        # Verificar si ya existen metadatos de firmas
-        existing_metadata = {}
-        if "keywords" in metadata and metadata["keywords"]:
-            try:
-                existing_metadata = json.loads(metadata["keywords"])
-            except json.JSONDecodeError:
-                existing_metadata = {}
-        
-        # Verificar si ya existe un array de firmas
-        if "firmas" in existing_metadata:
-            # Añadir la nueva firma al array existente
-            existing_metadata["firmas"].append(nueva_firma)
-        else:
-            # Crear un nuevo array con la primera firma
-            existing_metadata["firmas"] = [nueva_firma]
-        
-        # Actualizar los metadatos
-        metadata["keywords"] = json.dumps(existing_metadata, separators=(',', ':'))
-        
-        doc.set_metadata(metadata)
-        doc.save(pdf_path, incremental=True, encryption=0)
-        doc.close()
-        
-        log_message("firmaApp.log",f"PDF firmado con metadatos guardado en: {pdf_path}")
-        
-    except Exception as e:
-        log_message("firmaApp.log",f"Error al añadir metadatos al PDF: {e}")
 
 def process_uri(uri):
     """Extrae la ruta del PDF desde una URI autofirma:// y verifica el documento"""
@@ -399,354 +749,3 @@ def process_uri(uri):
     except Exception as e:
         log_message("firmaApp.log", f"Error al verificar desde URI: {e}")
         return False, None, None, None
-    
-def verificar_firmas_cascada(firmas, hash_actual, base_dir):  
-# IMPORTANTE: Procesar firmas en orden inverso para la validación en cascada
-    total_firmas = len(firmas)
-    
-    # Lista para almacenar los resultados de validación
-    resultados_validacion = []
-    
-    # FASE 1: Procesar las firmas de la más reciente a la más antigua
-    log_message("firmaApp.log","Iniciando verificación en cascada de firmas...")
-    for i in range(total_firmas - 1, -1, -1):
-        firma_data = firmas[i]
-        
-        # Extraer datos básicos
-        firma = bytes.fromhex(firma_data["firma"])
-        cert_data = firma_data["certificado_autenticacion"]
-        algoritmo = cert_data.get("algoritmo", "sphincs").lower()
-        user_pk = bytes.fromhex(cert_data["user_public_key"])
-        
-        # Verificar certificado
-        cert_valido = verificar_certificado(cert_data, base_dir)
-        
-        # Verificar firma usando el hash actual
-        firma_valida = verificar_firma(hash_actual, user_pk, firma, algoritmo)
-        
-        # Guardar el resultado
-        resultados_validacion.append({
-            "indice": i,
-            "firma_valida": firma_valida,
-            "cert_valido": cert_valido,
-            "hash_verificacion": hash_actual,
-            "firma_data": firma_data
-        })
-        
-        # Calcular el siguiente hash para la cascada si hay más firmas para verificar
-        if i > 0 and "hash_visual_signature" in firma_data:
-            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
-            # Operación "resta" conceptual para obtener el hash anterior
-            hash_actual = bytes(a ^ b for a, b in zip(hash_actual, hash_visual))
-            log_message("firmaApp.log",f"Hash calculado para firma {i}: {hash_actual.hex()[:10]}...")
-
-    resultados_validacion.reverse()
-    return resultados_validacion
-
-def verificar_firma(hash_data, clave_pública, firma, algoritmo):
-    from package.sphincs import Sphincs
-    # Firmar según el algoritmo seleccionado
-    if algoritmo.lower() == "sphincs":
-        sphincs = Sphincs()
-        firma = sphincs.verify(hash_data, firma, clave_pública)
-    elif algoritmo.lower() == "dilithium":
-        from dilithium_py.ml_dsa import ML_DSA_65  # Usamos ML_DSA_65 (Dilithium3)
-        firma = ML_DSA_65.verify(clave_pública, hash_data, firma)
-    else:
-        return None
-    return firma
-
-def format_iso_display(iso_date_str):
-    """
-    Convierte una fecha ISO a formato legible por humanos (DD/MM/YYYY HH:MM:SS).
-    """
-    try:          
-        fecha_obj = datetime.fromisoformat(iso_date_str)
-        return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
-    except (ValueError, TypeError):
-        return iso_date_str
-    
-def determinar_estilo_firmas_validiadas(valid_count, invalid_count):
-    """
-    Determina los colores y texto del resumen de firmas.
-    
-    Args:
-        valid_count: Número de firmas válidas
-        invalid_count: Número de firmas inválidas
-        
-    Returns:
-        tuple: (bg_color, fg_color, texto_resumen)
-    """
-    if invalid_count == 0 and valid_count > 0:
-        return (
-            "#e8f5e9",  # Verde claro
-            "#388e3c",  # Verde oscuro
-            f"✓ Todas las firmas son válidas ({valid_count})"
-        )
-    elif valid_count == 0:
-        return (
-            "#ffebee",  # Rojo claro
-            "#d32f2f",  # Rojo oscuro
-            f"✗ Ninguna firma es válida ({invalid_count})"
-        )
-    else:
-        return (
-            "#fff3e0",  # Naranja claro
-            "#e65100",  # Naranja oscuro
-            f"⚠ Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
-        )
-
-def extraer_firmas_documento(file_path):
-    """
-    Extrae los metadatos y firmas de un documento PDF.
-    """
-    try:
-        # Extraer metadatos del PDF
-        doc = fitz.open(file_path)
-        metadata = doc.metadata
-        doc.close()
-
-        # Extraer firmas
-        meta_data = json.loads(metadata.get("keywords", "{}"))
-        
-        # Verificar si hay firmas
-        firmas = meta_data.get("firmas", [])
-        if not firmas:
-            log_message("firmaApp.log", "No se encontraron firmas en el documento.")
-            return False, None, None
-                
-        # Calcular el hash del documento actual
-        hash_documento_actual = calcular_hash_documento(file_path)
-        
-        return True, firmas, hash_documento_actual
-
-    except Exception as e:
-        log_message("firmaApp.log", f"Error al extraer firmas: {e}")
-        return False, None, None
-    
-def cargar_datos_certificado(cert_path, base_dir):
-    """Carga y verifica un certificado desde el archivo especificado"""
-    try:
-        # Leer el certificado
-        with open(cert_path, "r") as cert_file:
-            cert_data = json.load(cert_file)
-        
-        # Verificar el certificado
-        if not verificar_certificado(cert_data, base_dir):
-            log_message("firmaApp.log", "Certificado no válido")
-            return None, None, None, None, None
-        
-        # Extraer datos básicos
-        user_pk = bytes.fromhex(cert_data["user_public_key"])
-        ent_pk = bytes.fromhex(cert_data["entity_public_key"])
-        exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
-        issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
-        
-        return cert_data, user_pk, ent_pk, exp_date, issue_date
-    except Exception as e:
-        log_message("firmaApp.log", f"Error al cargar datos del certificado: {e}")
-        return None, None, None, None, None
-    
-def añadir_firma_visual_pdf(pdf_path, pagina, posicion, signature_width, signature_height, nombre_certificado):
-    """
-    Añade una firma visual al PDF con un enlace clickable para verificación.
-    Returns:
-        tuple: (success, visual_signature_hash)
-    """
-    try:
-        # Guardar el documento antes de añadir la firma visual para calcular el hash "antes"
-        doc_before = fitz.open(pdf_path)
-        hash_before = calcular_hash_documento(pdf_path)
-        doc_before.close()
-
-        doc = fitz.open(pdf_path)
-        page = doc[pagina]
-        x, y = posicion
-        rect = fitz.Rect(x, y, x + signature_width, y + signature_height)
-        
-        signature_text = f"Firmado digitalmente por: {nombre_certificado}"
-        signature_date = f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-        
-        # Firma en blanco y negro
-        page.draw_rect(rect, color=(0, 0, 0), fill=(1, 1, 1), width=1, overlay=True)  # Fondo blanco, borde negro
-        
-        text_point = fitz.Point(x + 5, y + 15)
-        page.insert_text(text_point, signature_text, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
-        
-        text_point = fitz.Point(x + 5, y + 25)
-        page.insert_text(text_point, signature_date, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
-
-        crear_enlace_verificacion(page, rect, pdf_path)
-
-        doc.save(pdf_path, incremental=True, encryption=0)
-        doc.close()
-
-        # Calcular el hash "después" de añadir la firma visual
-        doc_after = fitz.open(pdf_path)
-        hash_after = calcular_hash_documento(pdf_path)
-        doc_after.close()
-        
-        # alcular el hash de la DIFERENCIA entre antes y después
-        # Esto representará más precisamente la firma visual por sí sola
-        visual_signature_hash = bytes(a ^ b for a, b in zip(hash_before, hash_after))
-
-        log_message("firmaApp.log",f"Firma visual añadida en la página {pagina+1}")
-        return True, visual_signature_hash
-        
-    except Exception as e:
-        log_message("firmaApp.log",f"Error al añadir firma visual: {e}")
-        return False, None
-
-def crear_enlace_verificacion(page, rect, pdf_path):
-    """
-    Crea un enlace de verificación en el PDF que redirecciona al protocolo autofirma://
-    """
-    try:
-        # Prepare the encoded path and URI 
-        uri = "autofirma://CURRENT_PDF"
-        
-        # Añadir un enlace HTTP que redirige al protocolo personalizado
-        # Esta técnica es mejor aceptada por Chrome
-        html_redirect = f'''
-        <html>
-        <head>
-            <meta http-equiv="refresh" content="0;url={uri}">
-            <title>Redirigiendo a AutoFirma</title>
-        </head>
-        <body>
-            <p>Verificando firma... si no se abre automáticamente, 
-            <a href="{uri}">haga clic aquí</a>.</p>
-        </body>
-        </html>
-        '''
-        
-        # Generar un nombre único para el archivo HTML basado en la ruta del PDF
-        pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()[:10]
-        pdf_basename = os.path.basename(pdf_path).replace(".", "_")
-        
-        # Guardar la página de redirección en el directorio temporal con nombre único
-        temp_dir = os.path.join(os.path.expanduser("~"), "temp_autofirma")
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        # Usar nombre único para cada redirección
-        redirect_path = os.path.join(temp_dir, f"redirect_{pdf_basename}_{pdf_hash}.html")
-        
-        with open(redirect_path, "w") as f:
-            f.write(html_redirect)
-        
-        # Usar una URL file:// para abrir la página HTML
-        redirect_uri = f"file:///{redirect_path.replace('\\', '/')}"
-        
-        # Insertar el enlace que apunta a la página de redirección
-        page.insert_link({
-            "kind": fitz.LINK_URI,
-            "from": rect,
-            "uri": redirect_uri
-        })
-        
-        log_message("firmaApp.log", f"Firma clickable creada para {os.path.basename(pdf_path)}")
-        return True
-        
-    except Exception as e:
-        log_message("firmaApp.log", f"Error al añadir enlace: {e}")
-        return False
-    
-def cargar_certificado_autenticacion(cert_firma, base_dir):
-    """
-    Carga automáticamente el certificado de autenticación correspondiente al certificado de firma.
-    """
-    try:
-        # Extraer DNI y algoritmo del certificado de firma
-        dni = cert_firma["dni"]
-        algoritmo = cert_firma["algoritmo"].lower()
-        
-        # Buscar automáticamente el certificado de autenticación correspondiente
-        user_home = os.path.expanduser("~")
-        certs_folder = os.path.join(user_home, "certificados_postC")
-        cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo}.json")
-        
-        # Verificar si existe el certificado de autenticación
-        if not os.path.exists(cert_auth_path):
-            error_msg = f"No se encontró el certificado de autenticación para el DNI {dni}."
-            log_message("firmaApp.log", f"Error: No se encontró certificado de autenticación para DNI {dni}")
-            return False, None, error_msg
-            
-        # Cargar el certificado de autenticación
-        try:
-            with open(cert_auth_path, "r") as cert_file:
-                cert_auth = json.load(cert_file)
-                
-            # Verificar el certificado de autenticación
-            if not verificar_certificado(cert_auth, base_dir):
-                error_msg = "El certificado de autenticación no es válido."
-                log_message("firmaApp.log", "Error: Certificado de autenticación inválido.")
-                return False, None, error_msg
-                
-            log_message("firmaApp.log", f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
-            
-            # OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
-            nombre_certificado = cert_firma["nombre"]
-
-            # CALCULAR HASH DE LA FIRMA DE LOS CERTIFICADOS
-            hash_firma_cd = calcular_hash_firma(cert_firma)
-            hash_auth_cd = calcular_hash_firma(cert_auth)
-
-            if hash_firma_cd != hash_auth_cd:
-                error_msg = "Los certificados de firma y autenticación no están asociados."
-                log_message("firmaApp.log", "Error: Los certificados de firma y autenticación no coinciden.")
-                return False, None, error_msg
-                
-            return True, cert_auth, None
-                
-        except Exception as e:
-            error_msg = f"Error al cargar certificado de autenticación: {e}"
-            log_message("firmaApp.log", error_msg)
-            return False, None, error_msg
-            
-    except Exception as e:
-        error_msg = f"Error procesando certificado de autenticación: {e}"
-        log_message("firmaApp.log", error_msg)
-        return False, None, error_msg
-    
-def copiar_contenido_pdf(origen, destino):
-    """
-    Copia el contenido de un archivo PDF de origen a un archivo de destino.
-    """
-    try:
-        with open(destino, "wb") as f:
-            with open(origen, "rb") as original_file:
-                f.write(original_file.read())  # Copiar el contenido original
-        return True
-    except Exception as e:
-        log_message("firmaApp.log", f"Error al copiar contenido PDF: {e}")
-        return False
-    
-def firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash=None):
-    """
-    Firma digitalmente un documento PDF.
-    """
-    try:
-        # CALCULAR HASH DEL DOCUMENTO
-        hash_documento = calcular_hash_documento(save_path)
-        log_message("firmaApp.log", f"Hash del documento: {hash_documento.hex()}")
-
-        # OBTENER EL ALGORITMO DEL CERTIFICADO
-        algoritmo = cert_firma.get("algoritmo", "sphincs")
-        log_message("firmaApp.log", f"Firmando con algoritmo: {algoritmo.upper()}")
-
-        # FIRMAR EL HASH DEL DOCUMENTO
-        signature = firmar_hash(hash_documento, user_sk, algoritmo)
-
-        # AÑADIR METADATOS AL PDF (incluida la firma digital)
-        add_metadata_to_pdf(save_path, signature, cert_auth, visual_signature_hash)
-
-        # Registrar en el log el documento firmado
-        titulo_doc = os.path.basename(save_path)
-        nombre_certificado = cert_firma["nombre"]
-        log_message("firmaApp.log", f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
-        
-        return True, f"Documento firmado correctamente y guardado en:\n{save_path}"
-        
-    except Exception as e:
-        log_message("firmaApp.log", f"Error al firmar documento: {e}")
-        return False, f"Error al firmar documento: {e}"
