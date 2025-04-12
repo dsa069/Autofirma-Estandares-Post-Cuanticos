@@ -18,7 +18,7 @@ class CertificadoDigitalApp:
         self.root.resizable(False, False)
         
         # 🔹 Rutas del icono
-        self.setup_app_icons
+        self.setup_app_icons()
 
         # Título
         self.title_label = tk.Label(
