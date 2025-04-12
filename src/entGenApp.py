@@ -23,35 +23,7 @@ class CertificadoDigitalApp:
         self.root.resizable(False, False)
         
         # 🔹 Rutas del icono
-        if getattr(sys, 'frozen', False):
-            # Ejecutando como archivo compilado
-            ruta_icono = os.path.join(BASE_DIR, "AlterDiego.ico")
-            ruta_icono_png = os.path.join(BASE_DIR, "AlterDiego.png")
-        else:
-            # Ejecutando como script Python
-            ruta_icono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "AlterDiego.ico")
-            ruta_icono_png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "AlterDiego.png")
-        # 🔹 Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
-        myappid = 'miapp.certificadosdigitales'  # Nombre único
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-
-        # 🔹 (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
-        self.ventana_oculta = tk.Toplevel()
-        self.ventana_oculta.withdraw()  # Oculta la ventana
-
-        # 🔹 Intentar establecer el icono .ico
-        if os.path.exists(ruta_icono):
-            self.root.iconbitmap(ruta_icono)  # Icono en la cabecera
-            self.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
-        else:
-            messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
-
-        # 🔹 Intentar establecer el icono .png en la barra de tareas
-        if os.path.exists(ruta_icono_png):
-            icono = PhotoImage(file=ruta_icono_png)
-            self.root.iconphoto(True, icono)  # Icono en la barra de tareas
-        else:
-            messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
+        self.setup_app_icons
 
         # Título
         self.title_label = tk.Label(
@@ -419,6 +391,37 @@ class CertificadoDigitalApp:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")
 
+    def setup_app_icons(self):
+        if getattr(sys, 'frozen', False):
+            # Ejecutando como archivo compilado
+            ruta_icono = os.path.join(BASE_DIR, "AlterDiego.ico")
+            ruta_icono_png = os.path.join(BASE_DIR, "AlterDiego.png")
+        else:
+            # Ejecutando como script Python
+            ruta_icono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "AlterDiego.ico")
+            ruta_icono_png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "AlterDiego.png")
+        # 🔹 Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
+        myappid = 'miapp.certificadosdigitales'  # Nombre único
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+        # 🔹 (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
+        self.ventana_oculta = tk.Toplevel()
+        self.ventana_oculta.withdraw()  # Oculta la ventana
+
+        # 🔹 Intentar establecer el icono .ico
+        if os.path.exists(ruta_icono):
+            self.root.iconbitmap(ruta_icono)  # Icono en la cabecera
+            self.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
+        else:
+            messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
+
+        # 🔹 Intentar establecer el icono .png en la barra de tareas
+        if os.path.exists(ruta_icono_png):
+            icono = PhotoImage(file=ruta_icono_png)
+            self.root.iconphoto(True, icono)  # Icono en la barra de tareas
+        else:
+            messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
+            
 if __name__ == "__main__":
     root = tk.Tk()
     app = CertificadoDigitalApp(root)

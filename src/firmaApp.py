@@ -1,18 +1,15 @@
 import ctypes
 import sys
 import os
-from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, init_paths
+from backend.funcComunes import log_message, init_paths
 
 BASE_DIR = init_paths()
 
-import json
-import hashlib
 import tkinter as tk
 
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
-from datetime import datetime
 import fitz  # PyMuPDF para manejar metadatos en PDFs
-from backend.funcFirma import add_metadata_to_pdf, cargar_datos_certificado, determinar_estilo_firmas_validiadas, extraer_firmas_documento, format_iso_display, process_uri, register_protocol_handler, calcular_hash_documento, decrypt_private_key, enviar_alerta_certificado, verificar_certificado, verificar_firmas_cascada
+from backend.funcFirma import añadir_firma_visual_pdf, cargar_certificado_autenticacion, cargar_datos_certificado, copiar_contenido_pdf, determinar_estilo_firmas_validiadas, extraer_firmas_documento, firmar_documento_pdf, format_iso_display, process_uri, register_protocol_handler, decrypt_private_key, enviar_alerta_certificado, verificar_firmas_cascada
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -21,35 +18,8 @@ class AutoFirmaApp:
         self.root.geometry("600x400")
         self.root.resizable(False, False)
         # 🔹 Rutas del icono
-        if getattr(sys, 'frozen', False):
-            # Ejecutando como archivo compilado
-            ruta_icono = os.path.join(BASE_DIR, "Diego.ico")
-            ruta_icono_png = os.path.join(BASE_DIR, "Diego.png")
-        else:
-            # Ejecutando como script Python
-            ruta_icono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.ico")
-            ruta_icono_png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.png")
-        # 🔹 Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
-        myappid = 'miapp.certificadosdigitales'  # Nombre único
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-
-        # 🔹 (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
-        self.ventana_oculta = tk.Toplevel()
-        self.ventana_oculta.withdraw()  # Oculta la ventana
-
-        # 🔹 Intentar establecer el icono .ico
-        if os.path.exists(ruta_icono):
-            self.root.iconbitmap(ruta_icono)  # Icono en la cabecera
-            self.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
-        else:
-            messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
-
-        # 🔹 Intentar establecer el icono .png en la barra de tareas
-        if os.path.exists(ruta_icono_png):
-            icono = PhotoImage(file=ruta_icono_png)
-            self.root.iconphoto(True, icono)  # Icono en la barra de tareas
-        else:
-            messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
+        
+        self.setup_app_icons()
 
         # Título
         self.title_label = tk.Label(
@@ -393,99 +363,14 @@ class AutoFirmaApp:
             if not result["success"]:
                 return False
 
-            # Guardar el documento antes de añadir la firma visual para calcular el hash "antes"
-            doc_before = fitz.open(pdf_path)
-            hash_before = calcular_hash_documento(pdf_path)
-            doc_before.close()
-
-            # Añadir la firma visual al PDF
-            try:
-                doc = fitz.open(pdf_path)
-                page = doc[result["page"]]
-                x, y = result["position"]
-                rect = fitz.Rect(x, y, x + signature_width, y + signature_height)
-                
-                signature_text = f"Firmado digitalmente por: {nombre_certificado}"
-                signature_date = f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-                
-                # Firma en blanco y negro
-                page.draw_rect(rect, color=(0, 0, 0), fill=(1, 1, 1), width=1, overlay=True)  # Fondo blanco, borde negro
-                
-                text_point = fitz.Point(x + 5, y + 15)
-                page.insert_text(text_point, signature_text, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
-                
-                text_point = fitz.Point(x + 5, y + 25)
-                page.insert_text(text_point, signature_date, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
-                
-                # JUSTO AQUÍ: Añadir una anotación click con JavaScript
-                try:
-                    # Prepare the encoded path and URI 
-                    uri = "autofirma://CURRENT_PDF"
-
-                    
-                    # Añadir un enlace HTTP que redirige al protocolo personalizado
-                    # Esta técnica es mejor aceptada por Chrome
-                    html_redirect = f'''
-                    <html>
-                    <head>
-                        <meta http-equiv="refresh" content="0;url={uri}">
-                        <title>Redirigiendo a AutoFirma</title>
-                    </head>
-                    <body>
-                        <p>Verificando firma... si no se abre automáticamente, 
-                        <a href="{uri}">haga clic aquí</a>.</p>
-                    </body>
-                    </html>
-                    '''
-                    
-                    # Generar un nombre único para el archivo HTML basado en la ruta del PDF
-                    pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()[:10]
-                    pdf_basename = os.path.basename(pdf_path).replace(".", "_")
-                    
-                    # Guardar la página de redirección en el directorio temporal con nombre único
-                    temp_dir = os.path.join(os.path.expanduser("~"), "temp_autofirma")
-                    os.makedirs(temp_dir, exist_ok=True)
-                    
-                    # Usar nombre único para cada redirección
-                    redirect_path = os.path.join(temp_dir, f"redirect_{pdf_basename}_{pdf_hash}.html")
-                    
-                    with open(redirect_path, "w") as f:
-                        f.write(html_redirect)
-                    
-                    # Usar una URL file:// para abrir la página HTML
-                    redirect_uri = f"file:///{redirect_path.replace('\\', '/')}"
-                    
-                    # Insertar el enlace que apunta a la página de redirección
-                    page.insert_link({
-                        "kind": fitz.LINK_URI,
-                        "from": rect,
-                        "uri": redirect_uri
-                    })
-                    
-                    log_message("firmaApp.log",f"Firma clickable creada para {os.path.basename(pdf_path)}")
-                except Exception as e:
-                    log_message("firmaApp.log",f"Error al añadir enlace: {e}")
-
-                doc.save(pdf_path, incremental=True, encryption=0)
-                doc.close()
-
-                
-                # Calcular el hash "después" de añadir la firma visual
-                doc_after = fitz.open(pdf_path)
-                hash_after = calcular_hash_documento(pdf_path)
-                doc_after.close()
-                
-                # IMPORTANTE: Calcular el hash de la DIFERENCIA entre antes y después
-                # Esto representará más precisamente la firma visual por sí sola
-                visual_signature_hash = bytes(a ^ b for a, b in zip(hash_before, hash_after))
-
-                
-                log_message("firmaApp.log",f"Firma visual añadida en la página {result['page']+1}")
-                return True, visual_signature_hash
-                
-            except Exception as e:
-                log_message("firmaApp.log",f"Error al añadir firma visual: {e}")
-                return False, None
+            return añadir_firma_visual_pdf(
+            pdf_path, 
+            result["page"], 
+            result["position"],
+            signature_width, 
+            signature_height, 
+            nombre_certificado
+            )
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error al seleccionar posición: {e}")
@@ -499,51 +384,7 @@ class AutoFirmaApp:
             user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
             if not user_sk:
                 return
-
-            # Extraer DNI y algoritmo del certificado de firma
-            dni = cert_firma["dni"]
-            algoritmo = cert_firma["algoritmo"].lower()
             
-            # Buscar automáticamente el certificado de autenticación correspondiente
-            user_home = os.path.expanduser("~")
-            certs_folder = os.path.join(user_home, "certificados_postC")
-            cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo}.json")
-            
-            # Verificar si existe el certificado de autenticación
-            if not os.path.exists(cert_auth_path):
-                messagebox.showerror("Error", f"No se encontró el certificado de autenticación para el DNI {dni}.")
-                log_message("firmaApp.log",f"Error: No se encontró certificado de autenticación para DNI {dni}")
-                return
-                
-            # Cargar el certificado de autenticación
-            try:
-                with open(cert_auth_path, "r") as cert_file:
-                    cert_auth = json.load(cert_file)
-                    
-                # Verificar el certificado de autenticación
-                if not verificar_certificado(cert_auth, BASE_DIR):
-                    messagebox.showerror("Error", "El certificado de autenticación no es válido.")
-                    log_message("firmaApp.log","Error: Certificado de autenticación inválido.")
-                    return
-                    
-                log_message("firmaApp.log",f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Error al cargar certificado de autenticación: {e}")
-                log_message("firmaApp.log",f"Error al cargar certificado de autenticación: {e}")
-                return
-
-            # OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
-            nombre_certificado = cert_firma["nombre"]
-
-            # CALCULAR HASH DE LA FIRMA DE LOS CERTIFICADOS
-            hash_firma_cd = calcular_hash_firma(cert_firma)
-            hash_auth_cd = calcular_hash_firma(cert_auth)
-
-            if hash_firma_cd != hash_auth_cd:
-                messagebox.showerror("Error", "Los certificados de firma y autenticación no están asociados.")
-                log_message("firmaApp.log","Error: Los certificados de firma y autenticación no coinciden.")
-                return
-
             # SELECCIONAR DOCUMENTO PARA FIRMAR
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
             file_path = filedialog.askopenfilename(
@@ -566,17 +407,22 @@ class AutoFirmaApp:
                 messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
                 return
 
+            success, cert_auth, error_msg = cargar_certificado_autenticacion(cert_firma, BASE_DIR)
+            if not success:
+                messagebox.showerror("Error", error_msg)
+                return
+
             # GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
-            with open(save_path, "wb") as f:
-                with open(file_path, "rb") as original_file:
-                    f.write(original_file.read())  # Copiar el contenido original
+            if not copiar_contenido_pdf(file_path, save_path):
+                messagebox.showerror("Error", "No se pudo copiar el contenido del archivo original.")
+                return
 
             visual_signature_hash = None
             
             # PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
             agregar_firma = messagebox.askyesno("Firma Escrita", "¿Desea añadir una firma escrita en el PDF?")
             if agregar_firma:
-                success, visual_hash = self.add_written_signature(save_path, nombre_certificado)
+                success, visual_hash = self.add_written_signature(save_path, cert_firma["nombre"])
                 if success:
                     visual_signature_hash = visual_hash
                 else:
@@ -584,22 +430,11 @@ class AutoFirmaApp:
                     log_message("firmaApp.log","Firma escrita cancelada, continuando con firma digital.")
 
             # CALCULAR HASH DEL DOCUMENTO (después de añadir la firma escrita si se solicitó)
-            hash_documento = calcular_hash_documento(save_path)
-            log_message("firmaApp.log",f"Hash del documento: {hash_documento.hex()}")
-
-            # OBTENER EL ALGORITMO DEL CERTIFICADO
-            algoritmo = cert_firma.get("algoritmo", "sphincs")
-            log_message("firmaApp.log",f"Firmando con algoritmo: {algoritmo.upper()}")
-
-            signature = firmar_hash(hash_documento, user_sk, algoritmo)
-
-            # AÑADIR METADATOS AL PDF (incluida la firma digital)
-            add_metadata_to_pdf(save_path, signature, cert_auth, visual_signature_hash)
-
-            # Registrar en el log el documento firmado
-            titulo_doc = os.path.basename(save_path)
-            log_message("firmaApp.log",f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
-            messagebox.showinfo("Éxito", f"Documento firmado correctamente y guardado en:\n{save_path}")
+            resultado, mensaje = firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash)
+            if resultado:
+                messagebox.showinfo("Éxito", mensaje)
+            else:
+                messagebox.showerror("Error", mensaje)
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
@@ -824,6 +659,40 @@ class AutoFirmaApp:
         # Mostrar resultados en la UI usando los valores desempaquetados de la tupla
         self.verify_signatures(file_path, firmas, hash_documento)
         return True
+    
+    def setup_app_icons(self):
+        """Configura los iconos de la aplicación para diferentes contextos."""
+        # 🔹 Rutas del icono
+        if getattr(sys, 'frozen', False):
+            # Ejecutando como archivo compilado
+            ruta_icono = os.path.join(BASE_DIR, "Diego.ico")
+            ruta_icono_png = os.path.join(BASE_DIR, "Diego.png")
+        else:
+            # Ejecutando como script Python
+            ruta_icono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.ico")
+            ruta_icono_png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.png")
+            
+        # 🔹 Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
+        myappid = 'miapp.certificadosdigitales'  # Nombre único
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+        # 🔹 (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
+        self.ventana_oculta = tk.Toplevel()
+        self.ventana_oculta.withdraw()  # Oculta la ventana
+
+        # 🔹 Intentar establecer el icono .ico
+        if os.path.exists(ruta_icono):
+            self.root.iconbitmap(ruta_icono)  # Icono en la cabecera
+            self.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
+        else:
+            messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
+
+        # 🔹 Intentar establecer el icono .png en la barra de tareas
+        if os.path.exists(ruta_icono_png):
+            icono = PhotoImage(file=ruta_icono_png)
+            self.root.iconphoto(True, icono)  # Icono en la barra de tareas
+        else:
+            messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
         
 if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática

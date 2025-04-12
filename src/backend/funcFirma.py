@@ -546,3 +546,207 @@ def cargar_datos_certificado(cert_path, base_dir):
     except Exception as e:
         log_message("firmaApp.log", f"Error al cargar datos del certificado: {e}")
         return None, None, None, None, None
+    
+def añadir_firma_visual_pdf(pdf_path, pagina, posicion, signature_width, signature_height, nombre_certificado):
+    """
+    Añade una firma visual al PDF con un enlace clickable para verificación.
+    Returns:
+        tuple: (success, visual_signature_hash)
+    """
+    try:
+        # Guardar el documento antes de añadir la firma visual para calcular el hash "antes"
+        doc_before = fitz.open(pdf_path)
+        hash_before = calcular_hash_documento(pdf_path)
+        doc_before.close()
+
+        doc = fitz.open(pdf_path)
+        page = doc[pagina]
+        x, y = posicion
+        rect = fitz.Rect(x, y, x + signature_width, y + signature_height)
+        
+        signature_text = f"Firmado digitalmente por: {nombre_certificado}"
+        signature_date = f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+        
+        # Firma en blanco y negro
+        page.draw_rect(rect, color=(0, 0, 0), fill=(1, 1, 1), width=1, overlay=True)  # Fondo blanco, borde negro
+        
+        text_point = fitz.Point(x + 5, y + 15)
+        page.insert_text(text_point, signature_text, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
+        
+        text_point = fitz.Point(x + 5, y + 25)
+        page.insert_text(text_point, signature_date, fontsize=8, color=(0, 0, 0), overlay=True)  # Texto negro
+
+        crear_enlace_verificacion(page, rect, pdf_path)
+
+        doc.save(pdf_path, incremental=True, encryption=0)
+        doc.close()
+
+        # Calcular el hash "después" de añadir la firma visual
+        doc_after = fitz.open(pdf_path)
+        hash_after = calcular_hash_documento(pdf_path)
+        doc_after.close()
+        
+        # alcular el hash de la DIFERENCIA entre antes y después
+        # Esto representará más precisamente la firma visual por sí sola
+        visual_signature_hash = bytes(a ^ b for a, b in zip(hash_before, hash_after))
+
+        log_message("firmaApp.log",f"Firma visual añadida en la página {pagina+1}")
+        return True, visual_signature_hash
+        
+    except Exception as e:
+        log_message("firmaApp.log",f"Error al añadir firma visual: {e}")
+        return False, None
+
+def crear_enlace_verificacion(page, rect, pdf_path):
+    """
+    Crea un enlace de verificación en el PDF que redirecciona al protocolo autofirma://
+    """
+    try:
+        # Prepare the encoded path and URI 
+        uri = "autofirma://CURRENT_PDF"
+        
+        # Añadir un enlace HTTP que redirige al protocolo personalizado
+        # Esta técnica es mejor aceptada por Chrome
+        html_redirect = f'''
+        <html>
+        <head>
+            <meta http-equiv="refresh" content="0;url={uri}">
+            <title>Redirigiendo a AutoFirma</title>
+        </head>
+        <body>
+            <p>Verificando firma... si no se abre automáticamente, 
+            <a href="{uri}">haga clic aquí</a>.</p>
+        </body>
+        </html>
+        '''
+        
+        # Generar un nombre único para el archivo HTML basado en la ruta del PDF
+        pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()[:10]
+        pdf_basename = os.path.basename(pdf_path).replace(".", "_")
+        
+        # Guardar la página de redirección en el directorio temporal con nombre único
+        temp_dir = os.path.join(os.path.expanduser("~"), "temp_autofirma")
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Usar nombre único para cada redirección
+        redirect_path = os.path.join(temp_dir, f"redirect_{pdf_basename}_{pdf_hash}.html")
+        
+        with open(redirect_path, "w") as f:
+            f.write(html_redirect)
+        
+        # Usar una URL file:// para abrir la página HTML
+        redirect_uri = f"file:///{redirect_path.replace('\\', '/')}"
+        
+        # Insertar el enlace que apunta a la página de redirección
+        page.insert_link({
+            "kind": fitz.LINK_URI,
+            "from": rect,
+            "uri": redirect_uri
+        })
+        
+        log_message("firmaApp.log", f"Firma clickable creada para {os.path.basename(pdf_path)}")
+        return True
+        
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al añadir enlace: {e}")
+        return False
+    
+def cargar_certificado_autenticacion(cert_firma, base_dir):
+    """
+    Carga automáticamente el certificado de autenticación correspondiente al certificado de firma.
+    """
+    try:
+        # Extraer DNI y algoritmo del certificado de firma
+        dni = cert_firma["dni"]
+        algoritmo = cert_firma["algoritmo"].lower()
+        
+        # Buscar automáticamente el certificado de autenticación correspondiente
+        user_home = os.path.expanduser("~")
+        certs_folder = os.path.join(user_home, "certificados_postC")
+        cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo}.json")
+        
+        # Verificar si existe el certificado de autenticación
+        if not os.path.exists(cert_auth_path):
+            error_msg = f"No se encontró el certificado de autenticación para el DNI {dni}."
+            log_message("firmaApp.log", f"Error: No se encontró certificado de autenticación para DNI {dni}")
+            return False, None, error_msg
+            
+        # Cargar el certificado de autenticación
+        try:
+            with open(cert_auth_path, "r") as cert_file:
+                cert_auth = json.load(cert_file)
+                
+            # Verificar el certificado de autenticación
+            if not verificar_certificado(cert_auth, base_dir):
+                error_msg = "El certificado de autenticación no es válido."
+                log_message("firmaApp.log", "Error: Certificado de autenticación inválido.")
+                return False, None, error_msg
+                
+            log_message("firmaApp.log", f"Certificado de autenticación cargado automáticamente para DNI: {dni}")
+            
+            # OBTENER EL NOMBRE DEL CERTIFICADO DE FIRMA
+            nombre_certificado = cert_firma["nombre"]
+
+            # CALCULAR HASH DE LA FIRMA DE LOS CERTIFICADOS
+            hash_firma_cd = calcular_hash_firma(cert_firma)
+            hash_auth_cd = calcular_hash_firma(cert_auth)
+
+            if hash_firma_cd != hash_auth_cd:
+                error_msg = "Los certificados de firma y autenticación no están asociados."
+                log_message("firmaApp.log", "Error: Los certificados de firma y autenticación no coinciden.")
+                return False, None, error_msg
+                
+            return True, cert_auth, None
+                
+        except Exception as e:
+            error_msg = f"Error al cargar certificado de autenticación: {e}"
+            log_message("firmaApp.log", error_msg)
+            return False, None, error_msg
+            
+    except Exception as e:
+        error_msg = f"Error procesando certificado de autenticación: {e}"
+        log_message("firmaApp.log", error_msg)
+        return False, None, error_msg
+    
+def copiar_contenido_pdf(origen, destino):
+    """
+    Copia el contenido de un archivo PDF de origen a un archivo de destino.
+    """
+    try:
+        with open(destino, "wb") as f:
+            with open(origen, "rb") as original_file:
+                f.write(original_file.read())  # Copiar el contenido original
+        return True
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al copiar contenido PDF: {e}")
+        return False
+    
+def firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash=None):
+    """
+    Firma digitalmente un documento PDF.
+    """
+    try:
+        # CALCULAR HASH DEL DOCUMENTO
+        hash_documento = calcular_hash_documento(save_path)
+        log_message("firmaApp.log", f"Hash del documento: {hash_documento.hex()}")
+
+        # OBTENER EL ALGORITMO DEL CERTIFICADO
+        algoritmo = cert_firma.get("algoritmo", "sphincs")
+        log_message("firmaApp.log", f"Firmando con algoritmo: {algoritmo.upper()}")
+
+        # FIRMAR EL HASH DEL DOCUMENTO
+        signature = firmar_hash(hash_documento, user_sk, algoritmo)
+
+        # AÑADIR METADATOS AL PDF (incluida la firma digital)
+        add_metadata_to_pdf(save_path, signature, cert_auth, visual_signature_hash)
+
+        # Registrar en el log el documento firmado
+        titulo_doc = os.path.basename(save_path)
+        nombre_certificado = cert_firma["nombre"]
+        log_message("firmaApp.log", f"Documento firmado: '{titulo_doc}' | Hash: {hash_documento.hex()} | Firmante: {nombre_certificado}")
+        
+        return True, f"Documento firmado correctamente y guardado en:\n{save_path}"
+        
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al firmar documento: {e}")
+        return False, f"Error al firmar documento: {e}"
