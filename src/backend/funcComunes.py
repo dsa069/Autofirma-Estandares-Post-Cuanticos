@@ -1,10 +1,3 @@
-import hashlib
-import json
-import os
-import datetime
-import sys
-from dilithium_py.ml_dsa import ML_DSA_65
-
 def init_paths():
     """
     Inicializa las rutas base y configura el path de Python.
@@ -12,6 +5,8 @@ def init_paths():
     Returns:
         str: La ruta base de la aplicación (BASE_DIR)
     """
+    import sys
+    import os
     if getattr(sys, 'frozen', False):
         BASE_DIR = sys._MEIPASS  # Carpeta temporal de PyInstaller
     else:
@@ -35,6 +30,7 @@ def log_message(log_file_name, message):
         bool: True si el mensaje se registró correctamente, False en caso contrario
     """
     try:
+        import os
         # Obtener el directorio raíz del proyecto (src)
         current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
@@ -44,7 +40,8 @@ def log_message(log_file_name, message):
             os.makedirs(logs_folder)
         
         log_file_path = os.path.join(logs_folder, log_file_name)
-        
+
+        import datetime
         # Fecha y hora actual
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
@@ -91,7 +88,9 @@ def calcular_hash_huella(cert):
     
 def calcular_hash_ordenado(data, ordered_keys):
     """Calcula el hash SHA-256 de los datos serializados asegurando el mismo orden."""
-    
+    import json
+    import hashlib
+
     ordered_data = {key: data[key] for key in ordered_keys if key in data}
     serialized_data = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(serialized_data.encode())
@@ -104,6 +103,7 @@ def firmar_hash(hash_data, clave_privada, algoritmo):
         sphincs = Sphincs()
         firma = sphincs.sign(hash_data, clave_privada)
     elif algoritmo.lower() == "dilithium":
+        from dilithium_py.ml_dsa import ML_DSA_65 # type: ignore
         firma = ML_DSA_65.sign(clave_privada, hash_data)
     else:
         return None

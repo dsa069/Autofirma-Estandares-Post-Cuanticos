@@ -1,18 +1,15 @@
-import base64
 from datetime import datetime, timedelta
-import hashlib
 import json
 import os
-import sys
-import fitz  # PyMuPDF
-from Crypto.Cipher import AES
-from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, calcular_hash_huella
+import fitz  # type: ignore # PyMuPDF
+from backend.funcComunes import log_message
 
 def firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash=None):
     """
     Firma digitalmente un documento PDF.
     """
     try:
+        from backend.funcComunes import firmar_hash
         # CALCULAR HASH DEL DOCUMENTO
         hash_documento = calcular_hash_documento(save_path)
         log_message("firmaApp.log", f"Hash del documento: {hash_documento.hex()}")
@@ -95,7 +92,7 @@ def verificar_firma(hash_data, clave_pública, firma, algoritmo):
         sphincs = Sphincs()
         firma = sphincs.verify(hash_data, firma, clave_pública)
     elif algoritmo.lower() == "dilithium":
-        from dilithium_py.ml_dsa import ML_DSA_65  # Usamos ML_DSA_65 (Dilithium3)
+        from dilithium_py.ml_dsa import ML_DSA_65  # type: ignore # Usamos ML_DSA_65 (Dilithium3)
         firma = ML_DSA_65.verify(clave_pública, hash_data, firma)
     else:
         return None
@@ -205,6 +202,7 @@ def determinar_estilo_firmas_validiadas(valid_count, invalid_count):
 def verificar_certificado(cert_data, base_dir):
     """Verifica la validez de un certificado (SPHINCS+ o Dilithium)."""
     try:
+        from backend.funcComunes import calcular_hash_firma, calcular_hash_huella
         # Detectar algoritmo del certificado
         algoritmo = cert_data.get("algoritmo")  # Por defecto SPHINCS+ para compatibilidad
         log_message("firmaApp.log",f"Verificando certificado con algoritmo: {algoritmo.upper()}")
@@ -311,6 +309,7 @@ def cargar_certificado_autenticacion(cert_firma, base_dir):
     Carga automáticamente el certificado de autenticación correspondiente al certificado de firma.
     """
     try:
+        from backend.funcComunes import calcular_hash_firma
         # Extraer DNI y algoritmo del certificado de firma
         dni = cert_firma["dni"]
         algoritmo = cert_firma["algoritmo"].lower()
@@ -378,7 +377,8 @@ def calcular_hash_documento(file_path):
         contenido_binario = b"".join(doc[page].get_text("text").encode() for page in range(len(doc)))
 
         doc.close()
-        
+
+        import hashlib
         return hashlib.sha256(contenido_binario).digest()
     
     except Exception as e:
@@ -387,6 +387,7 @@ def calcular_hash_documento(file_path):
 def decrypt_private_key(encrypted_sk, password):
         """Descifra la clave privada utilizando AES-256 CBC y verifica la redundancia."""
         try:
+            import base64
             encrypted_data = base64.b64decode(encrypted_sk)  # Decodificar de Base64
 
             # Extraer SALT (primeros 16 bytes)
@@ -396,8 +397,10 @@ def decrypt_private_key(encrypted_sk, password):
             iv = encrypted_data[16:32]
             
             # Derivar clave con el salt
+            import hashlib
             key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dklen=32)
-            
+
+            from Crypto.Cipher import AES # type: ignore
             cipher = AES.new(key, AES.MODE_CBC, iv)  # Crear cifrador AES-CBC
 
             decrypted_sk = cipher.decrypt(encrypted_data[32:])  # Desencriptar
@@ -485,10 +488,10 @@ def detect_active_pdf():
     """Detecta automáticamente el PDF activo incluso cuando esta app está en primer plano"""
     try:
         log_message("firmaApp.log","Intentando detectar el PDF activo...")
-        
+        import sys
         if sys.platform == "win32":
             try:
-                import psutil
+                import psutil # type: ignore
                 import glob
                 
                 # Estrategia 1: Buscar PDFs abiertos por cualquier proceso de visor PDF
@@ -622,6 +625,7 @@ def crear_enlace_verificacion(page, rect, pdf_path):
         '''
         
         # Generar un nombre único para el archivo HTML basado en la ruta del PDF
+        import hashlib
         pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()[:10]
         pdf_basename = os.path.basename(pdf_path).replace(".", "_")
         
@@ -654,6 +658,7 @@ def crear_enlace_verificacion(page, rect, pdf_path):
 
 def register_protocol_handler():
     try:
+        import sys
         if sys.platform != "win32":
             log_message("firmaApp.log","Registro de protocolo solo disponible en Windows")
             return False

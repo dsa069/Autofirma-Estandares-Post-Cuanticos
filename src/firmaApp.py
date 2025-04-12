@@ -1,4 +1,3 @@
-import ctypes
 import sys
 import os
 from backend.funcComunes import log_message, init_paths
@@ -6,10 +5,8 @@ from backend.funcComunes import log_message, init_paths
 BASE_DIR = init_paths()
 
 import tkinter as tk
-
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
-import fitz  # PyMuPDF para manejar metadatos en PDFs
-from backend.funcFirma import añadir_firma_visual_pdf, cargar_certificado_autenticacion, cargar_datos_certificado, copiar_contenido_pdf, determinar_estilo_firmas_validiadas, extraer_firmas_documento, firmar_documento_pdf, format_iso_display, process_uri, register_protocol_handler, decrypt_private_key, enviar_alerta_certificado, verificar_firmas_cascada
+from backend.funcFirma import register_protocol_handler
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -58,6 +55,7 @@ class AutoFirmaApp:
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
+            from backend.funcFirma import cargar_datos_certificado, decrypt_private_key, enviar_alerta_certificado
             # Comprobar si existe la carpeta certificados_postC
             user_home = os.path.expanduser("~")
             certs_folder = os.path.join(user_home, "certificados_postC")
@@ -112,6 +110,8 @@ class AutoFirmaApp:
         
     def add_written_signature(self, pdf_path, nombre_certificado):
         """Ventana unificada para seleccionar página y posición de firma."""
+        import fitz  # type: ignore # PyMuPDF para manejar metadatos en PDFs
+        from backend.funcFirma import añadir_firma_visual_pdf
         try:
             # Abrir el documento PDF
             doc = fitz.open(pdf_path)
@@ -173,7 +173,7 @@ class AutoFirmaApp:
                 img_data = pix.tobytes("ppm")
                 
                 # Convertir a imagen de Tkinter
-                from PIL import Image, ImageTk
+                from PIL import Image, ImageTk # type: ignore
                 import io
                 img = Image.open(io.BytesIO(img_data))
                 img_tk = ImageTk.PhotoImage(img)
@@ -380,6 +380,7 @@ class AutoFirmaApp:
     def sign_message(self):
         """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
         try:
+            from backend.funcFirma import cargar_certificado_autenticacion, copiar_contenido_pdf, firmar_documento_pdf
             # Cargar certificado de firma
             user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
             if not user_sk:
@@ -443,6 +444,7 @@ class AutoFirmaApp:
     def seleccionar_pdf_verificar(self):
         """Verifica todas las firmas en un documento PDF."""
         try:
+            from backend.funcFirma import extraer_firmas_documento
             # Seleccionar documento firmado
             file_path = filedialog.askopenfilename(
                 title="Seleccionar archivo firmado",
@@ -469,6 +471,7 @@ class AutoFirmaApp:
 
     def verify_signatures(self, file_path, firmas, hash_documento_actual):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
+        from backend.funcFirma import determinar_estilo_firmas_validiadas, format_iso_display, verificar_firmas_cascada
         # Crear ventana de resultados
         results_window = tk.Toplevel(self.root)
         results_window.title(f"Verificación de firmas: {os.path.basename(file_path)}")
@@ -649,6 +652,7 @@ class AutoFirmaApp:
         
     def verify_from_uri(self, uri):
         """Maneja la UI y llama al backend"""
+        from backend.funcFirma import process_uri
         # process_uri devuelve: (success, file_path, firmas, hash_documento)
         success, file_path, firmas, hash_documento = process_uri(uri)
         
@@ -662,6 +666,7 @@ class AutoFirmaApp:
     
     def setup_app_icons(self):
         """Configura los iconos de la aplicación para diferentes contextos."""
+        import ctypes
         # 🔹 Rutas del icono
         if getattr(sys, 'frozen', False):
             # Ejecutando como archivo compilado

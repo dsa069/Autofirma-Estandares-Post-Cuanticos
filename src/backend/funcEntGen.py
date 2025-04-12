@@ -1,15 +1,4 @@
-import datetime
-import hashlib
-import json
-import os
-import secrets
-import base64
-from Crypto.Cipher import AES
-from dilithium_py.ml_dsa import ML_DSA_65
-from package.sphincs import Sphincs
-
-
-from backend.funcComunes import firmar_hash, log_message, calcular_hash_firma, calcular_hash_huella
+from backend.funcComunes import log_message
 
 def generar_claves_entidad(titulo, algoritmo, fecha_expedicion, fecha_caducidad, sk_path, pk_path):
     """
@@ -56,6 +45,7 @@ def generar_claves_entidad(titulo, algoritmo, fecha_expedicion, fecha_caducidad,
         claves_sk.append(nueva_sk)
         claves_pk.append(nueva_pk)
         
+        import json
         # Guardar en archivos
         with open(sk_path, "w") as file:
             json.dump(claves_sk, file, indent=4)
@@ -125,6 +115,7 @@ def cargar_claves_entidad(sk_entidad_path, pk_entidad_path):
                         
                     # Verificar fechas
                     try:
+                        import datetime
                         fecha_exp = sk_entry.get("fecha_expedicion", "")
                         fecha_cad = sk_entry.get("fecha_caducidad", "")
                         fecha_actual = datetime.date.today().isoformat()
@@ -167,6 +158,9 @@ def generar_certificado(clave_seleccionada, nombre, dni, password):
     """
     Genera certificados digitales para un usuario.
     """
+    from backend.funcComunes import firmar_hash, calcular_hash_huella, calcular_hash_firma
+    import datetime
+
     # Extracción de datos de la clave seleccionada
     algoritmo = clave_seleccionada["algoritmo"]
     entity_sk = clave_seleccionada["sk"]
@@ -215,10 +209,13 @@ def generar_certificado(clave_seleccionada, nombre, dni, password):
 def encrypt_private_key(secret_key, password):
     """Cifra la clave privada con AES-256 en modo CBC usando una contraseña."""
     try:
+        import secrets
+
         # Generar un salt aleatorio de 16 bytes
         salt = secrets.token_bytes(16)
 
         # Generar un hash de la contraseña con el salt para usarlo como clave AES (256 bits)
+        import hashlib
         key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dklen=32)
 
         # Añadir padding con los últimos 50 bits duplicados
@@ -229,6 +226,7 @@ def encrypt_private_key(secret_key, password):
         iv = secrets.token_bytes(16)
 
         # Crear el cifrador AES en modo CBC
+        from Crypto.Cipher import AES # type: ignore
         cipher = AES.new(key, AES.MODE_CBC, iv)
 
         # Asegurar que el texto a cifrar es múltiplo de 16 bytes (padding PKCS7)
@@ -239,6 +237,7 @@ def encrypt_private_key(secret_key, password):
         encrypted_data = cipher.encrypt(secret_key_padded)
 
         # Guardar SALT + IV + datos cifrados en Base64 para facilitar almacenamiento
+        import base64
         return base64.b64encode(salt + iv + encrypted_data).decode()
 
     except Exception as e:
@@ -247,9 +246,11 @@ def encrypt_private_key(secret_key, password):
 def generar_par_claves(algoritmo):
         # Generar las claves según el algoritmo seleccionado
         if algoritmo.lower() == "sphincs":
+            from package.sphincs import Sphincs
             sphincs_inst = Sphincs()
             sk, pk = sphincs_inst.generate_key_pair()
         elif algoritmo.lower() == "dilithium":
+            from dilithium_py.ml_dsa import ML_DSA_65 # type: ignore
             pk, sk = ML_DSA_65.keygen()
         else:
             return None
@@ -260,6 +261,8 @@ def guardar_certificados(certificado_autenticacion, certificado_firma, dni, algo
     """
     Guarda los certificados de autenticación y firma en archivos JSON.
     """
+    import os
+
     # Crear carpeta de certificados en el directorio del usuario
     user_home = os.path.expanduser("~")
     certs_folder = os.path.join(user_home, "certificados_postC")
@@ -271,6 +274,7 @@ def guardar_certificados(certificado_autenticacion, certificado_firma, dni, algo
     # Definir rutas de archivos
     cert_auth_path = os.path.join(certs_folder, f"certificado_digital_autenticacion_{dni}_{algoritmo.lower()}.json")
     cert_sign_path = os.path.join(certs_folder, f"certificado_digital_firmar_{dni}_{algoritmo.lower()}.json")
+    import json
 
     # Guardar certificado de autenticación
     with open(cert_auth_path, "w") as cert_auth_file:
@@ -286,6 +290,8 @@ def guardar_certificados(certificado_autenticacion, certificado_firma, dni, algo
 
 def cargar_json(ruta_archivo):      
     """Carga un archivo JSON o crea uno nuevo y devuelve lista vacía."""
+    import os
+    import json
     if not os.path.exists(ruta_archivo):
         try:
             with open(ruta_archivo, "w") as file:
@@ -336,6 +342,8 @@ def validar_y_convertir_clave(hex_clave):
 def convert_to_iso_date(date_str):
     """Valida una fecha en formato DD/MM/AAAA y la convierte a formato ISO."""
     try:
+        import datetime
+
         day, month, year = map(int, date_str.split('/'))
         date_obj = datetime.date(year, month, day)
         return date_obj.isoformat()

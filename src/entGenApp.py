@@ -1,16 +1,11 @@
-import ctypes
 import sys
 import os
 from backend.funcComunes import log_message, init_paths
 
 BASE_DIR = init_paths()
 
-import datetime
 import tkinter as tk
-from tkinter import PhotoImage
-from tkinter import simpledialog
-from tkinter import messagebox
-from backend.funcEntGen import generar_certificado, validar_datos_usuario, validate_password, cargar_claves_entidad, generar_claves_entidad, verificar_campos_generacion_claves
+from tkinter import PhotoImage, messagebox, simpledialog
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
@@ -73,6 +68,8 @@ class CertificadoDigitalApp:
     def generar_clave_UI(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
         try:
+            from backend.funcEntGen import generar_claves_entidad, verificar_campos_generacion_claves
+
             # Crear ventana para recoger datos de la nueva clave
             key_window = tk.Toplevel(self.root)
             key_window.title("Generar Nuevas Claves de Entidad")
@@ -89,6 +86,7 @@ class CertificadoDigitalApp:
             fecha_cad_var = tk.StringVar()
             
             # Establecer fecha por defecto como hoy en formato DD/MM/AAAA
+            import datetime
             hoy = datetime.date.today()
             fecha_ini_var.set(hoy.strftime("%d/%m/%Y"))
             
@@ -184,6 +182,8 @@ class CertificadoDigitalApp:
     def generate_certificate(self):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
+            from backend.funcEntGen import cargar_claves_entidad
+            from backend.funcEntGen import generar_certificado, validar_datos_usuario, validate_password
             # Obtener datos del usuario
             nombre = self.name_entry.get().strip()
             dni = self.dni_entry.get().strip()
@@ -285,6 +285,7 @@ class CertificadoDigitalApp:
                     
                     # Fechas formateadas
                     try:
+                        import datetime
                         fecha_exp = datetime.date.fromisoformat(key["fecha_expedicion"]).strftime("%d/%m/%Y")
                         fecha_cad = datetime.date.fromisoformat(key["fecha_caducidad"]).strftime("%d/%m/%Y")
                         fechas_text = f"Válida: {fecha_exp} - {fecha_cad}"
@@ -392,6 +393,7 @@ class CertificadoDigitalApp:
             log_message("entGenApp.log",f"Error al generar certificados: {e}")
 
     def setup_app_icons(self):
+        import ctypes
         if getattr(sys, 'frozen', False):
             # Ejecutando como archivo compilado
             ruta_icono = os.path.join(BASE_DIR, "AlterDiego.ico")
