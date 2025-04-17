@@ -378,6 +378,7 @@ def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
     Returns:
         tuple: Mensaje de error o éxito, fecha de expedición y fecha de caducidad
     """
+    from datetime import datetime, date
     # Validar título
     if not titulo or not titulo.strip():
         return "Debe especificar un nombre para la entidad", None, None
@@ -392,8 +393,12 @@ def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
         return "Fecha de caducidad inválida. Use formato DD/MM/AAAA", None, None
         
     # Verificar que la fecha de caducidad sea posterior a la de expedición
-    if fecha_caducidad <= fecha_expedicion:
+    if fecha_caducidad < fecha_expedicion:
         return "La fecha de caducidad debe ser posterior a la fecha de inicio", None, None
+    
+    fecha_expedicion_dt = date.fromisoformat(fecha_expedicion)
+    if datetime.now().date() > fecha_expedicion_dt:
+        return "La fecha de expedicion debe ser posterior a la fecha actual", None, None
     
     # Si todo está correcto, devolver datos validados
     return "Datos válidos", fecha_expedicion, fecha_caducidad
