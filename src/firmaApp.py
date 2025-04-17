@@ -538,6 +538,9 @@ class AutoFirmaApp:
             firma_data = resultado["firma_data"]
             firma_valida = resultado["firma_valida"]
             cert_valido = resultado["cert_valido"]
+            integridad_valida = resultado["integridad_valida"]
+
+            todo_valido = firma_valida and cert_valido and integridad_valida
             
             # Extraer datos para la visualización
             nombre = firma_data["certificado_autenticacion"].get("nombre", "Desconocido")
@@ -546,7 +549,7 @@ class AutoFirmaApp:
             algoritmo = firma_data["certificado_autenticacion"].get("algoritmo", "sphincs").lower()
             
             # Actualizar contadores
-            if firma_valida:
+            if todo_valido:
                 valid_count += 1
             else:
                 invalid_count += 1
@@ -556,7 +559,7 @@ class AutoFirmaApp:
             firma_frame.pack(fill=tk.X, pady=5, padx=5)
             
             # Configurar colores según resultado
-            bg_color = "#e8f5e9" if firma_valida else "#ffebee"  # Verde claro o rojo claro
+            bg_color = "#e8f5e9" if todo_valido else "#ffebee"  # Verde claro o rojo claro
             firma_frame.configure(bg=bg_color)
             
             # Información de la firma
@@ -564,8 +567,8 @@ class AutoFirmaApp:
             header_frame.pack(fill=tk.X, padx=5, pady=5)
             
             # Número de firma e icono de estado
-            status_icon = "✓" if firma_valida else "✗"
-            status_color = "#388e3c" if firma_valida else "#d32f2f"  # Verde oscuro o rojo oscuro
+            status_icon = "✓" if todo_valido else "✗"
+            status_color = "#388e3c" if todo_valido else "#d32f2f"  # Verde oscuro o rojo oscuro
             
             tk.Label(
                 header_frame, 

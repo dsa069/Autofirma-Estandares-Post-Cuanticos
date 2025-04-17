@@ -109,6 +109,17 @@ def verificar_firmas_cascada(firmas, hash_actual, base_dir):
     log_message("firmaApp.log","Iniciando verificación en cascada de firmas...")
     for i in range(total_firmas - 1, -1, -1):
         firma_data = firmas[i]
+
+        # Guardar el hash original
+        hash_original = firma_data["hash_integridad"]
+        
+        # Recalcular el hash y comparar
+        hash_recalculado = calcular_hash_metadatos(firma_data)
+        
+        integridad_valida = True
+        if not hash_original == hash_recalculado:
+            integridad_valida = False
+            log_message("firmaApp.log", f"ALERTA: La integridad de los metadatos de la firma {i} ha sido comprometida")
         
         # Extraer datos básicos
         firma = bytes.fromhex(firma_data["firma"])
@@ -127,6 +138,7 @@ def verificar_firmas_cascada(firmas, hash_actual, base_dir):
             "indice": i,
             "firma_valida": firma_valida,
             "cert_valido": cert_valido,
+            "integridad_valida": integridad_valida,
             "hash_verificacion": hash_actual,
             "firma_data": firma_data
         })
@@ -360,6 +372,17 @@ def calcular_hash_documento(file_path):
     
     except Exception as e:
         raise ValueError(f"Error al calcular el hash del documento: {e}")
+    
+def calcular_hash_metadatos(metadata):
+    """ordered_keys de la huella digital del certificado."""
+    from backend.funcComunes import calcular_hash_ordenado
+    ordered_keys = [
+        "firma",
+        "certificado_autenticacion",
+        "fecha_firma",
+        "hash_visual_signature"
+    ]
+    return calcular_hash_ordenado(metadata, ordered_keys).hexdigest() 
 
 def decrypt_private_key(encrypted_sk, password):
         """Descifra la clave privada utilizando AES-256 CBC y verifica la redundancia."""
@@ -454,6 +477,9 @@ def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
         # Añadir el hash de la firma visual si existe
         if visual_signature_hash:
             nueva_firma["hash_visual_signature"] = visual_signature_hash.hex()
+
+        # Calcular y añadir el hash de integridad
+        nueva_firma["hash_integridad"] = calcular_hash_metadatos(nueva_firma)    
         
         # Verificar si ya existen metadatos de firmas
         existing_metadata = {}

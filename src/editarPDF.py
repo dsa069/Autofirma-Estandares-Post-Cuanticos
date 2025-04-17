@@ -41,7 +41,7 @@ class PDFModifierApp:
         btn_frame3 = ttk.LabelFrame(main_frame, text="Opción 3")
         btn_frame3.pack(fill=tk.X, pady=5)
         btn_modify_pubkey = ttk.Button(btn_frame3, text="Modificar quinto carácter de entity_public_key por 'c'",
-                                     command=self.modify_pubkey)
+                                     command=self.modify_entpubkeyid)
         btn_modify_pubkey.pack(fill=tk.X, padx=10, pady=5)
         
         btn_frame4 = ttk.LabelFrame(main_frame, text="Opción 4")
@@ -265,8 +265,8 @@ class PDFModifierApp:
             messagebox.showerror("Error", f"Se produjo un error: {str(e)}")
             self.status_var.set(f"Error: {str(e)}")
 
-    def modify_pubkey(self):
-        """Modify the fifth character of the entity_public_key in the certificate"""
+    def modify_entpubkeyid(self):
+        """Modify the fifth character of the entity_public_key_id in the certificate"""
         self.status_var.set("Seleccionando PDF firmado...")
         
         try:
@@ -335,22 +335,22 @@ class PDFModifierApp:
                         for i in range(len(firmas)):
                             if "certificado_autenticacion" in firmas[i]:
                                 cert_data = firmas[i]["certificado_autenticacion"]
-                                if "entity_public_key" in cert_data and len(cert_data["entity_public_key"]) > 4:
-                                    entity_pk = cert_data["entity_public_key"]
-                                    original_char = entity_pk[4]
+                                if "entity_public_key_id" in cert_data and len(cert_data["entity_public_key_id"]) > 4:
+                                    entity_pk_id = cert_data["entity_public_key_id"]
+                                    original_char = entity_pk_id[4]
                                     new_char = 'd' if original_char == 'c' else 'c'
-                                    cert_data["entity_public_key"] = entity_pk[:4] + new_char + entity_pk[5:]
+                                    cert_data["entity_public_key_id"] = entity_pk_id[:4] + new_char + entity_pk_id[5:]
                                     modified_count += 1
-                    # Modificación para modify_pubkey
+                    # Modificación para modify_entpubkeyid
                     else:
                         # Modificar solo el último certificado
                         if "certificado_autenticacion" in firmas[-1]:
                             cert_data = firmas[-1]["certificado_autenticacion"]
-                            if "entity_public_key" in cert_data and len(cert_data["entity_public_key"]) > 4:
-                                entity_pk = cert_data["entity_public_key"]
-                                original_char = entity_pk[4]
+                            if "entity_public_key_id" in cert_data and len(cert_data["entity_public_key_id"]) > 4:
+                                entity_pk_id = cert_data["entity_public_key_id"]
+                                original_char = entity_pk_id[4]
                                 new_char = 'd' if original_char == 'c' else 'c'
-                                cert_data["entity_public_key"] = entity_pk[:4] + new_char + entity_pk[5:]
+                                cert_data["entity_public_key_id"] = entity_pk_id[:4] + new_char + entity_pk_id[5:]
                                 modified_count = 1
                     
                     # Actualizar los metadatos solo si se modificó algún certificado
@@ -378,11 +378,11 @@ class PDFModifierApp:
                 elif "certificado_autenticacion" in meta_data:
                     # Formato antiguo con un solo certificado
                     cert_data = meta_data["certificado_autenticacion"]
-                    if "entity_public_key" in cert_data and len(cert_data["entity_public_key"]) > 4:
-                        entity_pk = cert_data["entity_public_key"]
-                        original_char = entity_pk[4]
+                    if "entity_public_key_id" in cert_data and len(cert_data["entity_public_key_id"]) > 4:
+                        entity_pk_id = cert_data["entity_public_key_id"]
+                        original_char = entity_pk_id[4]
                         new_char = 'd' if original_char == 'c' else 'c'
-                        cert_data["entity_public_key"] = entity_pk[:4] + new_char + entity_pk[5:]
+                        cert_data["entity_public_key_id"] = entity_pk_id[:4] + new_char + entity_pk_id[5:]
                         
                         # Update metadata
                         metadata["keywords"] = json.dumps(meta_data, separators=(',', ':'))
@@ -391,11 +391,11 @@ class PDFModifierApp:
                         # Save the modified PDF
                         doc.save(save_path, incremental=True, encryption=0)
                         
-                        messagebox.showinfo("Éxito", f"Certificado modificado. Quinto carácter de entity_public_key cambiado de '{original_char}' a '{new_char}'")
+                        messagebox.showinfo("Éxito", f"Certificado modificado. Quinto carácter de entity_public_key_id cambiado de '{original_char}' a '{new_char}'")
                         self.status_var.set(f"PDF con certificado modificado guardado en: {save_path}")
                     else:
-                        messagebox.showwarning("Advertencia", "La clave entity_public_key es demasiado corta o no existe")
-                        self.status_var.set("No se pudo modificar la clave entity_public_key")
+                        messagebox.showwarning("Advertencia", "La clave entity_public_key_id es demasiado corta o no existe")
+                        self.status_var.set("No se pudo modificar la clave entity_public_key_id")
                     
                     doc.close()
                 else:
