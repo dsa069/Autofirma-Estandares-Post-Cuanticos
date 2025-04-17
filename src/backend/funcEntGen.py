@@ -404,16 +404,104 @@ def validar_datos_usuario(nombre, dni):
     
     Args:
         nombre (str): Nombre del usuario
-        dni (str): DNI del usuario
+        dni (str): DNI/NIE/CIF del usuario
     
     Returns:
         tuple: (bool, str) - (éxito, mensaje_error)
     """
+    import re
+    
     if not nombre or not dni:
-        return False, "El nombre y el DNI son obligatorios."
+        return False, "El nombre y el DNI/NIE/CIF son obligatorios."
+        
+    # Patrones para NIF, NIE y CIF
+    patron_nif = r'^[0-9]{8}[A-Z]$'
+    patron_nie = r'^[XYZ][0-9]{7}[A-Z]$'
+    patron_cif = r'^[A-HJPQSUVNW][0-9]{7}[A-J0-9]$'
     
-    # Aquí podrían añadirse validaciones adicionales:
-    # - Formato del DNI (usando expresiones regulares)
-    # - Longitud mínima del nombre
+    # Letras de control para NIF/NIE
+    letras_nif = 'TRWAGMYFPDXBNJZSQVHLCKE'
     
-    return True, ""
+    if re.match(patron_nif, dni):
+        # Validar NIF
+        numero = int(dni[0:8])
+        letra_control = dni[8]
+        indice = numero % 23
+        letra_calculada = letras_nif[indice]
+        
+        if letra_calculada != letra_control:
+            return False, f"NIF no válido. La letra de control no es correcta."
+        
+        return True, ""
+        
+    elif re.match(patron_nie, dni):
+        # Validar NIE
+        primera_letra = dni[0]
+        if primera_letra == 'X':
+            numero = int('0' + dni[1:8])
+        elif primera_letra == 'Y':
+            numero = int('1' + dni[1:8])
+        elif primera_letra == 'Z':
+            numero = int('2' + dni[1:8])
+        
+        letra_control = dni[8]
+        indice = numero % 23
+        letra_calculada = letras_nif[indice]
+        
+        if letra_calculada != letra_control:
+            return False, f"NIE no válido. La letra de control no es correcta."
+        
+        return True, ""
+        
+    elif re.match(patron_cif, dni):
+        # Validación completa de CIF con cálculo de dígito de control
+        primera_letra = dni[0]
+        digitos_centrales = dni[1:8]
+        digito_control = dni[8]
+        
+        # Determinar si el control debe ser letra o número
+        control_debe_ser_letra = primera_letra in "PQRSNW"
+        control_debe_ser_numero = primera_letra in "ABEH"
+        # Para las demás letras puede ser cualquiera
+        
+        # Calcular el dígito de control
+        # A: Suma de dígitos en posiciones pares
+        suma_pares = int(digitos_centrales[1]) + int(digitos_centrales[3]) + int(digitos_centrales[5])        
+        # B: Procesar dígitos en posiciones impares
+        suma_impares = 0
+        for i in [0, 2, 4, 6]:
+            producto = int(digitos_centrales[i]) * 2
+            suma_impares += (producto // 10) + (producto % 10)  # Suma de dígitos del producto
+        
+        # C: Suma total
+        suma_total = suma_pares + suma_impares
+        
+        # E: Dígito de las unidades
+        digito_unidades = suma_total % 10
+        
+        # D: Valor final para control
+        if digito_unidades != 0:
+            valor_control = 10 - digito_unidades
+        else:
+            valor_control = 0
+            
+        # Mapeo de valores a letras para control
+        letras_cif = "JABCDEFGHI"
+        letra_control = letras_cif[valor_control]
+        
+        # Validar el dígito de control
+        if control_debe_ser_letra:
+            if digito_control != letra_control:
+                return False, f"CIF no válido. La letra de control no es correcta."
+        elif control_debe_ser_numero:
+            if digito_control != str(valor_control):
+                return False, f"CIF no válido. El dígito de control no es correcto."
+        else:
+            # Para los demás casos, puede ser letra o número
+            if digito_control != str(valor_control) and digito_control != letra_control:
+                return False, f"CIF no válido. Los dígitos de control de control no son correctos."
+        
+        return True, ""
+    
+    else:
+        return False, "El formato del documento no es válido. Debe ser un NIF, NIE o CIF."

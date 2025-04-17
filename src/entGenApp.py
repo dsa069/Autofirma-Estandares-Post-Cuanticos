@@ -186,7 +186,8 @@ class CertificadoDigitalApp:
             from backend.funcEntGen import generar_certificado, validar_datos_usuario, validate_password
             # Obtener datos del usuario
             nombre = self.name_entry.get().strip()
-            dni = self.dni_entry.get().strip()
+            # Normalizar el DNI/NIE/CIF (quitar espacios y convertir a mayúsculas)
+            dni = self.dni_entry.get().upper().strip().replace(" ", "").replace("-", "")
 
             valid, msg= validar_datos_usuario(nombre, dni)
             if not valid:
