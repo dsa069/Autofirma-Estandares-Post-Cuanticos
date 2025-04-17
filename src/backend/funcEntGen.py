@@ -164,7 +164,7 @@ def generar_certificado(clave_seleccionada, nombre, dni, password):
     # Extracción de datos de la clave seleccionada
     algoritmo = clave_seleccionada["algoritmo"]
     entity_sk = clave_seleccionada["sk"]
-    entity_pk = clave_seleccionada["pk"]
+    entity_pk_id = clave_seleccionada["id"]
     fecha_expedicion = datetime.date.today().isoformat()
     fecha_caducidad = clave_seleccionada["fecha_caducidad"]
     log_message("entGenApp.log", f"Generando certificados con algoritmo {algoritmo}")
@@ -180,7 +180,7 @@ def generar_certificado(clave_seleccionada, nombre, dni, password):
         "fecha_expedicion": fecha_expedicion,
         "fecha_caducidad": fecha_caducidad,
         "user_public_key": user_pk.hex(),
-        "entity_public_key": entity_pk.hex(),
+        "entity_public_key_id": entity_pk_id,
         "algoritmo": algoritmo
     }
 

@@ -66,7 +66,7 @@ def calcular_hash_firma(cert):
         "fecha_expedicion",
         "fecha_caducidad",
         "user_public_key",
-        "entity_public_key",
+        "entity_public_key_id",
         "algoritmo"
     ]
     return calcular_hash_ordenado(cert, ordered_keys_firma).digest()
@@ -79,7 +79,7 @@ def calcular_hash_huella(cert):
         "fecha_expedicion",
         "fecha_caducidad",
         "user_public_key",
-        "entity_public_key",
+        "entity_public_key_id",
         "algoritmo",
         "firma",
         "user_secret_key"

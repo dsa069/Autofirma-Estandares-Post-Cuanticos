@@ -227,41 +227,16 @@ def verificar_certificado(cert_data, base_dir):
             raise ValueError("El certificado ha expirado.")
         
         # -------------------- VERIFICACIÓN PK ENTIDAD --------------------
-        ent_pk_cert = bytes.fromhex(cert_data["entity_public_key"])  # Clave pública dentro del certificado
-        pk_entidad_path = os.path.join(base_dir, "pk_entidad.json")
-
-        if not os.path.exists(pk_entidad_path):
-            raise ValueError("No se encontró el archivo de claves públicas de la entidad.")
-
-        # Leer el archivo de claves públicas de la entidad (ahora contiene una lista de objetos)
-        with open(pk_entidad_path, "r") as pk_file:
-            pk_data_list = json.load(pk_file)
-            
-            # Verificar que el archivo contiene datos
-            if not pk_data_list or not isinstance(pk_data_list, list):
-                raise ValueError("El archivo de claves públicas está vacío o no tiene el formato esperado.")
-            
-            # Filtrar las claves que coinciden con el algoritmo del certificado
-            algoritmo_lower = algoritmo.lower()
-            claves_algoritmo = [pk for pk in pk_data_list if pk.get("algoritmo", "").lower() == algoritmo_lower]
-            
-            if not claves_algoritmo:
-                raise ValueError(f"No se encontraron claves públicas para el algoritmo {algoritmo}.")
-            
-            # Comprobar si la clave del certificado coincide con alguna de las claves almacenadas
-            clave_encontrada = False
-            for pk_entry in claves_algoritmo:
-                try:
-                    ent_pk_candidata = bytes.fromhex(pk_entry.get("clave", ""))
-                    if ent_pk_cert == ent_pk_candidata:
-                        clave_encontrada = True
-                        log_message("firmaApp.log",f"Clave pública de entidad verificada: {pk_entry.get('titulo', 'Sin título')}")
-                        break
-                except Exception as e:
-                    log_message("firmaApp.log",f"Error al procesar clave candidata: {e}")
-            
-            if not clave_encontrada:
-                raise ValueError("La clave pública de la entidad en el certificado no coincide con ninguna clave oficial.")
+        entity_pk_id = cert_data.get("entity_public_key_id")
+        
+        if not entity_pk_id:
+            raise ValueError("El certificado no contiene un ID de clave pública de entidad válido.")
+        
+        # Obtener la clave pública usando la función centralizada
+        entity_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir)
+        
+        if entity_pk is None:
+            raise ValueError(f"No se encontró una clave pública válida con ID {entity_pk_id}")
             
         # -------------------- VALIDACIÓN FIRMA --------------------
         recalculated_hash_firma = calcular_hash_firma(cert_copy)
@@ -270,7 +245,7 @@ def verificar_certificado(cert_data, base_dir):
         firma_bytes = bytes.fromhex(firma)
         
         # Verificar firma según el algoritmo usado
-        firma_valida = verificar_firma(recalculated_hash_firma, ent_pk_cert, firma_bytes, algoritmo)
+        firma_valida = verificar_firma(recalculated_hash_firma, entity_pk, firma_bytes, algoritmo)
 
 
         if not firma_valida:
@@ -287,7 +262,7 @@ def cargar_datos_certificado(cert_path, base_dir):
         # Leer el certificado
         with open(cert_path, "r") as cert_file:
             cert_data = json.load(cert_file)
-        
+
         # Verificar el certificado
         if not verificar_certificado(cert_data, base_dir):
             log_message("firmaApp.log", "Certificado no válido")
@@ -295,9 +270,11 @@ def cargar_datos_certificado(cert_path, base_dir):
         
         # Extraer datos básicos
         user_pk = bytes.fromhex(cert_data["user_public_key"])
-        ent_pk = bytes.fromhex(cert_data["entity_public_key"])
         exp_date = datetime.fromisoformat(cert_data["fecha_caducidad"])
         issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
+        algoritmo = cert_data.get("algoritmo")
+        entity_pk_id = cert_data["entity_public_key_id"]
+        ent_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir)
         
         return cert_data, user_pk, ent_pk, exp_date, issue_date
     except Exception as e:
@@ -414,6 +391,41 @@ def decrypt_private_key(encrypted_sk, password):
 
         except Exception:
             return None  # Error → Contraseña incorrecta    
+
+def buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir):
+    """
+    Busca una clave pública en el archivo pk_entidad.json por su ID.
+    """
+    import os
+    import json
+    
+    # Ruta al archivo de claves públicas de entidad
+    pk_path = os.path.join(base_dir, "pk_entidad.json")
+    
+    try:
+        # Cargar el archivo de claves
+        with open(pk_path, 'r') as f:
+            pk_data = json.load(f)
+        
+        # Buscar la clave por ID
+        for pk_entry in pk_data:
+            if pk_entry.get("id") == entity_pk_id:
+                # Verificar que coincida el algoritmo
+                if algoritmo and pk_entry.get("algoritmo", "").lower() == algoritmo.lower():
+                    try:
+                        entity_pk = bytes.fromhex(pk_entry.get("clave", ""))
+                        log_message("firmaApp.log", f"Clave pública de entidad encontrada: {pk_entry.get('titulo', 'Sin título')}")
+                        return entity_pk
+                    except Exception as e:
+                        log_message("firmaApp.log", f"Error al procesar clave: {e}")
+        
+        # Si no se encontró la clave
+        log_message("firmaApp.log", f"No se encontró la clave pública con ID {entity_pk_id}")
+        return None
+        
+    except Exception as e:
+        log_message("firmaApp.log", f"Error al cargar archivo de claves públicas: {e}")
+        return None
 
 def format_iso_display(iso_date_str):
     """
