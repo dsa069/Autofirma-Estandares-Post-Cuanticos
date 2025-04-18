@@ -1,6 +1,7 @@
 import sys
 import os
 from backend.funcComunes import log_message, init_paths
+from frontend.compComunes import center_window, crear_lista_claves, create_button, set_app_instance
 
 BASE_DIR = init_paths()
 
@@ -14,9 +15,12 @@ class CertificadoDigitalApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Generador de Certificados Digitales - Sphincs")
-        self.root.geometry("600x500")
+        self.root.geometry("700x584")
         self.root.resizable(False, False)
-        
+        self.root.configure(bg="#F5F5F5")
+        center_window(self.root)
+        set_app_instance(self)
+
         # 🔹 Rutas del icono
         self.setup_app_icons()
 
@@ -26,44 +30,14 @@ class CertificadoDigitalApp:
         )
         self.title_label.pack(pady=10)
 
-        # Botón para generar claves de la entidad (ahora está arriba)
-        self.generate_keys_button = tk.Button(
-            root,
-            text="Generar Claves de Entidad",
-            font=("Arial", 12),
-            command=self.generar_clave_UI,  # Ahora llama al método de clase
-            bg="#D9534F",
-            fg="white",
-            width=25,
-        )
-        self.generate_keys_button.pack(pady=10)
-
-        # Campos para nombre y DNI (ahora están debajo del botón)
-        self.name_label = tk.Label(root, text="Nombre:", font=("Arial", 12))
-        self.name_label.pack()
-        self.name_entry = tk.Entry(root, font=("Arial", 12))
-        self.name_entry.pack(pady=5)
-
-        self.dni_label = tk.Label(root, text="DNI:", font=("Arial", 12))
-        self.dni_label.pack()
-        self.dni_entry = tk.Entry(root, font=("Arial", 12))
-        self.dni_entry.pack(pady=5)
-
-        # Botón para generar certificado
-        self.generate_cert_button = tk.Button(
-            root,
-            text="Generar Certificado",
-            font=("Arial", 12),
-            command=self.generate_certificate,
-            bg="#0078D4",
-            fg="white",
-            width=20,
-        )
-        self.generate_cert_button.pack(pady=10)
-
-        # Área de texto para logs
-        self.log_text = tk.Text(root, width=70, height=15, state=tk.DISABLED)
-        self.log_text.pack(pady=10)
+        btn = create_button(root, "Cancelar", lambda: self.generar_clave_UI())
+        btn.pack(pady=5)  # Cambiar grid por pack
+        
+        lista_frame = crear_lista_claves(self.root)
+        lista_frame.pack(padx=10, pady=10) 
+        
+        btn = create_button(root, "Cancelar", lambda: self.generar_clave_UI())
+        btn.pack(pady=5)  # Cambiar grid por pack
 
     def generar_clave_UI(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""

@@ -5,11 +5,12 @@ import os
 block_cipher = None
 
 # Preparar lista de datos de forma correcta
-datas = [('../package', 'package'), 
-        ('pk_entidad.json', '.'),   # Copiar pk_entidad.json en el mismo directorio del EXE
+datas = [('../package', 'package'),
+        ('pk_entidad.json', '.'),
         ('img/Diego.ico', '.'),
-        ('img/Diego.png', '.')
-]  # Esto siempre se incluye
+        ('img/Diego.png', '.'),
+        ('img', 'img')
+]
 
 a = Analysis(
     ['firmaApp.py'],

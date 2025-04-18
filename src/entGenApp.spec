@@ -11,8 +11,9 @@ datas = [('../package', 'package'),
         ('sk_entidad.json', '.'),
         ('pk_entidad.json', '.'),
         ('img/AlterDiego.ico', '.'),
-        ('img/AlterDiego.png', '.')
-]  # Esto siempre se incluye
+        ('img/AlterDiego.png', '.'),
+        ('img', 'img')
+]
 
 a = Analysis(
     ['entGenApp.py'],
