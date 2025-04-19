@@ -350,6 +350,47 @@ def convert_to_iso_date(date_str):
     except (ValueError, TypeError):
         return None
 
+def clasificar_claves_por_estado(claves_disponibles):
+    """
+    Clasifica las claves disponibles por su estado de validez temporal
+    """
+    from datetime import datetime
+    fecha_actual = datetime.now()
+    
+    # Listas para clasificar las claves
+    claves_vigentes = []    # En fecha (expedidas y no caducadas)
+    claves_futuras = []     # Fecha de expedición futura
+    claves_caducadas = []   # Caducadas
+    
+    # Procesar cada tipo de clave y clasificarlas
+    for algoritmo in ["sphincs", "dilithium"]:
+        for clave in claves_disponibles.get(algoritmo, []):
+            try:
+                fecha_exp = datetime.fromisoformat(clave["fecha_expedicion"])
+                fecha_cad = datetime.fromisoformat(clave["fecha_caducidad"])
+                
+                # Clasificar la clave según su estado
+                if fecha_cad < fecha_actual:
+                    # Clave caducada
+                    claves_caducadas.append((algoritmo, clave, True, False))
+                elif fecha_exp > fecha_actual:
+                    # Clave futura (no válida aún)
+                    claves_futuras.append((algoritmo, clave, False, True))
+                else:
+                    # Clave vigente
+                    claves_vigentes.append((algoritmo, clave, False, False))
+            except Exception:
+                # Si hay error en fechas, considerarla como vigente
+                claves_vigentes.append((algoritmo, clave, False, False))
+    
+    # Ordenar cada grupo por título
+    claves_vigentes.sort(key=lambda x: x[1].get("titulo", "").lower())
+    claves_futuras.sort(key=lambda x: x[1].get("titulo", "").lower())
+    claves_caducadas.sort(key=lambda x: x[1].get("titulo", "").lower())
+    
+    # Combinar en el orden deseado: vigentes → futuras → caducadas
+    return claves_vigentes + claves_futuras + claves_caducadas
+
 def validate_password(password):
     """Valida que la contraseña cumpla con los requisitos mínimos de seguridad."""
     if len(password) < 8:

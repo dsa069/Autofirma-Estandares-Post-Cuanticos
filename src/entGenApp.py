@@ -7,6 +7,7 @@ BASE_DIR = init_paths()
 
 import tkinter as tk
 from tkinter import PhotoImage, messagebox, simpledialog
+import customtkinter as ctk  # Import CustomTkinter for enhanced UI components
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
@@ -399,6 +400,109 @@ class CertificadoDigitalApp:
         else:
             messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
             
+
+    def mostrar_detalles_clave(self, pk, titulo, algoritmo, caducada=False):
+        """
+        Muestra los detalles de la clave seleccionada en la interfaz principal
+        
+        Args:
+            pk: Clave pública
+            titulo: Título de la clave
+            algoritmo: Nombre del algoritmo
+            caducada: Indica si la clave está caducada
+        """
+        # Limpiar la interfaz actual - manejar diferentes tipos de widgets
+        for widget in self.root.winfo_children():
+            if widget != self.ventana_oculta:  # Ignorar la ventana oculta
+                try:
+                    widget.pack_forget()
+                except:
+                    pass  # Ignorar errores para widgets que no usan pack
+        
+        # Contenedor principal
+        frame = ctk.CTkFrame(
+            self.root, 
+            fg_color="#FFFFFF",
+            corner_radius=15,
+            border_width=1,
+            border_color="#E0E0E0"
+        )
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Botón para volver
+        from frontend.compComunes import create_button
+        
+        # Título y estado
+        estado_text = " (CADUCADA)" if caducada else ""
+        titulo_label = ctk.CTkLabel(
+            frame, 
+            text=f"{titulo}{estado_text}", 
+            font=("Segoe UI", 18, "bold"),
+            text_color="#111111" if not caducada else "#CB1616"
+        )
+        titulo_label.pack(pady=(10, 5))
+        
+        # Algoritmo
+        alg_label = ctk.CTkLabel(
+            frame, 
+            text=f"Algoritmo: {algoritmo}", 
+            font=("Segoe UI", 14),
+            text_color="#444444"
+        )
+        alg_label.pack(pady=(0, 20))
+        
+        # Clave pública en un frame con scroll
+        pk_frame = ctk.CTkScrollableFrame(
+            frame, 
+            fg_color="#F5F5F5",
+            corner_radius=10,
+            height=120
+        )
+        pk_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Etiqueta para la clave
+        pk_header = ctk.CTkLabel(
+            pk_frame,
+            text="Clave Pública:",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#111111"
+        )
+        pk_header.pack(padx=10, pady=(10, 5), anchor="w")
+        
+        # Texto de la clave con formato legible
+        pk_text = ctk.CTkLabel(
+            pk_frame,
+            text=pk,
+            font=("Courier New", 12),
+            text_color="#333333",
+            wraplength=440,
+            justify="left"
+        )
+        pk_text.pack(padx=10, pady=(0, 10), anchor="w")
+        
+        # Botones
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(pady=20)
+        
+        # Botón copiar
+        copiar_btn = create_button(btn_frame, "Copiar Clave", lambda: self._copiar_al_portapapeles(self.root, pk, frame))
+        copiar_btn.pack(side="left", padx=10)
+
+    def _copiar_al_portapapeles(self, window, text, parent_frame):
+        """Copia texto al portapapeles y muestra confirmación"""
+        window.clipboard_clear()
+        window.clipboard_append(text)
+        
+        # Mostrar confirmación temporal
+        confirm = ctk.CTkLabel(
+            parent_frame,
+            text="¡Clave copiada al portapapeles!",
+            font=("Segoe UI", 12),
+            text_color="#4CAF50"
+        )
+        confirm.pack(pady=5)
+        window.after(2000, confirm.destroy)
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = CertificadoDigitalApp(root)
