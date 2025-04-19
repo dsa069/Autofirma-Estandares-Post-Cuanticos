@@ -24,7 +24,7 @@ def center_window(root):
     y = (root.winfo_screenheight() // 2) - (height // 2)
     root.geometry(f'{width}x{height}+{x}+{y}')
 
-def create_button(parent, text, command=None):
+def create_button(parent, text, command=None, width=110):
     """
     Crea un botón moderno con efecto de sombra proyectada
     """
@@ -35,7 +35,7 @@ def create_button(parent, text, command=None):
     shadow = ctk.CTkButton(
         container,
         text="",  # Sin texto
-        width=110,
+        width=width,
         height=30,
         corner_radius=5,
         fg_color="#777777",  # Color oscuro para la sombra
@@ -50,7 +50,7 @@ def create_button(parent, text, command=None):
         container,
         text=text,
         command=command,
-        width=110,
+        width=width,
         height=30,
         corner_radius=5,
         border_width=1,
@@ -67,6 +67,34 @@ def create_button(parent, text, command=None):
     button.lift()
     
     return container
+
+def create_text_field_with_title(parent, text, placeholder="", width=450):
+    contenedor = ctk.CTkFrame(parent, fg_color="transparent")
+    contenedor.pack(anchor="w", pady=(10, 10))  # Alineado a la izquierda
+
+    label = ctk.CTkLabel(contenedor, text=text, font=("Inter", 17), text_color="#111111")
+    label.pack(anchor="w")
+
+    entrada = create_text_field(contenedor, placeholder, width)
+    entrada.pack(anchor="w", pady=(5, 0))
+
+    return entrada
+
+def create_text_field(parent, placeholder = "", width=450):
+    entrada = ctk.CTkEntry(
+        parent,
+        placeholder_text=placeholder,
+        width=width,
+        height=33,
+        font=("Inter", 12),
+        fg_color="#FFFFFF",
+        placeholder_text_color="#555555",  # Gris claro
+        border_color="#E0E0E0",
+        border_width=1, 
+        corner_radius=10
+    )
+    entrada.pack(padx=(10,0))
+    return entrada
 
 def crear_lista_claves(parent):
     """
