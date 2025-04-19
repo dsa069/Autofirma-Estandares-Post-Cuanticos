@@ -37,7 +37,7 @@ def create_checkbox(parent, text):
         height=22,  # Más grande para mejor efecto
         corner_radius=5,
         fg_color="#777777",
-        hover_color="#777777",
+        hover=0,
         border_width=0,
         state="disabled"
     )
@@ -53,7 +53,7 @@ def create_checkbox(parent, text):
         corner_radius=5,
         border_width=10,
         fg_color="#FFFFFF",
-        hover_color="#FFFFFF",
+        hover= 0,
         border_color="#FFFFFF",
         checkmark_color="#28A745"
     )
@@ -70,7 +70,6 @@ def create_checkbox(parent, text):
     
     return container
 
-
 def create_button(parent, text, command=None, width=110):
     """
     Crea un botón moderno con efecto de sombra proyectada
@@ -86,7 +85,7 @@ def create_button(parent, text, command=None, width=110):
         height=30,
         corner_radius=5,
         fg_color="#777777",  # Color oscuro para la sombra
-        hover_color="#777777",  # La sombra no cambia
+        hover=0,  # La sombra no cambia
         border_width=0,
         state="disabled"  # No interactivo
     )
@@ -142,6 +141,66 @@ def create_text_field(parent, placeholder = "", width=450):
     )
     entrada.pack(padx=(10,0))
     return entrada
+
+def create_dropdown_with_text(parent, text, opciones = [], placeholder = ""):
+    contenedor = ctk.CTkFrame(parent, fg_color="transparent")
+    contenedor.pack(anchor="w", pady=(10, 10))  # Alineado a la izquierda
+
+    label = ctk.CTkLabel(contenedor, text=text, font=("Inter", 17), text_color="#111111")
+    label.pack(anchor="w")
+
+    entrada = create_dropdown(contenedor, opciones, placeholder)
+
+    return entrada
+
+def create_dropdown(parent, opciones = [], placeholder = ""):
+    # Contenedor principal (transparente)
+    container = ctk.CTkFrame(parent, fg_color="transparent")
+    container.pack(anchor="w", padx=(10, 0)) 
+    
+    # Botón de sombra (más grande y oscuro)
+    shadow = ctk.CTkButton(
+        container,
+        text="",  # Sin texto
+        width=300,
+        height=30,
+        corner_radius=5,
+        fg_color="#777777",  # Color oscuro para la sombra
+        hover=0,
+        border_width=0,
+        state="disabled"  # No interactivo
+    )
+    shadow.grid(row=0, column=0, padx=0, pady=0)
+    
+
+    combo = ctk.CTkOptionMenu(
+        master=container,
+        values=opciones,
+        font=("Inter", 13),
+        width=300,
+        height=33,
+        dropdown_font=("Inter", 13),
+        fg_color="#FFFFFF",
+        button_color="#FFFFFF",     # fondo de la flecha
+        button_hover_color="#E0E0E0",
+        text_color="#555555",
+        dropdown_fg_color="#FFFFFF",
+        dropdown_text_color="#333333",
+        corner_radius=10,
+        anchor="w",
+        dropdown_hover_color="#E0E0E0",
+        #border_width=1,
+        #border_color="#E0E0E0"
+    )
+
+    combo.set(placeholder)
+    # Posicionar con offset para crear efecto de sombra
+    combo.grid(row=0, column=0, padx=(0, 4), pady=(0, 8))
+    
+    # Asegurar que el botón esté por encima de la sombra
+    combo.lift()
+
+    return combo
 
 def crear_lista_claves(parent):
     """

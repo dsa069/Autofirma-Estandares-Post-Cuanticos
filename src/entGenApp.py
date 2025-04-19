@@ -1,7 +1,7 @@
 import sys
 import os
 from backend.funcComunes import log_message, init_paths
-from frontend.compComunes import center_window, crear_lista_claves, create_button, create_checkbox, create_text_field, create_text_field_with_title, set_app_instance
+from frontend.compComunes import center_window, crear_lista_claves, create_button, create_checkbox, create_dropdown, create_dropdown_with_text, create_text_field, create_text_field_with_title, set_app_instance
 
 BASE_DIR = init_paths()
 
@@ -34,13 +34,15 @@ class CertificadoDigitalApp:
         btn = create_button(root, "Cancelar", lambda: self.generar_clave_UI(), 200)
         btn.pack(pady=5)  # Cambiar grid por pack
         
-        lista_frame = crear_lista_claves(self.root)
-        lista_frame.pack(padx=10, pady=10) 
+#        lista_frame = crear_lista_claves(self.root)
+#        lista_frame.pack(padx=10, pady=10) 
         
         txtField = create_text_field_with_title(root, "Vuelva a escribir la contarseña:", "Escriba la contraseña")
 
         checkbox_firma = create_checkbox(root, "Firma visible en dentro del pdf")
         estado = checkbox_firma.get()
+
+        dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
 
     def generar_clave_UI(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
