@@ -25,8 +25,26 @@ def center_window(root):
     root.geometry(f'{width}x{height}+{x}+{y}')
 
 def create_checkbox(parent, text):
+    # Contenedor principal (transparente)
+    container = ctk.CTkFrame(parent, fg_color="transparent")
+    container.pack(anchor="w", pady=(10, 0))
+    
+    # Botón de sombra (más grande y oscuro)
+    shadow = ctk.CTkButton(
+        container,
+        text="",
+        width=22,  # Más grande para mejor efecto
+        height=22,  # Más grande para mejor efecto
+        corner_radius=5,
+        fg_color="#777777",
+        hover_color="#777777",
+        border_width=0,
+        state="disabled"
+    )
+    shadow.place(x=2, y=4) 
+
     checkbox = ctk.CTkCheckBox(
-        parent,
+        container,
         text=text,
         font=("Inter", 15),
         text_color="#111111",
@@ -35,13 +53,22 @@ def create_checkbox(parent, text):
         corner_radius=5,
         border_width=10,
         fg_color="#FFFFFF",
-        hover_color="#BBBBBB",
-        border_color="#FFFFFF", # Hace de color de fondo cuando no está marcado
+        hover_color="#FFFFFF",
+        border_color="#FFFFFF",
         checkmark_color="#28A745"
-        
     )
-    checkbox.pack(anchor="w", pady=(10, 0))
-    return checkbox
+    # Mayor offset para hacer visible la sombra
+    checkbox.grid(row=0, column=0, padx=(4, 0), pady=(0, 4))  # Aumentar de 3 a 4
+    
+    # Asegurar que el checkbox esté por encima de la sombra
+    checkbox.lift()
+    
+    # Agregar los métodos del checkbox al contenedor
+    container.get = checkbox.get
+    container.select = checkbox.select
+    container.deselect = checkbox.deselect
+    
+    return container
 
 
 def create_button(parent, text, command=None, width=110):
