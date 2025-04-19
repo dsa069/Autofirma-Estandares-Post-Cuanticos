@@ -24,6 +24,26 @@ def center_window(root):
     y = (root.winfo_screenheight() // 2) - (height // 2)
     root.geometry(f'{width}x{height}+{x}+{y}')
 
+def create_checkbox(parent, text):
+    checkbox = ctk.CTkCheckBox(
+        parent,
+        text=text,
+        font=("Inter", 15),
+        text_color="#111111",
+        checkbox_height=20,
+        checkbox_width=20,
+        corner_radius=5,
+        border_width=10,
+        fg_color="#FFFFFF",
+        hover_color="#BBBBBB",
+        border_color="#FFFFFF", # Hace de color de fondo cuando no está marcado
+        checkmark_color="#28A745"
+        
+    )
+    checkbox.pack(anchor="w", pady=(10, 0))
+    return checkbox
+
+
 def create_button(parent, text, command=None, width=110):
     """
     Crea un botón moderno con efecto de sombra proyectada
