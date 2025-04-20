@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import filedialog
 import customtkinter as ctk
 import os
 from PIL import Image, ImageTk
@@ -202,19 +203,22 @@ def create_dropdown(parent, opciones = [], placeholder = ""):
 
     return combo
 
-def crear_lista_claves(parent):
+def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None):
     """
-    Crea una lista para mostrar las claves de entidad disponibles
+    Crea un esqueleto básico para cualquier lista con estilo consistente.
+    
+    Args:
+        parent: Widget padre
+        height: Altura del contenedor
+        empty_message: Mensaje a mostrar cuando la lista está vacía
+        process_data_function: Función para procesar los datos y crear filas
+        data: Datos a procesar para la lista
+        headers: Encabezados de la lista
+        column_sizes: Tamaños de las columnas encabezado
     """
-    global LOGO_IMAGES  # Usar la variable global para las imágenes
-    
-    from backend.funcEntGen import cargar_claves_entidad, clasificar_claves_por_estado
-    
-    # Cargar las claves reales
-    SK_ENTIDAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sk_entidad.json")
-    PK_ENTIDAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pk_entidad.json")
-    claves_disponibles = cargar_claves_entidad(SK_ENTIDAD_PATH, PK_ENTIDAD_PATH)
-    claves_ordenadas = clasificar_claves_por_estado(claves_disponibles)
+
+    # Cargar imágenes si no están cargadas
+    cargar_logos_algoritmos()
 
     # Frame contenedor principal
     contenedor_principal = ctk.CTkFrame(
@@ -224,53 +228,137 @@ def crear_lista_claves(parent):
         border_width=1,
         border_color="#E0E0E0",
         width=620, 
-        height=270
+        height=height
     )
     contenedor_principal.pack_propagate(False)  # Mantener tamaño fijo
     
-    # Frame para encabezados (no scrollable)
-    header_frame = ctk.CTkFrame(contenedor_principal, fg_color="#FFFFFF", corner_radius=0)
-    header_frame.pack(fill="x", padx=10, pady=(10, 0))
-    
-    # Configurar encabezados fijos con anchos consistentes
-    encabezados = ["Algoritmo", "Título", "Clave Pública", "Período de Validez"]
-    # Configurar cada columna para mantener el mismo ancho que en las filas
-    header_frame.grid_columnconfigure(0, minsize=80)   # Algoritmo
-    header_frame.grid_columnconfigure(1, minsize=180)  # Título
-    header_frame.grid_columnconfigure(2, minsize=130)  # Clave
-    header_frame.grid_columnconfigure(3, minsize=190)  # Período
+    # Configurar encabezados si se proporcionan
+    if headers and column_sizes:
+        # Frame para encabezados (no scrollable)
+        header_frame = ctk.CTkFrame(contenedor_principal, fg_color="#FFFFFF", corner_radius=0)
+        header_frame.pack(fill="x", padx=10, pady=(10, 0))
 
-    # Reemplazar esta sección en crear_lista_claves() (aproximadamente línea 101-104)
-    for i, encabezado in enumerate(encabezados):
-        label = ctk.CTkLabel(
-            header_frame, 
-            text=encabezado, 
-            font=("Segoe UI", 14, "bold"), 
-            text_color="#111111",
-            anchor="center",  # Centrar el texto dentro del label
-            justify="center"  # Justificación del texto para múltiples líneas
-        )
-        label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")  # 'ew' para expandir horizontalmente
+        setup_list_headers(header_frame, headers, column_sizes)
+
+        linea_divisora = tk.Frame(contenedor_principal, height=1, bg="#111111")
+        linea_divisora.pack(fill="x", padx=15, pady=(2, 0))
     
-    linea_divisora = tk.Frame(contenedor_principal, height=1, bg="#111111")
-    linea_divisora.pack(fill="x", padx=15, pady=(2, 0))
-    
-    # Frame scrollable para los elementos de la lista
+    # Frame scrollable para elementos
     lista_frame = ctk.CTkScrollableFrame(
         contenedor_principal, 
         fg_color="#FFFFFF",
-        corner_radius=0,  # Sin bordes redondeados en el interior
+        corner_radius=0,
         border_width=0,
         width=620, 
-        height=220,
+        height=height-60,
         scrollbar_button_color="#DDDDDD",
     )
     lista_frame.pack(fill="both", expand=True, padx=10, pady=10)
     
-    # Contador para filas (empieza en 0 porque ya no tenemos encabezados en este frame)
-    row_count = 0
+    # Guardar mensaje de vacío para usar más tarde
+    if empty_message:
+        contenedor_principal.empty_message = empty_message
     
-    # Cargar las imágenes de los logos solo si aún no están cargadas
+    # Procesar los datos si se proporcionan
+    row_count = 0
+    if process_data_function and data:
+        row_count = process_data_function(lista_frame, data)
+    
+    # MOVIDO AQUÍ: Condicionales para gestionar el separador y mensaje vacío
+    if row_count > 0:
+        eliminar_ultimo_separador(lista_frame, row_count)
+    elif empty_message:
+        mostrar_mensaje_vacio(lista_frame, empty_message)
+    
+    return contenedor_principal
+
+def create_key_list(parent):
+    # Cargar datos de claves
+    from backend.funcEntGen import cargar_claves_entidad, clasificar_claves_por_estado
+    
+    SK_ENTIDAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sk_entidad.json")
+    PK_ENTIDAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pk_entidad.json")
+    claves_disponibles = cargar_claves_entidad(SK_ENTIDAD_PATH, PK_ENTIDAD_PATH)
+    claves_ordenadas = clasificar_claves_por_estado(claves_disponibles)
+    
+    # Definir función para procesar datos
+    def procesar_claves(lista_frame, datos):
+        row_count = 0
+        for algoritmo, clave, es_caducada, es_futura in datos:
+            row_count = create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada, es_futura)
+        return row_count
+    
+    # Definir encabezados específicos para claves
+    encabezados = ["Algoritmo", "Título", "Clave Pública", "Período de Validez"]
+    column_sizes = [80, 180, 120, 220]  # Tamaños por columna
+
+    # Obtener la estructura base de la lista
+    contenedor_principal = create_base_list(
+        parent, 
+        height=270,
+        empty_message="No hay claves disponibles. Genera una nueva clave con el botón superior.",
+        process_data_function=procesar_claves,
+        data=claves_ordenadas,
+        headers=encabezados,
+        column_sizes=column_sizes
+    )
+        
+    return contenedor_principal
+
+def create_certificate_list(parent):
+    """
+    Crea una lista específica para mostrar certificados
+    """
+    # Cargar datos simulados
+    certificados = generar_certificados_simulados()
+    
+    # Definir función para procesar datos
+    def procesar_certificados(lista_frame, datos):
+        row_count = 0
+        for cert in datos:
+            row_count = create_certificate_row(lista_frame, row_count, cert)
+        return row_count
+
+    # Obtener la estructura base de la lista
+    contenedor_principal = create_base_list(
+        parent, 
+        height=270,
+        empty_message="No hay certificados disponibles.",
+        process_data_function=procesar_certificados,
+        data=certificados
+    )
+    
+    return contenedor_principal
+
+def setup_list_headers(header_frame, headers, column_sizes):
+    """
+    Configura los encabezados de la lista y sus tamaños.
+    
+    Args:
+        header_frame: Frame donde colocar los encabezados
+        headers: Lista de textos para los encabezados
+        column_sizes: Lista de tamaños para cada columna
+    """
+    # Configurar columnas con tamaños específicos
+    for i, size in enumerate(column_sizes):
+        header_frame.grid_columnconfigure(i, minsize=size)
+    
+    # Crear encabezados
+    for i, texto in enumerate(headers):
+        label = ctk.CTkLabel(
+            header_frame, 
+            text=texto, 
+            font=("Segoe UI", 14, "bold"), 
+            text_color="#111111",
+            anchor="center",
+            justify="center"
+        )
+        label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
+
+def cargar_logos_algoritmos():
+    """Carga las imágenes de logos de algoritmos si no están cargadas"""
+    global LOGO_IMAGES
+    
     if not LOGO_IMAGES:
         img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img")
         
@@ -289,45 +377,86 @@ def crear_lista_claves(parent):
                 LOGO_IMAGES["dilithium"] = ImageTk.PhotoImage(dilithium_logo)
                 
         except Exception as e:
-            log_message("entGenApp.log" ,f"Error detallado al cargar logos: {e}")
-    
-    # Procesar las claves ordenadas
-    for algoritmo, clave, es_caducada, es_futura in claves_ordenadas:
-        row_count = agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada, es_futura)
-    
-    if row_count > 0:
-        # Intentar encontrar el último separador y eliminarlo
-        for widget in lista_frame.winfo_children():
-            if isinstance(widget, tk.Frame) and widget.winfo_height() == 1:
-                if int(widget.grid_info()["row"]) == row_count-1:
+            log_message("entGenApp.log", f"Error al cargar logos: {e}")
+
+def mostrar_mensaje_vacio(lista_frame, mensaje):
+    """Muestra un mensaje cuando la lista está vacía"""
+    mensaje_label = ctk.CTkLabel(
+        lista_frame, 
+        text=mensaje, 
+        font=("Segoe UI", 12, "italic"),
+        text_color="#757575"
+    )
+    mensaje_label.grid(row=0, column=0, columnspan=4, padx=20, pady=30)
+
+def eliminar_ultimo_separador(lista_frame, row_count):
+    """Elimina el último separador para mejorar la estética"""
+    for widget in lista_frame.winfo_children():
+        if isinstance(widget, tk.Frame) and widget.winfo_height() == 1:
+            # Verificar si el widget usa grid y tiene información de fila
+            grid_info = widget.grid_info()
+            if grid_info and 'row' in grid_info:
+                if int(grid_info["row"]) == row_count-1:
                     widget.destroy()
                     break
 
-    # Si no hay claves, mostrar mensaje
-    if row_count == 1:
-        mensaje = ctk.CTkLabel(
-            lista_frame, 
-            text="No hay claves disponibles. Genera una nueva clave con el botón superior.", 
-            font=("Segoe UI", 12, "italic"),
-            text_color="#757575"
-        )
-        mensaje.grid(row=1, column=0, columnspan=4, padx=20, pady=30)
+def create_base_row(lista_frame, row_count, column_sizes, column_count, click_callback=None, is_disabled=False):
+    """
+    Crea una fila base con estructura consistente para cualquier lista.
     
-    return contenedor_principal
+    Args:
+        lista_frame: Frame scrollable donde se coloca la fila
+        row_count: Número de fila actual
+        column_sizes: Lista con los anchos para cada columna
+        column_count: Número de columnas
+        click_callback: Función a llamar cuando se hace clic en la fila
+        is_disabled: Indica si la fila está deshabilitada (visual)
+        
+    Returns:
+        tuple: (fila_container, row_count)
+    """
+    # Color de fondo según el estado
+    color_fondo = "#F5F5F5" if is_disabled else "#FFFFFF"
+    
+    # Contenedor de la fila
+    fila_container = tk.Frame(lista_frame, bg=color_fondo)
+    fila_container.grid(row=row_count, column=0, columnspan=column_count, 
+                       sticky="ew", padx=5, pady=2)
+    
+    # Configurar el tamaño de las columnas
+    for i, size in enumerate(column_sizes):
+        fila_container.grid_columnconfigure(i, minsize=size)
+    
+    # Configurar interactividad basada solo en is_disabled
+    if not is_disabled:
+        fila_container.configure(cursor="hand2")
+        if click_callback:
+            fila_container.bind("<Button-1>", click_callback)
+    else:
+        fila_container.configure(cursor="X_cursor")
+    
+    # Añadir línea divisoria después del elemento
+    linea_divisora = tk.Frame(lista_frame, height=1, bg="#DDDDDD")
+    linea_divisora.grid(row=row_count+1, column=0, columnspan=column_count, 
+                       sticky="ew", padx=25, pady=2)
+    
+    return fila_container, row_count + 2  # +2 para la fila y la línea
 
-def agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada=False, es_futura=False):
+def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, es_futura=False):
     """
     Añade una fila con información de clave al frame scrollable
     """
-    # Crear un frame contenedor para toda la fila (para hacerla clicable)
-    fila_container = tk.Frame(lista_frame, bg="#FFFFFF")
-    fila_container.grid(row=row_count, column=0, columnspan=4, sticky="ew", padx=5, pady=2)
-
-    # Configurar el grid de la fila con anchos fijos para las columnas
-    fila_container.grid_columnconfigure(0, minsize=80)    # Algoritmo
-    fila_container.grid_columnconfigure(1, minsize=175)   # Título
-    fila_container.grid_columnconfigure(2, minsize=135)   # Clave Pública
-    fila_container.grid_columnconfigure(3, minsize=190)   # Período
+    # Definir tamaños específicos para columnas de claves
+    column_sizes = [80, 175, 150, 190]  # Algoritmo, Título, PK, Período
+    
+    # Crear la fila base
+    fila_container, next_row = create_base_row(
+        lista_frame=lista_frame,
+        row_count=row_count,
+        column_sizes=column_sizes,
+        column_count=4,
+        is_disabled=es_caducada
+    )
     
     # Fechas de validez
     try:
@@ -344,11 +473,8 @@ def agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada=Fal
         color_cad = "#CB1616" if es_caducada else "#111111"  # Rojo si caducada
         color_exp = "#FF9800" if es_futura else "#111111"    # Naranja si futura
         
-        # Crear el string de período con formato adecuado
-        periodo = f"{fecha_exp_str} hasta {fecha_cad_str}"
-        
         # Mostrar período de validez con colores condicionales
-        periodo_frame = tk.Frame(fila_container, bg="#FFFFFF")
+        periodo_frame = tk.Frame(fila_container, bg=fila_container["bg"])
         periodo_frame.grid(row=0, column=3, padx=10, pady=5, sticky="w")
         
         # Etiqueta para fecha de expedición
@@ -384,7 +510,7 @@ def agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada=Fal
     
     # Mostrar logo o nombre del algoritmo (columna 0)
     if algoritmo in LOGO_IMAGES and LOGO_IMAGES[algoritmo]:
-        logo_label = tk.Label(fila_container, image=LOGO_IMAGES[algoritmo], bg="#FFFFFF")
+        logo_label = tk.Label(fila_container, image=LOGO_IMAGES[algoritmo], bg=fila_container["bg"])
         logo_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
     else:
         alg_nombre = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
@@ -400,14 +526,14 @@ def agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada=Fal
     if isinstance(clave_publica, bytes):
         import binascii
         clave_publica = binascii.hexlify(clave_publica).decode('ascii')
-    clave_truncada = clave_publica[:20] + "..." if len(clave_publica) > 20 else clave_publica
+    clave_truncada = clave_publica[:18] + "..." if len(clave_publica) > 18 else clave_publica
     
     pk_label = ctk.CTkLabel(
         fila_container, 
         text=clave_truncada, 
         text_color="#1a73e8", 
         font=("Segoe UI", 12, "underline"),
-        cursor="hand2"  # Siempre mostrar cursor de mano para el PK
+        cursor="hand2"
     )
     pk_label.grid(row=0, column=2, padx=10, pady=5, sticky="w")
     
@@ -415,7 +541,6 @@ def agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada=Fal
     def on_pk_click(event=None):
         global APP_INSTANCE
         if APP_INSTANCE and hasattr(APP_INSTANCE, 'mostrar_detalles_clave'):
-            # Determinar nombre del algoritmo para mostrar correctamente
             nombre_algoritmo = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
             APP_INSTANCE.mostrar_detalles_clave(
                 pk=clave_publica, 
@@ -423,71 +548,117 @@ def agregar_fila_clave(lista_frame, row_count, algoritmo, clave, es_caducada=Fal
                 algoritmo=nombre_algoritmo,
                 caducada=es_caducada
             )
-        return "break"  # Detener la propagación del evento
+        return "break"
     
     # Vincular el evento específico para el pk_label
     pk_label.bind("<Button-1>", on_pk_click)
     
-    # MODIFICACIÓN: Solo hacer clicable el resto si no está caducada
+    # Evento de clic para el resto de la fila (si no está caducada)
     if not es_caducada:
-        # Establecer cursor de mano para indicar que es clicable
-        fila_container.configure(cursor="hand2")
-        
-        # Añadir evento de clic para el resto de la fila
-        def on_click(event=None):
+        def on_row_click(event=None):
             global APP_INSTANCE
             if APP_INSTANCE and hasattr(APP_INSTANCE, 'generar_clave_UI'):
                 APP_INSTANCE.generar_clave_UI()
-            else:
-                log_message("entGenApp.log", "No hay instancia de aplicación configurada")
         
-        # Vincular el evento de clic al contenedor
-        fila_container.bind("<Button-1>", on_click)
-        
-        # Vincular el evento a todos los hijos EXCEPTO pk_label
+        # Vincular el evento de clic a todos los elementos excepto al enlace de PK
         for child in fila_container.winfo_children():
-            if child is not pk_label:  # No vincular al pk_label
-                child.bind("<Button-1>", on_click)
-    else:
-        # Para claves caducadas, cambiar aspecto visual pero mantener pk_label interactivo
-        fila_container.configure(bg="#F5F5F5", cursor="X_cursor")
-        
-        # Configurar correctamente cada tipo de widget
-        for widget in fila_container.winfo_children():
-            try:
-                if isinstance(widget, ctk.CTkLabel):
-                    widget.configure(fg_color="#F5F5F5")
-                elif isinstance(widget, ctk.CTkFrame):
-                    widget.configure(fg_color="#F5F5F5")
-                elif isinstance(widget, tk.Frame) or isinstance(widget, tk.Label):
-                    widget.configure(bg="#F5F5F5")
-            except Exception as e:
-                # Ignorar errores de configuración
-                pass
-                
-        # Manejo especial para el frame de periodo
-        for widget in fila_container.winfo_children():
-            if isinstance(widget, tk.Frame):  # Si es el frame de periodo
-                try:
-                    widget.configure(bg="#F5F5F5")
-                except Exception:
-                    pass
-                    
-                # Procesar cada hijo del frame de periodo por separado
-                for child in widget.winfo_children():
-                    try:
-                        if isinstance(child, ctk.CTkLabel):
-                            child.configure(fg_color="#F5F5F5")
-                        elif isinstance(child, tk.Label):
-                            child.configure(bg="#F5F5F5")
-                    except Exception:
-                        pass
-                
-        # Cambiar el cursor para indicar que no es clicable
-        fila_container.configure(cursor="X_cursor")
-        
-    # Añadir línea divisoria después de cada elemento
-    linea_divisora = tk.Frame(lista_frame, height=1, bg="#DDDDDD")
-    linea_divisora.grid(row=row_count+1, column=0, columnspan=4, sticky="ew", padx=25, pady=2)
+            if child is not pk_label:
+                child.bind("<Button-1>", on_row_click)
     
-    return row_count + 2  # +2 para la fila de datos y la línea divisoria
+    return next_row
+
+def create_certificate_row(lista_frame, row_count, certificado):
+    """
+    Añade una fila con información de certificado al frame scrollable
+    
+    Args:
+        lista_frame: Frame scrollable donde se coloca la fila
+        row_count: Número de fila actual
+        certificado: Diccionario con datos del certificado
+        
+    Returns:
+        int: Siguiente número de fila
+    """
+    # Definir tamaños específicos para columnas de certificados
+    column_sizes = [400, 180]  # Certificado, Algoritmo
+    
+    # Crear la fila base
+    fila_container, next_row = create_base_row(
+        lista_frame=lista_frame,
+        row_count=row_count,
+        column_sizes=column_sizes,
+        column_count=2,
+    )
+    
+    # Título del certificado (columna 0)
+    cert_label = ctk.CTkLabel(
+        fila_container, 
+        text=certificado["titulo"], 
+        font=("Segoe UI", 13),
+        text_color="#111111"
+    )
+    cert_label.grid(row=0, column=0, padx=15, pady=8, sticky="w")
+    
+    # Mostrar logo o nombre del algoritmo (columna 1)
+    algoritmo = certificado["algoritmo"]
+    if algoritmo in LOGO_IMAGES and LOGO_IMAGES[algoritmo]:
+        logo_label = tk.Label(
+            fila_container, 
+            image=LOGO_IMAGES[algoritmo], 
+            bg=fila_container["bg"]
+        )
+        logo_label.grid(row=0, column=1, padx=15, pady=8, sticky="w")
+    else:
+        alg_nombre = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
+        alg_label = ctk.CTkLabel(
+            fila_container, 
+            text=alg_nombre, 
+            font=("Segoe UI", 12)
+        )
+        alg_label.grid(row=0, column=1, padx=15, pady=8, sticky="w")
+    
+    # Evento de clic para toda la fila
+    def on_row_click(event=None):
+        global APP_INSTANCE
+        if APP_INSTANCE and hasattr(APP_INSTANCE, 'ver_detalles_certificado'):
+            APP_INSTANCE.ver_detalles_certificado(certificado)
+    
+    # Vincular el evento de clic a la fila
+    fila_container.bind("<Button-1>", on_row_click)
+    for child in fila_container.winfo_children():
+        child.bind("<Button-1>", on_row_click)
+    
+    return next_row
+
+def generar_certificados_simulados():
+    """
+    Genera datos de certificados simulados para pruebas
+    """
+    certificados = [
+        {
+            "titulo": "Certificado de Identidad Digital",
+            "algoritmo": "dilithium",
+            "fecha_emision": "2023-12-15"
+        },
+        {
+            "titulo": "Certificado de Servidor Web",
+            "algoritmo": "sphincs",
+            "fecha_emision": "2024-01-10"
+        },
+        {
+            "titulo": "Certificado de Correo Electrónico",
+            "algoritmo": "dilithium",
+            "fecha_emision": "2024-02-05"
+        },
+        {
+            "titulo": "Certificado de Componente",
+            "algoritmo": "sphincs",
+            "fecha_emision": "2024-03-20"
+        },
+        {
+            "titulo": "Certificado de Firma de Código",
+            "algoritmo": "dilithium",
+            "fecha_emision": "2024-01-25"
+        }
+    ]
+    return certificados
