@@ -34,8 +34,8 @@ class CertificadoDigitalApp:
         #btn = create_button(root, "Cancelar", lambda: self.generar_clave_UI(), 200)
         #btn.pack(pady=5)  # Cambiar grid por pack
         
-        lista_frame = create_key_list(self.root)
-        lista_frame.pack(padx=10, pady=10) 
+        #lista_frame = create_key_list(self.root)
+        #lista_frame.pack(padx=10, pady=10) 
 
         # Ejemplo de uso
         certificados_frame = create_certificate_list(self.root)

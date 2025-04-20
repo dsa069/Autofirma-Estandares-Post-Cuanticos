@@ -203,7 +203,7 @@ def create_dropdown(parent, opciones = [], placeholder = ""):
 
     return combo
 
-def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None):
+def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None, max_visible_items=1):
     """
     Crea un esqueleto básico para cualquier lista con estilo consistente.
     
@@ -264,12 +264,23 @@ def create_base_list(parent, height=270, empty_message=None, process_data_functi
     if process_data_function and data:
         row_count = process_data_function(lista_frame, data)
     
-    # MOVIDO AQUÍ: Condicionales para gestionar el separador y mensaje vacío
+    # Condicionales para gestionar el separador y mensaje vacío
     if row_count > 0:
         eliminar_ultimo_separador(lista_frame, row_count)
     elif empty_message:
         mostrar_mensaje_vacio(lista_frame, empty_message)
     
+    # Modificar el scrollbar si hay pocos elementos
+    num_elementos = row_count // 2
+    if num_elementos <= max_visible_items:
+        def hide_scrollbar():
+            # En CustomTkinter 5.x, el scrollbar se accede así:
+            if hasattr(lista_frame, '_scrollbar'):
+                lista_frame._scrollbar.configure(width=0)  # Hacer invisible manteniendo funcionalidad
+        
+        # Aplicar después de que se renderice completamente
+        lista_frame.after(10, hide_scrollbar)
+
     return contenedor_principal
 
 def create_key_list(parent):
@@ -300,7 +311,8 @@ def create_key_list(parent):
         process_data_function=procesar_claves,
         data=claves_ordenadas,
         headers=encabezados,
-        column_sizes=column_sizes
+        column_sizes=column_sizes,
+        max_visible_items=4
     )
         
     return contenedor_principal
@@ -325,7 +337,8 @@ def create_certificate_list(parent):
         height=270,
         empty_message="No hay certificados disponibles.",
         process_data_function=procesar_certificados,
-        data=certificados
+        data=certificados,
+        max_visible_items=4
     )
     
     return contenedor_principal
@@ -654,15 +667,15 @@ def generar_certificados_simulados():
             "algoritmo": "sphincs",
             "fecha_emision": "2024-01-10"
         },
-        {
-            "titulo": "Certificado de Correo Electrónico",
-            "algoritmo": "dilithium",
-            "fecha_emision": "2024-02-05"
-        },
-        {
-            "titulo": "Certificado de Componente",
+                {
+            "titulo": "Certificado de Servidor Web",
             "algoritmo": "sphincs",
-            "fecha_emision": "2024-03-20"
+            "fecha_emision": "2024-01-10"
+        },
+                {
+            "titulo": "Certificado de Servidor Web",
+            "algoritmo": "sphincs",
+            "fecha_emision": "2024-01-10"
         },
         {
             "titulo": "Certificado de Firma de Código",
