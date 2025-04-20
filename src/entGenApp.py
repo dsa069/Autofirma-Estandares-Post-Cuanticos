@@ -511,6 +511,71 @@ class CertificadoDigitalApp:
         confirm.pack(pady=5)
         window.after(2000, confirm.destroy)
 
+    def mostrar_roumualdo(self):
+        """
+        Muestra los detalles de la clave seleccionada en la interfaz principal
+        
+        Args:
+            pk: Clave pública
+            titulo: Título de la clave
+            algoritmo: Nombre del algoritmo
+            caducada: Indica si la clave está caducada
+        """
+        # Limpiar la interfaz actual - manejar diferentes tipos de widgets
+        for widget in self.root.winfo_children():
+            if widget != self.ventana_oculta:  # Ignorar la ventana oculta
+                try:
+                    widget.pack_forget()
+                except:
+                    pass  # Ignorar errores para widgets que no usan pack
+        
+        # Contenedor principal
+        frame = ctk.CTkFrame(
+            self.root, 
+            fg_color="#FFFFFF",
+            corner_radius=15,
+            border_width=1,
+            border_color="#E0E0E0"
+        )
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Botón para volver
+        from frontend.compComunes import create_button
+        
+        
+        # Clave pública en un frame con scroll
+        pk_frame = ctk.CTkScrollableFrame(
+            frame, 
+            fg_color="#F5F5F5",
+            corner_radius=10,
+            height=120
+        )
+        pk_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Etiqueta para la clave
+        pk_header = ctk.CTkLabel(
+            pk_frame,
+            text="Clave Pública:",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#111111"
+        )
+        pk_header.pack(padx=10, pady=(10, 5), anchor="w")
+        
+        # Texto de la clave con formato legible
+        pk_text = ctk.CTkLabel(
+            pk_frame,
+            text="12345",
+            font=("Courier New", 12),
+            text_color="#333333",
+            wraplength=440,
+            justify="left"
+        )
+        pk_text.pack(padx=10, pady=(0, 10), anchor="w")
+        
+        # Botones
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(pady=20)
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = CertificadoDigitalApp(root)

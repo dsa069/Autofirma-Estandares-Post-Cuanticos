@@ -400,7 +400,7 @@ def eliminar_ultimo_separador(lista_frame, row_count):
                     widget.destroy()
                     break
 
-def create_base_row(lista_frame, row_count, column_sizes, column_count, click_callback=None, is_disabled=False):
+def create_base_row(lista_frame, row_count, column_sizes, click_callback=None, is_disabled=False):
     """
     Crea una fila base con estructura consistente para cualquier lista.
     
@@ -408,7 +408,6 @@ def create_base_row(lista_frame, row_count, column_sizes, column_count, click_ca
         lista_frame: Frame scrollable donde se coloca la fila
         row_count: Número de fila actual
         column_sizes: Lista con los anchos para cada columna
-        column_count: Número de columnas
         click_callback: Función a llamar cuando se hace clic en la fila
         is_disabled: Indica si la fila está deshabilitada (visual)
         
@@ -417,7 +416,8 @@ def create_base_row(lista_frame, row_count, column_sizes, column_count, click_ca
     """
     # Color de fondo según el estado
     color_fondo = "#F5F5F5" if is_disabled else "#FFFFFF"
-    
+    column_count = len(column_sizes)
+
     # Contenedor de la fila
     fila_container = tk.Frame(lista_frame, bg=color_fondo)
     fila_container.grid(row=row_count, column=0, columnspan=column_count, 
@@ -427,13 +427,40 @@ def create_base_row(lista_frame, row_count, column_sizes, column_count, click_ca
     for i, size in enumerate(column_sizes):
         fila_container.grid_columnconfigure(i, minsize=size)
     
-    # Configurar interactividad basada solo en is_disabled
-    if not is_disabled:
-        fila_container.configure(cursor="hand2")
-        if click_callback:
-            fila_container.bind("<Button-1>", click_callback)
+    # Lista para almacenar widgets que tienen comportamiento específico
+    fila_container.special_widgets = []
+
+    # Crear función de callback si se proporcionó un nombre de método
+    if isinstance(click_callback, str):
+        method_name = click_callback
+        def generated_callback(event=None):
+            global APP_INSTANCE
+            if APP_INSTANCE and hasattr(APP_INSTANCE, method_name):
+                getattr(APP_INSTANCE, method_name)()
+            return "break"
+        actual_callback = generated_callback
     else:
-        fila_container.configure(cursor="X_cursor")
+        actual_callback = click_callback
+    
+    # Configurar interactividad
+    if not is_disabled and actual_callback:
+        fila_container.configure(cursor="hand2")
+        fila_container.bind("<Button-1>", actual_callback)
+        
+        # Hacer lo mismo para los hijos que se añadirán después
+        def bind_to_children(event=None):
+            for child in fila_container.winfo_children():
+                # Solo vincular si no es un widget especial
+                if child not in fila_container.special_widgets:
+                    child.bind("<Button-1>", actual_callback)
+                    
+                # Revisar widgets anidados (como el frame de fechas)
+                if isinstance(child, tk.Frame) or isinstance(child, ctk.CTkFrame):
+                    for grandchild in child.winfo_children():
+                        grandchild.bind("<Button-1>", actual_callback)
+        
+        # Vincular después de que se hayan creado los widgets hijos
+        fila_container.bind("<Map>", bind_to_children)
     
     # Añadir línea divisoria después del elemento
     linea_divisora = tk.Frame(lista_frame, height=1, bg="#DDDDDD")
@@ -454,7 +481,7 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        column_count=4,
+        click_callback="generar_clave_UI",
         is_disabled=es_caducada
     )
     
@@ -550,21 +577,14 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
             )
         return "break"
     
-    # Vincular el evento específico para el pk_label
-    pk_label.bind("<Button-1>", on_pk_click)
-    
-    # Evento de clic para el resto de la fila (si no está caducada)
-    if not es_caducada:
-        def on_row_click(event=None):
-            global APP_INSTANCE
-            if APP_INSTANCE and hasattr(APP_INSTANCE, 'generar_clave_UI'):
-                APP_INSTANCE.generar_clave_UI()
-        
-        # Vincular el evento de clic a todos los elementos excepto al enlace de PK
-        for child in fila_container.winfo_children():
-            if child is not pk_label:
-                child.bind("<Button-1>", on_row_click)
-    
+    # Configura que el evento de clic en la clave pública se ejecute en lugar del evento de la fila
+    # Esperar a que se complete Map antes de vincular el evento específico
+    def vincular_pk_despues_de_map(event=None):
+        pk_label.unbind("<Button-1>")  # Eliminar cualquier enlace anterior
+        pk_label.bind("<Button-1>", on_pk_click)  # Aplicar el enlace específico
+
+    fila_container.bind("<Map>", vincular_pk_despues_de_map, add="+")  # Añadir otro evento Map
+
     return next_row
 
 def create_certificate_row(lista_frame, row_count, certificado):
@@ -587,7 +607,7 @@ def create_certificate_row(lista_frame, row_count, certificado):
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        column_count=2,
+        click_callback="mostrar_roumualdo"
     )
     
     # Título del certificado (columna 0)
@@ -616,17 +636,6 @@ def create_certificate_row(lista_frame, row_count, certificado):
             font=("Segoe UI", 12)
         )
         alg_label.grid(row=0, column=1, padx=15, pady=8, sticky="w")
-    
-    # Evento de clic para toda la fila
-    def on_row_click(event=None):
-        global APP_INSTANCE
-        if APP_INSTANCE and hasattr(APP_INSTANCE, 'ver_detalles_certificado'):
-            APP_INSTANCE.ver_detalles_certificado(certificado)
-    
-    # Vincular el evento de clic a la fila
-    fila_container.bind("<Button-1>", on_row_click)
-    for child in fila_container.winfo_children():
-        child.bind("<Button-1>", on_row_click)
     
     return next_row
 
