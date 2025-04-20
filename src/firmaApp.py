@@ -1,6 +1,7 @@
 import sys
 import os
 from backend.funcComunes import log_message, init_paths
+from frontend.compComunes import center_window, create_drop_area, set_app_instance
 
 BASE_DIR = init_paths()
 
@@ -12,9 +13,12 @@ class AutoFirmaApp:
     def __init__(self, root):
         self.root = root
         self.root.title("AutoFirma - Sphincs")
-        self.root.geometry("600x400")
+        self.root.geometry("700x584")
         self.root.resizable(False, False)
-        # 🔹 Rutas del icono
+        self.root.configure(bg="#F5F5F5")
+        center_window(self.root)
+        set_app_instance(self)
+
         
         self.setup_app_icons()
 
@@ -24,33 +28,10 @@ class AutoFirmaApp:
         )
         self.title_label.pack(pady=10)
 
-        # Botón para firmar un mensaje
-        self.sign_message_button = tk.Button(
-            root,
-            text="Firmar Mensaje",
-            font=("Arial", 12),
-            command=self.sign_message,
-            bg="#28A745",
-            fg="white",
-            width=20,
-        )
-        self.sign_message_button.pack(pady=10)
-
-        # Botón para verificar la firma
-        self.verify_signature_button = tk.Button(
-            root,
-            text="Verificar Firma",
-            font=("Arial", 12),
-            command=self.seleccionar_pdf_verificar,
-            bg="#FFC107",
-            fg="black",
-            width=20,
-        )
-        self.verify_signature_button.pack(pady=10)
-
-        # Área de texto para logs
-        self.log_text = tk.Text(root, width=70, height=15, state=tk.DISABLED)
-        self.log_text.pack(pady=10)
+        def handle_selected_file(path):
+            print("Archivo seleccionado:", path)
+            
+        create_drop_area(root, callback=handle_selected_file)
                 
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""

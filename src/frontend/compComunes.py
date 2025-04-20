@@ -684,3 +684,45 @@ def generar_certificados_simulados():
         }
     ]
     return certificados
+
+from tkinterdnd2 import TkinterDnD
+import customtkinter as ctk
+from tkinter import filedialog
+import tkinter as tk
+
+def create_drop_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
+    def open_file_dialog(event=None):
+        file_path = filedialog.askopenfilename()
+        if file_path and callback:
+            callback(file_path)
+
+    drop_area = ctk.CTkFrame(
+        parent,
+        width=620,
+        height=220,
+        corner_radius=25,
+        fg_color="#FFFFFF",
+        border_width=1,
+        border_color="#E0E0E0"
+    )
+    drop_area.pack(pady=10)
+    drop_area.pack_propagate(False)
+
+    label = ctk.CTkLabel(
+        drop_area,
+        text=text,
+        text_color="#555555",
+        font=("Inter", 20),
+        justify="center"
+    )
+    label.pack(expand=True)
+
+    drop_area.bind("<Button-1>", open_file_dialog)
+    label.bind("<Button-1>", open_file_dialog)
+
+    # Configura drag & drop
+    drop_area.drop_target_register("*")
+    drop_area.dnd_bind('<<Drop>>', lambda e: callback(e.data.strip('{}')) if callback else None)
+
+    return drop_area
+
