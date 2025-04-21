@@ -160,19 +160,18 @@ def create_dropdown(parent, opciones = [], placeholder = ""):
     container = ctk.CTkFrame(parent, fg_color="transparent")
     container.pack(anchor="w", padx=(10, 0)) 
     
-    # Botón de sombra (más grande y oscuro)
-    shadow = ctk.CTkButton(
+    # Frame con bordes para simular bordes del dropdown
+    border_frame = ctk.CTkFrame(
         container,
-        text="",  # Sin texto
-        width=300,
-        height=30,
-        corner_radius=5,
-        fg_color="#777777",  # Color oscuro para la sombra
-        hover=0,
-        border_width=0,
-        state="disabled"  # No interactivo
+        width=304,
+        height=38,
+        corner_radius=10,
+        fg_color="transparent",  # Transparente
+        border_width=1,          # Borde visible
+        border_color="#E0E0E0"   # Color claro para el borde
     )
-    shadow.grid(row=0, column=0, padx=0, pady=0)
+    border_frame.grid(row=0, column=0, padx=0, pady=0)
+    border_frame.grid_propagate(False)  # Mantener tamaño fijo
     
 
     combo = ctk.CTkOptionMenu(
@@ -191,14 +190,11 @@ def create_dropdown(parent, opciones = [], placeholder = ""):
         corner_radius=10,
         anchor="w",
         dropdown_hover_color="#E0E0E0",
-        #border_width=1,
-        #border_color="#E0E0E0"
     )
 
     combo.set(placeholder)
     # Posicionar con offset para crear efecto de sombra
-    combo.grid(row=0, column=0, padx=(0, 4), pady=(0, 8))
-    
+    combo.place(relx=0.5, rely=0.5, anchor="center")     
     # Asegurar que el botón esté por encima de la sombra
     combo.lift()
 

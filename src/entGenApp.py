@@ -40,14 +40,14 @@ class CertificadoDigitalApp:
         # Ejemplo de uso
         certificados_frame = create_certificate_list(self.root)
         certificados_frame.pack(padx=20, pady=20)
-        """
+
         txtField = create_text_field_with_title(root, "Vuelva a escribir la contarseña:", "Escriba la contraseña")
 
         checkbox_firma = create_checkbox(root, "Firma visible en dentro del pdf")
         estado = checkbox_firma.get()
 
         dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
-"""
+
     def generar_clave_UI(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
         try:
