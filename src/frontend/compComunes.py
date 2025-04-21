@@ -697,10 +697,13 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
             if callback:
                 callback(path)
 
-
     def update_label(file_path):
         from PIL import Image, ImageTk
 
+        # Desconectar eventos del frame antes de limpiar
+        frame_container.unbind("<Enter>")
+        frame_container.unbind("<Leave>")
+        
         # Limpia el frame antes de añadir elementos nuevos
         for widget in frame_container.winfo_children():
             widget.destroy()
@@ -710,7 +713,7 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
             frame_container,
             text="Documento seleccionado:",
             fg="#111111",
-            font=("Inter", 16, "bold"),  # letra fina
+            font=("Inter", 16, "bold"),
             bg="white",
             anchor="w",
             justify="left"
@@ -758,12 +761,48 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
         )
         label_path.pack(anchor="w")
 
-        content_frame.pack(padx=(35, 0))
+        # Vincular nuevos eventos al contenedor después de actualizar
+        frame_container.bind("<Enter>", lambda e: frame_container.config(bg="#FAFAFA"))
+        frame_container.bind("<Leave>", lambda e: frame_container.config(bg="white"))
+        
+        # Actualizar todos los elementos de fondo cuando se pasa el ratón
+        def update_all_bg_enter(event):
+            frame_container.config(bg="#FAFAFA")
+            for child in frame_container.winfo_children():
+                if isinstance(child, tk.Label) or isinstance(child, tk.Frame):
+                    child.config(bg="#FAFAFA")
+                if isinstance(child, tk.Frame):
+                    for grandchild in child.winfo_children():
+                        if isinstance(grandchild, tk.Label) or isinstance(grandchild, tk.Frame):
+                            grandchild.config(bg="#FAFAFA")
+                        if isinstance(grandchild, tk.Frame):
+                            for great_grandchild in grandchild.winfo_children():
+                                if isinstance(great_grandchild, tk.Label):
+                                    great_grandchild.config(bg="#FAFAFA")
+        
+        def update_all_bg_leave(event):
+            frame_container.config(bg="white")
+            for child in frame_container.winfo_children():
+                if isinstance(child, tk.Label) or isinstance(child, tk.Frame):
+                    child.config(bg="white")
+                if isinstance(child, tk.Frame):
+                    for grandchild in child.winfo_children():
+                        if isinstance(grandchild, tk.Label) or isinstance(grandchild, tk.Frame):
+                            grandchild.config(bg="white")
+                        if isinstance(grandchild, tk.Frame):
+                            for great_grandchild in grandchild.winfo_children():
+                                if isinstance(great_grandchild, tk.Label):
+                                    great_grandchild.config(bg="white")
+        
+        frame_container.bind("<Enter>", update_all_bg_enter)
+        frame_container.bind("<Leave>", update_all_bg_leave)
 
+    # Crear el frame contenedor
     frame_container = tk.Frame(parent, width=620, height=220, bg="white", highlightthickness=1, highlightbackground="#E0E0E0")
     frame_container.pack(pady=10)
     frame_container.pack_propagate(False)
 
+    # Crear la etiqueta inicial
     label = tk.Label(
         frame_container,
         text=text,
@@ -775,23 +814,30 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     )
     label.pack(expand=True)
 
+    # Vincular eventos al frame y la etiqueta
     frame_container.bind("<Button-1>", open_file_dialog)
     label.bind("<Button-1>", open_file_dialog)
 
+    # Configurar el área para soltar archivos
     frame_container.drop_target_register(DND_FILES)
     frame_container.dnd_bind('<<Drop>>', drop)
 
+    # Eventos de entrada y salida del mouse para el estado inicial
     def on_enter(event):
         frame_container.config(bg="#FAFAFA")
-        label.config(bg="#FAFAFA")
+        # Verificar si la etiqueta aún existe
+        for widget in frame_container.winfo_children():
+            if widget == label and widget.winfo_exists():
+                label.config(bg="#FAFAFA")
 
     def on_leave(event):
         frame_container.config(bg="white")
-        label.config(bg="white")
+        # Verificar si la etiqueta aún existe
+        for widget in frame_container.winfo_children():
+            if widget == label and widget.winfo_exists():
+                label.config(bg="white")
 
     frame_container.bind("<Enter>", on_enter)
     frame_container.bind("<Leave>", on_leave)
 
     return frame_container
-
-

@@ -9,6 +9,7 @@ datas = [('../package', 'package'),
         ('pk_entidad.json', '.'),
         ('img/Diego.ico', '.'),
         ('img/Diego.png', '.'),
+        ('tkdnd', 'tkdnd'), 
         ('img', 'img')
 ]
 
@@ -17,7 +18,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=['dilithium_py', 'dilithium_py.ml_dsa', 'fitz', 'PyMuPDF'],
+    hiddenimports=['dilithium_py', 'dilithium_py.ml_dsa', 'fitz', 'PyMuPDF', 'tkinterdnd2'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
