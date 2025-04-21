@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
 from tkinterdnd2 import TkinterDnD # type: ignore
 from backend.funcFirma import register_protocol_handler
-from frontend.compComunes import center_window, set_app_instance
+from frontend.compComunes import center_window, set_app_instance, setup_app_icons
 from frontend.compFirma import create_drop_area
 
 class AutoFirmaApp:
@@ -21,8 +21,7 @@ class AutoFirmaApp:
         center_window(self.root)
         set_app_instance(self)
 
-        
-        self.setup_app_icons()
+        setup_app_icons(self.root, BASE_DIR, "Diego")
 
         # Título
         self.title_label = tk.Label(
@@ -649,41 +648,6 @@ class AutoFirmaApp:
         # Mostrar resultados en la UI usando los valores desempaquetados de la tupla
         self.verify_signatures(file_path, firmas, hash_documento)
         return True
-    
-    def setup_app_icons(self):
-        """Configura los iconos de la aplicación para diferentes contextos."""
-        import ctypes
-        # 🔹 Rutas del icono
-        if getattr(sys, 'frozen', False):
-            # Ejecutando como archivo compilado
-            ruta_icono = os.path.join(BASE_DIR, "Diego.ico")
-            ruta_icono_png = os.path.join(BASE_DIR, "Diego.png")
-        else:
-            # Ejecutando como script Python
-            ruta_icono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.ico")
-            ruta_icono_png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "Diego.png")
-            
-        # 🔹 Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
-        myappid = 'miapp.certificadosdigitales'  # Nombre único
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-
-        # 🔹 (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
-        self.ventana_oculta = tk.Toplevel()
-        self.ventana_oculta.withdraw()  # Oculta la ventana
-
-        # 🔹 Intentar establecer el icono .ico
-        if os.path.exists(ruta_icono):
-            self.root.iconbitmap(ruta_icono)  # Icono en la cabecera
-            self.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
-        else:
-            messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
-
-        # 🔹 Intentar establecer el icono .png en la barra de tareas
-        if os.path.exists(ruta_icono_png):
-            icono = PhotoImage(file=ruta_icono_png)
-            self.root.iconphoto(True, icono)  # Icono en la barra de tareas
-        else:
-            messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
         
 if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática

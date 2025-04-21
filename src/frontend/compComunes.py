@@ -22,6 +22,41 @@ def center_window(root):
     y = (root.winfo_screenheight() // 2) - (height // 2)
     root.geometry(f'{width}x{height}+{x}+{y}')
 
+def setup_app_icons(root, base_dir, icon_name):
+    import ctypes
+    import os
+    import sys
+    from tkinter import messagebox, PhotoImage
+    if getattr(sys, 'frozen', False):
+        # Ejecutando como archivo compilado
+        ruta_icono = os.path.join(base_dir, f"{icon_name}.ico")
+        ruta_icono_png = os.path.join(base_dir, f"{icon_name}.png")
+    else:
+        # Ejecutando como script Python
+        ruta_icono = os.path.join(base_dir, "img", f"{icon_name}.ico")
+        ruta_icono_png = os.path.join(base_dir, "img", f"{icon_name}.png")
+    # Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
+    myappid = 'miapp.certificadosdigitales'  # Nombre único
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+    # (TRUCO) Crear ventana oculta para forzar el icono en la barra de tareas
+    root.ventana_oculta = tk.Toplevel()
+    root.ventana_oculta.withdraw()  # Oculta la ventana
+
+    # Intentar establecer el icono .ico
+    if os.path.exists(ruta_icono):
+        root.iconbitmap(ruta_icono)  # Icono en la cabecera
+        root.ventana_oculta.iconbitmap(ruta_icono)  # Forzar icono en barra de tareas
+    else:
+        messagebox.showwarning("Advertencia", "⚠️ Icono .ico no encontrado, verifica la ruta.")
+
+    # Intentar establecer el icono .png en la barra de tareas
+    if os.path.exists(ruta_icono_png):
+        icono = PhotoImage(file=ruta_icono_png)
+        root.iconphoto(True, icono)  # Icono en la barra de tareas
+    else:
+        messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
+
 def create_button(parent, text, command=None, width=110):
     """
     Crea un botón moderno con efecto de sombra proyectada
