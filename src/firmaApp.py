@@ -7,11 +7,12 @@ BASE_DIR = init_paths()
 
 import tkinter as tk
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
+from tkinterdnd2 import TkinterDnD
 from backend.funcFirma import register_protocol_handler
 
 class AutoFirmaApp:
     def __init__(self, root):
-        self.root = root
+        self.root = root 
         self.root.title("AutoFirma - Sphincs")
         self.root.geometry("700x584")
         self.root.resizable(False, False)
@@ -31,7 +32,8 @@ class AutoFirmaApp:
         def handle_selected_file(path):
             print("Archivo seleccionado:", path)
             
-        create_drop_area(root, callback=handle_selected_file)
+
+        create_drop_area(self.root, callback=handle_selected_file)
                 
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
@@ -687,7 +689,7 @@ if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática
     if len(sys.argv) > 1 and sys.argv[1] == "--verify":
         # Iniciar aplicación
-        root = tk.Tk()
+        root = TkinterDnD.Tk()
         app = AutoFirmaApp(root)
         
         # Verificar desde URI (autofirma://...)
@@ -699,7 +701,7 @@ if __name__ == "__main__":
         root.mainloop()
     else:
         # Inicialización normal
-        root = tk.Tk()
+        root = TkinterDnD.Tk()
         app = AutoFirmaApp(root)
         
         # Registrar el protocolo al iniciar la aplicación (solo una vez)

@@ -3,6 +3,7 @@ from tkinter import filedialog
 import customtkinter as ctk
 import os
 from PIL import Image, ImageTk
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from backend.funcComunes import log_message
 
 # Variable global para mantener referencias a las imágenes
@@ -685,44 +686,116 @@ def generar_certificados_simulados():
     ]
     return certificados
 
-from tkinterdnd2 import TkinterDnD
-import customtkinter as ctk
-from tkinter import filedialog
-import tkinter as tk
-
 def create_drop_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
     def open_file_dialog(event=None):
-        file_path = filedialog.askopenfilename()
-        if file_path and callback:
-            callback(file_path)
+        file_path = filedialog.askopenfilename(filetypes=[("Archivos PDF", "*.pdf")])
+        if file_path:
+            update_label(file_path)
+            if callback:
+                callback(file_path)
 
-    drop_area = ctk.CTkFrame(
-        parent,
-        width=620,
-        height=220,
-        corner_radius=25,
-        fg_color="#FFFFFF",
-        border_width=1,
-        border_color="#E0E0E0"
-    )
-    drop_area.pack(pady=10)
-    drop_area.pack_propagate(False)
+    def drop(event):
+        path = event.data.strip('{}')
+        if path.lower().endswith(".pdf"):
+            update_label(path)
+            if callback:
+                callback(path)
 
-    label = ctk.CTkLabel(
-        drop_area,
+
+    def update_label(file_path):
+        from PIL import Image, ImageTk
+
+        # Limpia el frame antes de añadir elementos nuevos
+        for widget in frame_container.winfo_children():
+            widget.destroy()
+
+        # Label "Documento seleccionado"
+        label_info = tk.Label(
+            frame_container,
+            text="Documento seleccionado:",
+            fg="#111111",
+            font=("Inter", 16, "bold"),  # letra fina
+            bg="white",
+            anchor="w",
+            justify="left"
+        )
+        label_info.pack(anchor="w", padx=20, pady=(10, 0))
+
+        # Contenedor horizontal: imagen + info PDF
+        content_frame = tk.Frame(frame_container, bg="white")
+        content_frame.pack(fill="x", padx=20, pady=10)
+
+        # Imagen de Adobe
+        img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img", "adobe.png")
+        img = Image.open(img_path)
+        img = img.resize((57, 57))
+        img_tk = ImageTk.PhotoImage(img)
+
+        image_label = tk.Label(content_frame, image=img_tk, bg="white")
+        image_label.image = img_tk
+        image_label.pack(side="left", padx=(0, 10))
+
+        # Título y ruta
+        pdf_frame = tk.Frame(content_frame, bg="white")
+        pdf_frame.pack(side="left", fill="x", expand=True)
+
+        filename = os.path.basename(file_path)
+        folder_path = os.path.dirname(file_path)
+
+        label_title = tk.Label(
+            pdf_frame,
+            text=filename,
+            fg="#111111",
+            font=("Inter", 15),
+            bg="white",
+            anchor="w"
+        )
+        label_title.pack(anchor="w")
+
+        label_path = tk.Label(
+            pdf_frame,
+            text=folder_path,
+            fg="#555555",
+            font=("Inter", 11),
+            bg="white",
+            anchor="w"
+        )
+        label_path.pack(anchor="w")
+
+        content_frame.pack(padx=(35, 0))
+
+    frame_container = tk.Frame(parent, width=620, height=220, bg="white", highlightthickness=1, highlightbackground="#E0E0E0")
+    frame_container.pack(pady=10)
+    frame_container.pack_propagate(False)
+
+    label = tk.Label(
+        frame_container,
         text=text,
-        text_color="#555555",
-        font=("Inter", 20),
+        fg="#555555",
+        font=("Inter", 16),
+        bg="white",
+        wraplength=580,
         justify="center"
     )
     label.pack(expand=True)
 
-    drop_area.bind("<Button-1>", open_file_dialog)
+    frame_container.bind("<Button-1>", open_file_dialog)
     label.bind("<Button-1>", open_file_dialog)
 
-    # Configura drag & drop
-    drop_area.drop_target_register("*")
-    drop_area.dnd_bind('<<Drop>>', lambda e: callback(e.data.strip('{}')) if callback else None)
+    frame_container.drop_target_register(DND_FILES)
+    frame_container.dnd_bind('<<Drop>>', drop)
 
-    return drop_area
+    def on_enter(event):
+        frame_container.config(bg="#FAFAFA")
+        label.config(bg="#FAFAFA")
+
+    def on_leave(event):
+        frame_container.config(bg="white")
+        label.config(bg="white")
+
+    frame_container.bind("<Enter>", on_enter)
+    frame_container.bind("<Leave>", on_leave)
+
+    return frame_container
+
 
