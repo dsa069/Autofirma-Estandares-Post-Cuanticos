@@ -1,14 +1,15 @@
 import sys
 import os
 from backend.funcComunes import log_message, init_paths
-from frontend.compComunes import center_window, create_drop_area, set_app_instance
 
 BASE_DIR = init_paths()
 
 import tkinter as tk
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
-from tkinterdnd2 import TkinterDnD
+from tkinterdnd2 import TkinterDnD # type: ignore
 from backend.funcFirma import register_protocol_handler
+from frontend.compComunes import center_window, set_app_instance
+from frontend.compFirma import create_drop_area
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -30,8 +31,7 @@ class AutoFirmaApp:
         self.title_label.pack(pady=10)
 
         def handle_selected_file(path):
-            print("Archivo seleccionado:", path)
-            
+            log_message("firmaApp.log","Archivo seleccionado:", path)
 
         create_drop_area(self.root, callback=handle_selected_file)
                 
