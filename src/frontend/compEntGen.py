@@ -84,7 +84,7 @@ def create_key_list(parent):
     # Obtener la estructura base de la lista
     contenedor_principal = create_base_list(
         parent, 
-        height=270,
+        height=300,
         empty_message="No hay claves disponibles. Genera una nueva clave con el botón superior.",
         process_data_function=procesar_claves,
         data=claves_ordenadas,

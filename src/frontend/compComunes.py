@@ -57,6 +57,25 @@ def setup_app_icons(root, base_dir, icon_name):
     else:
         messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
+def create_text(parent, text, wraplength=600, font_size=16):
+    """
+    Crea un texto con estilo moderno.
+    """
+    label = ctk.CTkLabel(
+        parent,
+        text=text,
+        font=("Inter", font_size),
+        text_color="#111111",
+        wraplength=wraplength,
+        anchor="w",
+        justify="left"
+    )
+
+    label.pack(anchor="w")
+
+    return label
+    
+
 def create_button(parent, text, command=None, width=110):
     """
     Crea un botón moderno con efecto de sombra proyectada
@@ -69,7 +88,7 @@ def create_button(parent, text, command=None, width=110):
         container,
         text="",  # Sin texto
         width=width,
-        height=30,
+        height=37,
         corner_radius=5,
         fg_color="#777777",  # Color oscuro para la sombra
         hover=0,  # La sombra no cambia
@@ -84,17 +103,17 @@ def create_button(parent, text, command=None, width=110):
         text=text,
         command=command,
         width=width,
-        height=30,
+        height=35,
         corner_radius=5,
         border_width=1,
         border_color="#999999",
         fg_color="#DCDCDC",
         text_color="#111111",
         hover_color="#BBBBBB",
-        font=("Inter", 15),
+        font=("Inter", 16),
     )
     # Posicionar con offset para crear efecto de sombra
-    button.grid(row=0, column=0, padx=(0, 4), pady=(0, 4))
+    button.grid(row=0, column=0, padx=(0, 5), pady=(0, 6))
     
     # Asegurar que el botón esté por encima de la sombra
     button.lift()

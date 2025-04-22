@@ -7,7 +7,7 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import PhotoImage, messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, create_text_field_with_title, set_app_instance, setup_app_icons
+from frontend.compComunes import center_window, create_button, create_text, create_text_field_with_title, set_app_instance, setup_app_icons
 from frontend.compEntGen import create_dropdown_with_text, create_key_list
 
 
@@ -25,32 +25,34 @@ class CertificadoDigitalApp:
         center_window(self.root)
         set_app_instance(self)
 
-        # 🔹 Rutas del icono
+        # Rutas del icono
         setup_app_icons(self.root, BASE_DIR, "AlterDiego")
 
-        # Título
-        self.title_label = tk.Label(
-            root, text="Generador de Certificados Digitales", font=("Arial", 16, "bold")
-        )
-        self.title_label.pack(pady=10)
+        self.vista_inicial()
 
-        #btn = create_button(root, "Cancelar", lambda: self.generar_clave_UI(), 200)
-        #btn.pack(pady=5)  # Cambiar grid por pack
+    def vista_inicial(self):
+        # Título
+        self.bienvenida_label = create_text(
+            self.root, text="Bienvenido a la aplicación de Generador Certificados Post-Cuánticos"
+        )
+        self.bienvenida_label.pack(pady=(30,10), padx=(50, 0))
+
+        self.introduction_label = create_text(
+            self.root, text="Esta herramienta te permite generar certificados digitales y claves con criptografía resistentes a ataques cuánticos, garantizando la seguridad a largo plazo. " \
+            "La aplicación utiliza estándares avanzados como Dilithium y SPHINCS+. "
+            "Para crear un certificado selecciona una clave de entidad existente o genera una nueva. "
+        )
+        self.introduction_label.pack(pady=10, padx=(50, 0))
+
+        btn = create_button(root, "Generar nuevas claves", lambda: self.generar_clave_UI(), 220)
+        btn.pack(pady=12, padx=(60, 0), anchor="w")
         
         lista_frame = create_key_list(self.root)
         lista_frame.pack(padx=10, pady=10) 
 
-        # Ejemplo de uso
-        
-        #certificados_frame = create_certificate_list(self.root)
-        #certificados_frame.pack(padx=20, pady=20)
+        #txtField = create_text_field_with_title(root, "Vuelva a escribir la contarseña:", "Escriba la contraseña")
 
-        txtField = create_text_field_with_title(root, "Vuelva a escribir la contarseña:", "Escriba la contraseña")
-
-        #checkbox_firma = create_checkbox(root, "Firma visible en dentro del pdf")
-        #estado = checkbox_firma.get()
-
-        dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
+        #dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
 
     def generar_clave_UI(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""

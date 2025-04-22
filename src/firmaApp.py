@@ -11,6 +11,9 @@ from backend.funcFirma import register_protocol_handler
 from frontend.compComunes import center_window, set_app_instance, setup_app_icons
 from frontend.compFirma import create_drop_area
 
+        #checkbox_firma = create_checkbox(root, "Firma visible en dentro del pdf")
+        #estado = checkbox_firma.get()
+
 class AutoFirmaApp:
     def __init__(self, root):
         self.root = root 
