@@ -10,6 +10,7 @@ APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
 def set_app_instance(app):
     global APP_INSTANCE
     APP_INSTANCE = app
+    log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
 
 ctk.set_appearance_mode("light")
 
@@ -56,6 +57,26 @@ def setup_app_icons(root, base_dir, icon_name):
         root.iconphoto(True, icono)  # Icono en la barra de tareas
     else:
         messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
+
+def crear_vista_nueva(parent):
+    """
+    Limpia la interfaz actual y crea un nuevo frame principal
+    """
+    # Limpiar la interfaz actual - manejar diferentes tipos de widgets
+    for widget in parent.winfo_children():
+        try:
+            widget.pack_forget()
+        except:
+            pass  # Ignorar errores para widgets que no usan pack
+    
+    # Crear y configurar el frame principal
+    frame = ctk.CTkFrame(
+        parent, 
+        fg_color="#F5F5F5"
+    )
+    frame.pack(fill="both", expand=True)
+    
+    return frame
 
 def create_text(parent, text, wraplength=600, font_size=16):
     """

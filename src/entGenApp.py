@@ -7,10 +7,8 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import PhotoImage, messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, create_button, create_text, create_text_field_with_title, set_app_instance, setup_app_icons
-from frontend.compEntGen import create_dropdown_with_text, create_key_list
-
-
+from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, set_app_instance, setup_app_icons
+from frontend.compEntGen import create_dropdown_with_text, create_key_list, set_app_instance_entidad
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
@@ -23,7 +21,6 @@ class CertificadoDigitalApp:
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
         center_window(self.root)
-        set_app_instance(self)
 
         # Rutas del icono
         setup_app_icons(self.root, BASE_DIR, "AlterDiego")
@@ -32,19 +29,19 @@ class CertificadoDigitalApp:
 
     def vista_inicial(self):
         # Título
-        self.bienvenida_label = create_text(
+        bienvenida_label = create_text(
             self.root, text="Bienvenido a la aplicación de Generador Certificados Post-Cuánticos"
         )
-        self.bienvenida_label.pack(pady=(30,10), padx=(50, 0))
+        bienvenida_label.pack(pady=(30,10), padx=(50, 0))
 
-        self.introduction_label = create_text(
+        introduction_label = create_text(
             self.root, text="Esta herramienta te permite generar certificados digitales y claves con criptografía resistentes a ataques cuánticos, garantizando la seguridad a largo plazo. " \
             "La aplicación utiliza estándares avanzados como Dilithium y SPHINCS+. "
             "Para crear un certificado selecciona una clave de entidad existente o genera una nueva. "
         )
-        self.introduction_label.pack(pady=10, padx=(50, 0))
+        introduction_label.pack(pady=10, padx=(50, 0))
 
-        btn = create_button(root, "Generar nuevas claves", lambda: self.generar_clave_UI(), 220)
+        btn = create_button(root, "Generar nuevas claves", lambda: self.vista_generacion_claves(), 220)
         btn.pack(pady=12, padx=(60, 0), anchor="w")
         
         lista_frame = create_key_list(self.root)
@@ -54,7 +51,7 @@ class CertificadoDigitalApp:
 
         #dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
 
-    def generar_clave_UI(self):
+    def vista_generacion_claves(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
         try:
             from backend.funcEntGen import generar_claves_entidad, verificar_campos_generacion_claves
@@ -385,38 +382,13 @@ class CertificadoDigitalApp:
     def mostrar_detalles_clave(self, pk, titulo, algoritmo, caducada=False):
         """
         Muestra los detalles de la clave seleccionada en la interfaz principal
-        
-        Args:
-            pk: Clave pública
-            titulo: Título de la clave
-            algoritmo: Nombre del algoritmo
-            caducada: Indica si la clave está caducada
         """
-        # Limpiar la interfaz actual - manejar diferentes tipos de widgets
-        for widget in self.root.winfo_children():
-            if widget != self.ventana_oculta:  # Ignorar la ventana oculta
-                try:
-                    widget.pack_forget()
-                except:
-                    pass  # Ignorar errores para widgets que no usan pack
-        
-        # Contenedor principal
-        frame = ctk.CTkFrame(
-            self.root, 
-            fg_color="#FFFFFF",
-            corner_radius=15,
-            border_width=1,
-            border_color="#E0E0E0"
-        )
-        frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Botón para volver
-        from frontend.compComunes import create_button
+        vista = crear_vista_nueva(self.root)
         
         # Título y estado
         estado_text = " (CADUCADA)" if caducada else ""
         titulo_label = ctk.CTkLabel(
-            frame, 
+            vista, 
             text=f"{titulo}{estado_text}", 
             font=("Segoe UI", 18, "bold"),
             text_color="#111111" if not caducada else "#CB1616"
@@ -425,7 +397,7 @@ class CertificadoDigitalApp:
         
         # Algoritmo
         alg_label = ctk.CTkLabel(
-            frame, 
+            vista, 
             text=f"Algoritmo: {algoritmo}", 
             font=("Segoe UI", 14),
             text_color="#444444"
@@ -434,8 +406,8 @@ class CertificadoDigitalApp:
         
         # Clave pública en un frame con scroll
         pk_frame = ctk.CTkScrollableFrame(
-            frame, 
-            fg_color="#F5F5F5",
+            vista, 
+            fg_color="#FFFFFF",
             corner_radius=10,
             height=120
         )
@@ -462,11 +434,11 @@ class CertificadoDigitalApp:
         pk_text.pack(padx=10, pady=(0, 10), anchor="w")
         
         # Botones
-        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(vista, fg_color="transparent")
         btn_frame.pack(pady=20)
         
         # Botón copiar
-        copiar_btn = create_button(btn_frame, "Copiar Clave", lambda: self._copiar_al_portapapeles(self.root, pk, frame))
+        copiar_btn = create_button(btn_frame, "Copiar Clave", lambda: self._copiar_al_portapapeles(self.root, pk, vista))
         copiar_btn.pack(side="left", padx=10)
 
     def _copiar_al_portapapeles(self, window, text, parent_frame):
@@ -484,72 +456,9 @@ class CertificadoDigitalApp:
         confirm.pack(pady=5)
         window.after(2000, confirm.destroy)
 
-    def mostrar_roumualdo(self):
-        """
-        Muestra los detalles de la clave seleccionada en la interfaz principal
-        
-        Args:
-            pk: Clave pública
-            titulo: Título de la clave
-            algoritmo: Nombre del algoritmo
-            caducada: Indica si la clave está caducada
-        """
-        # Limpiar la interfaz actual - manejar diferentes tipos de widgets
-        for widget in self.root.winfo_children():
-            if widget != self.ventana_oculta:  # Ignorar la ventana oculta
-                try:
-                    widget.pack_forget()
-                except:
-                    pass  # Ignorar errores para widgets que no usan pack
-        
-        # Contenedor principal
-        frame = ctk.CTkFrame(
-            self.root, 
-            fg_color="#FFFFFF",
-            corner_radius=15,
-            border_width=1,
-            border_color="#E0E0E0"
-        )
-        frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Botón para volver
-        from frontend.compComunes import create_button
-        
-        
-        # Clave pública en un frame con scroll
-        pk_frame = ctk.CTkScrollableFrame(
-            frame, 
-            fg_color="#F5F5F5",
-            corner_radius=10,
-            height=120
-        )
-        pk_frame.pack(fill="x", padx=20, pady=10)
-        
-        # Etiqueta para la clave
-        pk_header = ctk.CTkLabel(
-            pk_frame,
-            text="Clave Pública:",
-            font=("Segoe UI", 14, "bold"),
-            text_color="#111111"
-        )
-        pk_header.pack(padx=10, pady=(10, 5), anchor="w")
-        
-        # Texto de la clave con formato legible
-        pk_text = ctk.CTkLabel(
-            pk_frame,
-            text="12345",
-            font=("Courier New", 12),
-            text_color="#333333",
-            wraplength=440,
-            justify="left"
-        )
-        pk_text.pack(padx=10, pady=(0, 10), anchor="w")
-        
-        # Botones
-        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(pady=20)
-
 if __name__ == "__main__":
     root = tk.Tk()
     app = CertificadoDigitalApp(root)
+    set_app_instance(app)
+    set_app_instance_entidad(app)
     root.mainloop()

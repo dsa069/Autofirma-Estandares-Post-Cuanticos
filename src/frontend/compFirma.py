@@ -168,8 +168,27 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
         frame_container.bind("<Leave>", update_all_bg_leave)
 
     # Crear el frame contenedor
-    frame_container = tk.Frame(parent, width=620, height=220, bg="white", highlightthickness=1, highlightbackground="#E0E0E0")
-    frame_container.pack(pady=10)
+    outer_container = ctk.CTkFrame(
+        parent,
+        width=620,
+        height=220,
+        corner_radius=25,
+        fg_color="#FFFFFF",
+        border_width=1,
+        border_color="#E0E0E0"
+    )
+    outer_container.pack(pady=10)
+    outer_container.pack_propagate(False)
+    
+    # Crear el frame contenedor real encima (sin bordes)
+    frame_container = tk.Frame(
+        outer_container,
+        width=600,
+        height=200,
+        bg="white",
+        highlightthickness=0
+    )
+    frame_container.place(relx=0.5, rely=0.5, anchor="center")
     frame_container.pack_propagate(False)
 
     # Crear la etiqueta inicial

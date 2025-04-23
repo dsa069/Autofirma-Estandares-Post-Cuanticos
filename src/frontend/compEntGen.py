@@ -1,7 +1,15 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
+from backend.funcComunes import log_message
 ctk.set_appearance_mode("light")
 
+APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
+
+# Función para establecer la instancia de la aplicación
+def set_app_instance_entidad(app):
+    global APP_INSTANCE
+    APP_INSTANCE = app
+    log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
 
 def create_dropdown(parent, opciones = [], placeholder = ""):
     # Contenedor principal (transparente)
@@ -99,6 +107,7 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
     """
     Añade una fila con información de clave al frame scrollable
     """
+    log_message("entGenApp.log", f"Creando fila para clave: {clave.get('titulo')} ({algoritmo})")
     from frontend.compComunes import create_base_row
     # Definir tamaños específicos para columnas de claves
     column_sizes = [80, 175, 150, 190]  # Algoritmo, Título, PK, Período
@@ -108,7 +117,7 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback="generar_clave_UI",
+        click_callback="vista_generacion_claves",
         is_disabled=es_caducada
     )
     
@@ -193,9 +202,17 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
     
     # Evento específico para el enlace de la clave pública
     def on_pk_click(event=None):
-        global APP_INSTANCE
+
+        log_message("entGenApp.log", f"Clic en clave pública detectado. APP_INSTANCE={APP_INSTANCE}")
+        
+        if APP_INSTANCE:
+            log_message("entGenApp.log", f"APP_INSTANCE tiene atributo mostrar_detalles_clave: {hasattr(APP_INSTANCE, 'mostrar_detalles_clave')}")
+        else:
+            log_message("entGenApp.log", "APP_INSTANCE es None")
+
         if APP_INSTANCE and hasattr(APP_INSTANCE, 'mostrar_detalles_clave'):
             nombre_algoritmo = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
+            log_message("entGenApp.log", f"Llamando a mostrar_detalles_clave con título={clave['titulo']}, algoritmo={nombre_algoritmo}")
             APP_INSTANCE.mostrar_detalles_clave(
                 pk=clave_publica, 
                 titulo=clave["titulo"], 
@@ -205,11 +222,17 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
         return "break"
     
     # Configura que el evento de clic en la clave pública se ejecute en lugar del evento de la fila
-    # Esperar a que se complete Map antes de vincular el evento específico
     def vincular_pk_despues_de_map(event=None):
+        log_message("entGenApp.log", f"Vinculando evento de clic a pk_label")
+
         pk_label.unbind("<Button-1>")  # Eliminar cualquier enlace anterior
         pk_label.bind("<Button-1>", on_pk_click)  # Aplicar el enlace específico
-
+        # También verifica si fila_container tiene el atributo special_widgets
+        if hasattr(fila_container, 'special_widgets'):
+            fila_container.special_widgets.append(pk_label)
+            log_message("entGenApp.log", f"pk_label añadido a special_widgets")
+        else:
+            log_message("entGenApp.log", f"fila_container no tiene atributo special_widgets")        
     fila_container.bind("<Map>", vincular_pk_despues_de_map, add="+")  # Añadir otro evento Map
 
     return next_row
