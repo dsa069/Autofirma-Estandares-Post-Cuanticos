@@ -58,7 +58,7 @@ def setup_app_icons(root, base_dir, icon_name):
     else:
         messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
-def vista_mostrar_pk(parent, base_dir, pk, titulo, algoritmo, fecha):
+def vista_mostrar_pk(parent, base_dir, volver_a, pk, titulo, algoritmo, fecha):
     """
     Muestra los detalles de la clave seleccionada en la interfaz principal
     """
@@ -114,7 +114,7 @@ def vista_mostrar_pk(parent, base_dir, pk, titulo, algoritmo, fecha):
     pk_list_container = create_pk_list(vista, pk)
     pk_list_container.pack(padx=10, pady=10) 
 
-    volver_btn = create_button(vista, "Volver", lambda: APP_INSTANCE.vista_inicial())
+    volver_btn = create_button(vista, "Volver", volver_a)
     volver_btn.pack(pady=10)
 
     return vista

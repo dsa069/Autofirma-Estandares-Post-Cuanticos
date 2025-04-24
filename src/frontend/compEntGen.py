@@ -216,6 +216,7 @@ def create_key_row(lista_frame, base_dir, row_count, algoritmo, clave, es_caduca
         vista_mostrar_pk(
             parent=APP_INSTANCE.root,
             base_dir=base_dir,
+            volver_a=APP_INSTANCE.vista_inicial,
             pk=clave_publica, 
             titulo=clave["titulo"], 
             algoritmo=algoritmo,
