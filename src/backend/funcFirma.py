@@ -456,7 +456,11 @@ def format_iso_display(iso_date_str):
     """
     try:          
         fecha_obj = datetime.fromisoformat(iso_date_str)
-        return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")
+        # Verificar si la hora es 00:00:00 (medianoche)
+        if fecha_obj.hour == 0 and fecha_obj.minute == 0 and fecha_obj.second == 0:
+            return fecha_obj.strftime("%d/%m/%Y")  # Solo fecha
+        else:
+            return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")  # Fecha y hora    
     except (ValueError, TypeError):
         return iso_date_str
 

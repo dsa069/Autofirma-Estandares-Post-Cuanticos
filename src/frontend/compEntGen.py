@@ -67,7 +67,7 @@ def create_dropdown_with_text(parent, text, opciones = [], placeholder = ""):
 
     return entrada
 
-def create_key_list(parent):
+def create_key_list(parent, base_dir):
     # Cargar datos de claves
     from backend.funcEntGen import cargar_claves_entidad, clasificar_claves_por_estado
     from frontend.compComunes import create_base_list
@@ -82,7 +82,7 @@ def create_key_list(parent):
     def procesar_claves(lista_frame, datos):
         row_count = 0
         for algoritmo, clave, es_caducada, es_futura in datos:
-            row_count = create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada, es_futura)
+            row_count = create_key_row(lista_frame, base_dir, row_count, algoritmo, clave, es_caducada, es_futura)
         return row_count
     
     # Definir encabezados específicos para claves
@@ -103,7 +103,7 @@ def create_key_list(parent):
         
     return contenedor_principal
 
-def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, es_futura=False):
+def create_key_row(lista_frame, base_dir, row_count, algoritmo, clave, es_caducada=False, es_futura=False):
     """
     Añade una fila con información de clave al frame scrollable
     """
@@ -202,23 +202,25 @@ def create_key_row(lista_frame, row_count, algoritmo, clave, es_caducada=False, 
     
     # Evento específico para el enlace de la clave pública
     def on_pk_click(event=None):
-
+        from backend.funcFirma import format_iso_display
+        from frontend.compComunes import vista_mostrar_pk
         log_message("entGenApp.log", f"Clic en clave pública detectado. APP_INSTANCE={APP_INSTANCE}")
         
         if APP_INSTANCE:
-            log_message("entGenApp.log", f"APP_INSTANCE tiene atributo mostrar_detalles_clave: {hasattr(APP_INSTANCE, 'mostrar_detalles_clave')}")
+            log_message("entGenApp.log", f"APP_INSTANCE tiene atributo vista_mostrar_pk: {hasattr(APP_INSTANCE, 'vista_mostrar_pk')}")
         else:
             log_message("entGenApp.log", "APP_INSTANCE es None")
 
-        if APP_INSTANCE and hasattr(APP_INSTANCE, 'mostrar_detalles_clave'):
-            nombre_algoritmo = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
-            log_message("entGenApp.log", f"Llamando a mostrar_detalles_clave con título={clave['titulo']}, algoritmo={nombre_algoritmo}")
-            APP_INSTANCE.mostrar_detalles_clave(
-                pk=clave_publica, 
-                titulo=clave["titulo"], 
-                algoritmo=nombre_algoritmo,
-                caducada=es_caducada
-            )
+        nombre_algoritmo = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
+        log_message("entGenApp.log", f"Llamando a vista_mostrar_pk con título={clave['titulo']}, algoritmo={nombre_algoritmo}")
+        vista_mostrar_pk(
+            parent=APP_INSTANCE.root,
+            base_dir=base_dir,
+            pk=clave_publica, 
+            titulo=clave["titulo"], 
+            algoritmo=algoritmo,
+            fecha=f"{format_iso_display(clave['fecha_expedicion'])} hasta {format_iso_display(clave['fecha_caducidad'])}",
+        )
         return "break"
     
     # Configura que el evento de clic en la clave pública se ejecute en lugar del evento de la fila

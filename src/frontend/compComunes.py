@@ -58,6 +58,67 @@ def setup_app_icons(root, base_dir, icon_name):
     else:
         messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
+def vista_mostrar_pk(parent, base_dir, pk, titulo, algoritmo, fecha):
+    """
+    Muestra los detalles de la clave seleccionada en la interfaz principal
+    """
+    vista = crear_vista_nueva(parent)
+
+    # Contenedor horizontal: imagen + info PDF
+    cabecera_certificado = tk.Frame(vista, bg="#F5F5F5")
+    cabecera_certificado.pack(fill="x", padx=(40, 0), pady=(40, 30))
+
+    algoritmo_img = resize_image_proportionally(base_dir, algoritmo, desired_height=75)
+
+    image_label = tk.Label(cabecera_certificado, image=algoritmo_img, bg="#F5F5F5")
+    image_label.image = algoritmo_img
+    image_label.pack(side="left", padx=(0, 30))
+
+    # Título y ruta
+    cd_padding = (25, 0) if algoritmo == "sphincs" else (5, 0)
+    certificate_frame = tk.Frame(cabecera_certificado, bg="#F5F5F5")
+    certificate_frame.pack(side="left", fill="x", expand=True, pady=cd_padding)
+
+    label_title = tk.Label(
+        certificate_frame,
+        text=titulo,
+        fg="#111111",
+        bg="#F5F5F5",
+        font=("Inter", 18),
+        anchor="w"
+    )
+    label_title.pack(anchor="w")
+
+    label_fecha = tk.Label(
+        certificate_frame,
+        text=fecha,
+        fg="#333333",
+        bg="#F5F5F5",
+        font=("Inter", 13),
+        anchor="w"
+    )
+    label_fecha.pack(anchor="w")
+    
+    label_pk = tk.Label(
+        vista,
+        text="Clave Pública:",
+        fg="#111111",
+        font=("Inter", 14),
+        bg="#F5F5F5",
+        anchor="w",
+        justify="left"
+    )
+    label_pk.pack(anchor="w", padx=37)
+
+    # Do this instead:
+    pk_list_container = create_pk_list(vista, pk)
+    pk_list_container.pack(padx=10, pady=10) 
+
+    volver_btn = create_button(vista, "Volver", lambda: APP_INSTANCE.vista_inicial())
+    volver_btn.pack(pady=10)
+
+    return vista
+
 def crear_vista_nueva(parent):
     """
     Limpia la interfaz actual y crea un nuevo frame principal
@@ -169,6 +230,86 @@ def create_text_field(parent, placeholder = "", width=450):
     entrada.pack(padx=(10,0))
     return entrada
 
+def setup_list_headers(header_frame, headers, column_sizes):
+    """
+    Configura los encabezados de la lista y sus tamaños.
+    
+    Args:
+        header_frame: Frame donde colocar los encabezados
+        headers: Lista de textos para los encabezados
+        column_sizes: Lista de tamaños para cada columna
+    """
+    # Configurar columnas con tamaños específicos
+    for i, size in enumerate(column_sizes):
+        header_frame.grid_columnconfigure(i, minsize=size)
+    
+    # Crear encabezados
+    for i, texto in enumerate(headers):
+        label = ctk.CTkLabel(
+            header_frame, 
+            text=texto, 
+            font=("Segoe UI", 14, "bold"), 
+            text_color="#111111",
+            anchor="center",
+            justify="center"
+        )
+        label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
+
+def resize_image_proportionally(base_dir, algoritmo, desired_height=75):
+    """
+    Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones.
+    """
+    from PIL import Image, ImageTk # type: ignore
+    import os
+    # En lugar de usar algoritmo_img, carga directamente desde el archivo
+    img_path = os.path.join(base_dir, "img")        
+    if algoritmo == "sphincs":
+        image_path = os.path.join(img_path, "Sphincs.png")
+    else:  # dilithium
+        image_path = os.path.join(img_path, "Dilithium.png")
+    
+    # Cargar imagen original
+    original_img = Image.open(image_path)
+
+    # Obtener dimensiones originales
+    original_width, original_height = original_img.size
+
+    # Calcular ancho proporcionalmente
+    aspect_ratio = original_width / original_height
+    desired_width = int(desired_height * aspect_ratio)
+
+    # Redimensionar manteniendo las proporciones
+    original_img = original_img.resize((desired_width, desired_height), Image.LANCZOS)
+    
+    # Convertir a formato para Tkinter
+    return ImageTk.PhotoImage(original_img)
+
+def cargar_logos_algoritmos():
+    """Carga las imágenes de logos de algoritmos si no están cargadas"""
+    global LOGO_IMAGES
+    from PIL import Image, ImageTk # type: ignore
+    import os
+
+    if not LOGO_IMAGES:
+        img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img")
+        
+        try:
+            sphincs_path = os.path.join(img_path, "Sphincs.png")
+            dilithium_path = os.path.join(img_path, "Dilithium.png")
+            
+            if os.path.exists(sphincs_path):
+                sphincs_logo = Image.open(sphincs_path)
+                sphincs_logo = sphincs_logo.resize((60, 35), Image.LANCZOS)
+                LOGO_IMAGES["sphincs"] = ImageTk.PhotoImage(sphincs_logo)
+            
+            if os.path.exists(dilithium_path):
+                dilithium_logo = Image.open(dilithium_path)
+                dilithium_logo = dilithium_logo.resize((60, 30), Image.LANCZOS)
+                LOGO_IMAGES["dilithium"] = ImageTk.PhotoImage(dilithium_logo)
+                
+        except Exception as e:
+            log_message("entGenApp.log", f"Error al cargar logos: {e}")
+
 def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None, max_visible_items=1):
     """
     Crea un esqueleto básico para cualquier lista con estilo consistente.
@@ -269,58 +410,30 @@ def create_base_list(parent, height=270, empty_message=None, process_data_functi
 
     return contenedor_principal
 
-def setup_list_headers(header_frame, headers, column_sizes):
-    """
-    Configura los encabezados de la lista y sus tamaños.
+def create_pk_list(parent, pk):
+    # Cargar datos de claves
+    from frontend.compComunes import create_base_list
     
-    Args:
-        header_frame: Frame donde colocar los encabezados
-        headers: Lista de textos para los encabezados
-        column_sizes: Lista de tamaños para cada columna
-    """
-    # Configurar columnas con tamaños específicos
-    for i, size in enumerate(column_sizes):
-        header_frame.grid_columnconfigure(i, minsize=size)
-    
-    # Crear encabezados
-    for i, texto in enumerate(headers):
-        label = ctk.CTkLabel(
-            header_frame, 
-            text=texto, 
-            font=("Segoe UI", 14, "bold"), 
-            text_color="#111111",
-            anchor="center",
-            justify="center"
-        )
-        label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
+    # Definir función para procesar datos
+    def procesar_claves(lista_frame, datos):
+        row_count = create_pk_row(lista_frame, 0, pk)
+        return row_count
 
-def cargar_logos_algoritmos():
-    """Carga las imágenes de logos de algoritmos si no están cargadas"""
-    global LOGO_IMAGES
-    from PIL import Image, ImageTk # type: ignore
-    import os
+    max_items = 0 if len(pk) > 200 else 1
 
-    if not LOGO_IMAGES:
-        img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img")
+    # Obtener la estructura base de la lista
+    contenedor_principal = create_base_list(
+        parent, 
+        height=300,
+        empty_message="Error al mostrar la clave",
+        process_data_function=procesar_claves,
+        data=[pk],
+        max_visible_items=max_items
+    )
         
-        try:
-            sphincs_path = os.path.join(img_path, "Sphincs.png")
-            dilithium_path = os.path.join(img_path, "Dilithium.png")
-            
-            if os.path.exists(sphincs_path):
-                sphincs_logo = Image.open(sphincs_path)
-                sphincs_logo = sphincs_logo.resize((60, 35), Image.LANCZOS)
-                LOGO_IMAGES["sphincs"] = ImageTk.PhotoImage(sphincs_logo)
-            
-            if os.path.exists(dilithium_path):
-                dilithium_logo = Image.open(dilithium_path)
-                dilithium_logo = dilithium_logo.resize((60, 30), Image.LANCZOS)
-                LOGO_IMAGES["dilithium"] = ImageTk.PhotoImage(dilithium_logo)
-                
-        except Exception as e:
-            log_message("entGenApp.log", f"Error al cargar logos: {e}")
+    return contenedor_principal
 
-def create_base_row(lista_frame, row_count, column_sizes, click_callback=None, is_disabled=False):
+def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback=None, is_disabled=False):
     """
     Crea una fila base con estructura consistente para cualquier lista.
     
@@ -388,3 +501,88 @@ def create_base_row(lista_frame, row_count, column_sizes, click_callback=None, i
                        sticky="ew", padx=25, pady=2)
     
     return fila_container, row_count + 2, LOGO_IMAGES  # +2 para la fila y la línea
+
+def create_pk_row(lista_frame, row_count, clave):
+    """
+    Añade una fila con información de clave al frame scrollable
+    """
+    log_message("entGenApp.log", f"Creando fila para clave: {clave})")
+    from frontend.compComunes import create_base_row
+    
+    def callback_copy(event=None, widget=None):
+        if APP_INSTANCE and APP_INSTANCE.root:
+            # Guardar el color original
+            original_bg = fila_container["bg"]
+            
+            # Cambiar temporalmente el color de fondo
+            fila_container.configure(bg="#E3F2FD")  # Azul claro
+            
+            # Copiar al portapapeles
+            copiar_al_portapapeles(APP_INSTANCE.root, clave, lista_frame)
+            
+            # Restaurar color original después de un tiempo
+            APP_INSTANCE.root.after(1500, lambda: fila_container.configure(bg=original_bg))
+        return "break"
+
+    # Crear la fila base
+    fila_container, next_row, _ = create_base_row(
+        lista_frame=lista_frame,
+        row_count=row_count,
+        click_callback=callback_copy,
+    )
+    
+    pk_label = ctk.CTkLabel(
+        fila_container, 
+        text=clave, 
+        text_color="#333333", 
+        font=("Inter", 14),
+        wraplength=560,  
+        justify="left"
+    )
+    pk_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+
+    def copiar_al_portapapeles(window, text, scrollable_frame):
+        """Copia texto al portapapeles y muestra confirmación"""
+        window.clipboard_clear()
+        window.clipboard_append(text)
+        
+        # Obtener el contenedor principal (padre del scrollable_frame)
+        parent_container = scrollable_frame.master.master
+        
+        # Crear frame para el mensaje si no existe
+        if not hasattr(parent_container, 'message_frame'):
+            parent_container.message_frame = ctk.CTkFrame(
+                parent_container,
+                fg_color="#E8F5E9",  # Verde claro
+                corner_radius=8,
+                height=40
+            )
+            
+            # Encontrar la última fila usada en el contenedor
+            last_row = 0
+            for child in parent_container.winfo_children():
+                grid_info = child.grid_info()
+                if grid_info:  # Si el widget está usando grid
+                    last_row = max(last_row, int(grid_info.get('row', 0)))
+            
+            # Usar grid en lugar de pack
+            parent_container.message_frame.grid(row=last_row+1, column=0, columnspan=999, 
+                                                padx=10, pady=5, sticky="ew")
+            parent_container.message_frame.grid_remove()  # Ocultar inicialmente
+            
+            # Crear el mensaje dentro del frame
+            parent_container.message_label = ctk.CTkLabel(
+                parent_container.message_frame,
+                text="¡Clave copiada al portapapeles!",
+                font=("Segoe UI", 12),
+                text_color="#4CAF50"
+            )
+            parent_container.message_label.pack(pady=8)  # Dentro del frame pequeño sí podemos usar pack
+        
+        # Mostrar el mensaje
+        parent_container.message_frame.grid()
+        
+        # Ocultar después de 2 segundos
+        window.after(1500, parent_container.message_frame.grid_remove)
+
+    return next_row

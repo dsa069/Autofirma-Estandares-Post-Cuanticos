@@ -5,9 +5,9 @@ from backend.funcComunes import log_message, init_paths
 BASE_DIR = init_paths()
 
 import tkinter as tk
-from tkinter import PhotoImage, messagebox, simpledialog
+from tkinter import messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, set_app_instance, setup_app_icons
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
 from frontend.compEntGen import create_dropdown_with_text, create_key_list, set_app_instance_entidad
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
@@ -29,22 +29,25 @@ class CertificadoDigitalApp:
 
     def vista_inicial(self):
         # Título
+
+        vista = crear_vista_nueva(self.root)
+
         bienvenida_label = create_text(
-            self.root, text="Bienvenido a la aplicación de Generador Certificados Post-Cuánticos"
+            vista, text="Bienvenido a la aplicación de Generador Certificados Post-Cuánticos"
         )
         bienvenida_label.pack(pady=(30,10), padx=(50, 0))
 
         introduction_label = create_text(
-            self.root, text="Esta herramienta te permite generar certificados digitales y claves con criptografía resistentes a ataques cuánticos, garantizando la seguridad a largo plazo. " \
+            vista, text="Esta herramienta te permite generar certificados digitales y claves con criptografía resistentes a ataques cuánticos, garantizando la seguridad a largo plazo. " \
             "La aplicación utiliza estándares avanzados como Dilithium y SPHINCS+. "
             "Para crear un certificado selecciona una clave de entidad existente o genera una nueva. "
         )
         introduction_label.pack(pady=10, padx=(50, 0))
 
-        btn = create_button(root, "Generar nuevas claves", lambda: self.vista_generacion_claves(), 220)
+        btn = create_button(vista, "Generar nuevas claves", lambda: self.vista_generacion_claves(), 220)
         btn.pack(pady=12, padx=(60, 0), anchor="w")
         
-        lista_frame = create_key_list(self.root)
+        lista_frame = create_key_list(vista, BASE_DIR)
         lista_frame.pack(padx=10, pady=10) 
 
         #txtField = create_text_field_with_title(root, "Vuelva a escribir la contarseña:", "Escriba la contraseña")
@@ -56,12 +59,8 @@ class CertificadoDigitalApp:
         try:
             from backend.funcEntGen import generar_claves_entidad, verificar_campos_generacion_claves
 
-            # Crear ventana para recoger datos de la nueva clave
-            key_window = tk.Toplevel(self.root)
-            key_window.title("Generar Nuevas Claves de Entidad")
-            key_window.geometry("450x350")  # Aumentado para acomodar más campos
-            key_window.transient(self.root)
-            key_window.grab_set()
+            vista = crear_vista_nueva(self.root)
+
 
             # Variables
             titulo_var = tk.StringVar()
@@ -81,17 +80,17 @@ class CertificadoDigitalApp:
             fecha_cad_var.set(fecha_cad.strftime("%d/%m/%Y"))
 
             # Crear formulario
-            tk.Label(key_window, text="Datos de la Nueva Clave de Entidad", 
+            tk.Label(vista, text="Datos de la Nueva Clave de Entidad", 
                     font=("Arial", 14, "bold")).pack(pady=10)
 
             # Título/Entidad
-            frame_titulo = tk.Frame(key_window)
+            frame_titulo = tk.Frame(vista)
             frame_titulo.pack(fill=tk.X, padx=20, pady=5)
             tk.Label(frame_titulo, text="Nombre de Entidad:", width=15, anchor="w").pack(side=tk.LEFT)
             tk.Entry(frame_titulo, textvariable=titulo_var, width=30).pack(side=tk.LEFT, padx=5)
 
             # Algoritmo
-            frame_algoritmo = tk.Frame(key_window)
+            frame_algoritmo = tk.Frame(vista)
             frame_algoritmo.pack(fill=tk.X, padx=20, pady=5)
             tk.Label(frame_algoritmo, text="Algoritmo:", width=15, anchor="w").pack(side=tk.LEFT)
             tk.Radiobutton(frame_algoritmo, text="SPHINCS", variable=algoritmo_var, 
@@ -100,14 +99,14 @@ class CertificadoDigitalApp:
                         value="dilithium").pack(side=tk.LEFT)
 
             # Fecha de inicio de validez
-            frame_fecha_ini = tk.Frame(key_window)
+            frame_fecha_ini = tk.Frame(vista)
             frame_fecha_ini.pack(fill=tk.X, padx=20, pady=5)
             tk.Label(frame_fecha_ini, text="Fecha de inicio:", width=15, anchor="w").pack(side=tk.LEFT)
             tk.Entry(frame_fecha_ini, textvariable=fecha_ini_var, width=15).pack(side=tk.LEFT, padx=5)
             tk.Label(frame_fecha_ini, text="(DD/MM/AAAA)").pack(side=tk.LEFT)
             
             # Fecha de caducidad
-            frame_fecha_cad = tk.Frame(key_window)
+            frame_fecha_cad = tk.Frame(vista)
             frame_fecha_cad.pack(fill=tk.X, padx=20, pady=5)
             tk.Label(frame_fecha_cad, text="Fecha caducidad:", width=15, anchor="w").pack(side=tk.LEFT)
             tk.Entry(frame_fecha_cad, textvariable=fecha_cad_var, width=15).pack(side=tk.LEFT, padx=5)
@@ -147,25 +146,25 @@ class CertificadoDigitalApp:
                                     f"Válida desde: {fecha_expedicion}\n"
                                     f"Válida hasta: {fecha_caducidad}")
                     
-                    key_window.destroy()
+                    vista.destroy()
                     
                 except Exception as e:
                     messagebox.showerror("Error", f"Error al generar claves: {str(e)}")
                     log_message("entGenApp.log",f"Error al generar claves: {str(e)}")
 
             # Botones
-            frame_botones = tk.Frame(key_window)
+            frame_botones = tk.Frame(vista)
             frame_botones.pack(pady=20)
             tk.Button(frame_botones, text="Generar y Guardar", command=generate_and_save,
                     bg="#4CAF50", fg="white", width=20).pack(side=tk.LEFT, padx=5)
-            tk.Button(frame_botones, text="Cancelar", command=key_window.destroy,
+            tk.Button(frame_botones, text="Cancelar", command=vista.destroy,
                     bg="#f44336", fg="white", width=10).pack(side=tk.LEFT, padx=5)
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error al abrir ventana de generación de claves: {str(e)}")
             log_message("entGenApp.log",f"Error al abrir ventana de generación de claves: {str(e)}")
 
-    def generate_certificate(self):
+    def vista_crear_certificado(self):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
             from backend.funcEntGen import cargar_claves_entidad
@@ -379,82 +378,11 @@ class CertificadoDigitalApp:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")            
 
-    def mostrar_detalles_clave(self, pk, titulo, algoritmo, caducada=False):
-        """
-        Muestra los detalles de la clave seleccionada en la interfaz principal
-        """
+    def vista_resultado_certificado(self, resultado):
+        """Muestra el resultado de la generación del certificado."""
+        # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
-        
-        # Título y estado
-        estado_text = " (CADUCADA)" if caducada else ""
-        titulo_label = ctk.CTkLabel(
-            vista, 
-            text=f"{titulo}{estado_text}", 
-            font=("Segoe UI", 18, "bold"),
-            text_color="#111111" if not caducada else "#CB1616"
-        )
-        titulo_label.pack(pady=(10, 5))
-        
-        # Algoritmo
-        alg_label = ctk.CTkLabel(
-            vista, 
-            text=f"Algoritmo: {algoritmo}", 
-            font=("Segoe UI", 14),
-            text_color="#444444"
-        )
-        alg_label.pack(pady=(0, 20))
-        
-        # Clave pública en un frame con scroll
-        pk_frame = ctk.CTkScrollableFrame(
-            vista, 
-            fg_color="#FFFFFF",
-            corner_radius=10,
-            height=120
-        )
-        pk_frame.pack(fill="x", padx=20, pady=10)
-        
-        # Etiqueta para la clave
-        pk_header = ctk.CTkLabel(
-            pk_frame,
-            text="Clave Pública:",
-            font=("Segoe UI", 14, "bold"),
-            text_color="#111111"
-        )
-        pk_header.pack(padx=10, pady=(10, 5), anchor="w")
-        
-        # Texto de la clave con formato legible
-        pk_text = ctk.CTkLabel(
-            pk_frame,
-            text=pk,
-            font=("Courier New", 12),
-            text_color="#333333",
-            wraplength=440,
-            justify="left"
-        )
-        pk_text.pack(padx=10, pady=(0, 10), anchor="w")
-        
-        # Botones
-        btn_frame = ctk.CTkFrame(vista, fg_color="transparent")
-        btn_frame.pack(pady=20)
-        
-        # Botón copiar
-        copiar_btn = create_button(btn_frame, "Copiar Clave", lambda: self._copiar_al_portapapeles(self.root, pk, vista))
-        copiar_btn.pack(side="left", padx=10)
 
-    def _copiar_al_portapapeles(self, window, text, parent_frame):
-        """Copia texto al portapapeles y muestra confirmación"""
-        window.clipboard_clear()
-        window.clipboard_append(text)
-        
-        # Mostrar confirmación temporal
-        confirm = ctk.CTkLabel(
-            parent_frame,
-            text="¡Clave copiada al portapapeles!",
-            font=("Segoe UI", 12),
-            text_color="#4CAF50"
-        )
-        confirm.pack(pady=5)
-        window.after(2000, confirm.destroy)
 
 if __name__ == "__main__":
     root = tk.Tk()
