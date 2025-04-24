@@ -50,8 +50,6 @@ class CertificadoDigitalApp:
         lista_frame = create_key_list(vista, BASE_DIR)
         lista_frame.pack(padx=10, pady=10) 
 
-        #txtField = create_text_field_with_title(root, "Vuelva a escribir la contarseña:", "Escriba la contraseña")
-
         #dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
 
     def vista_generacion_claves(self):
@@ -61,62 +59,44 @@ class CertificadoDigitalApp:
 
             vista = crear_vista_nueva(self.root)
 
+            vista_label = tk.Label(vista, text="Generar un par de claves", bg="#F5F5F5",
+                    font=("Inter", 18)).pack(pady= 40)
 
-            # Variables
-            titulo_var = tk.StringVar()
-            algoritmo_var = tk.StringVar(value="sphincs")
-            
-            # Variables para las fechas
-            fecha_ini_var = tk.StringVar()
-            fecha_cad_var = tk.StringVar()
+            datos_frame = ctk.CTkFrame(vista, fg_color="transparent")
+            datos_frame.pack(fill="x",padx=40)
+
+            tiutlo_field = create_text_field_with_title(datos_frame, "Establezca un título representativo para las claves:", "Escriba el título")
+
+            # Crear un frame para las fechas
+            fechas_frame = ctk.CTkFrame(datos_frame, fg_color="transparent")
+            fechas_frame.pack(fill="x", pady=30)
+
+            # Crear subframes para cada campo
+            fecha_exp_container = ctk.CTkFrame(fechas_frame, fg_color="transparent")
+            fecha_exp_container.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+            fecha_cad_container = ctk.CTkFrame(fechas_frame, fg_color="transparent")
+            fecha_cad_container.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+            fecha_exp_field = create_text_field_with_title(fecha_exp_container, "Fecha de inicio:", "dd/mm/aaaa", 300)
+            fecha_cad_field = create_text_field_with_title(fecha_cad_container, "Fecha de caducidad:", "dd/mm/aaaa", 300)
+
+            algoritmo_drop = create_dropdown_with_text(datos_frame, "Seleccione el algoritmo de generación de claves:", ["SPHINCS", "DILITHIUM"], "Seleccione algoritmo" )
             
             # Establecer fecha por defecto como hoy en formato DD/MM/AAAA
             import datetime
             hoy = datetime.date.today()
-            fecha_ini_var.set(hoy.strftime("%d/%m/%Y"))
+            fecha_exp_field.insert(0, hoy.strftime("%d/%m/%Y"))
             
             # Fecha de caducidad por defecto a 2 años
             fecha_cad = hoy + datetime.timedelta(days=2*365)
-            fecha_cad_var.set(fecha_cad.strftime("%d/%m/%Y"))
-
-            # Crear formulario
-            tk.Label(vista, text="Datos de la Nueva Clave de Entidad", 
-                    font=("Arial", 14, "bold")).pack(pady=10)
-
-            # Título/Entidad
-            frame_titulo = tk.Frame(vista)
-            frame_titulo.pack(fill=tk.X, padx=20, pady=5)
-            tk.Label(frame_titulo, text="Nombre de Entidad:", width=15, anchor="w").pack(side=tk.LEFT)
-            tk.Entry(frame_titulo, textvariable=titulo_var, width=30).pack(side=tk.LEFT, padx=5)
-
-            # Algoritmo
-            frame_algoritmo = tk.Frame(vista)
-            frame_algoritmo.pack(fill=tk.X, padx=20, pady=5)
-            tk.Label(frame_algoritmo, text="Algoritmo:", width=15, anchor="w").pack(side=tk.LEFT)
-            tk.Radiobutton(frame_algoritmo, text="SPHINCS", variable=algoritmo_var, 
-                        value="sphincs").pack(side=tk.LEFT)
-            tk.Radiobutton(frame_algoritmo, text="Dilithium", variable=algoritmo_var, 
-                        value="dilithium").pack(side=tk.LEFT)
-
-            # Fecha de inicio de validez
-            frame_fecha_ini = tk.Frame(vista)
-            frame_fecha_ini.pack(fill=tk.X, padx=20, pady=5)
-            tk.Label(frame_fecha_ini, text="Fecha de inicio:", width=15, anchor="w").pack(side=tk.LEFT)
-            tk.Entry(frame_fecha_ini, textvariable=fecha_ini_var, width=15).pack(side=tk.LEFT, padx=5)
-            tk.Label(frame_fecha_ini, text="(DD/MM/AAAA)").pack(side=tk.LEFT)
-            
-            # Fecha de caducidad
-            frame_fecha_cad = tk.Frame(vista)
-            frame_fecha_cad.pack(fill=tk.X, padx=20, pady=5)
-            tk.Label(frame_fecha_cad, text="Fecha caducidad:", width=15, anchor="w").pack(side=tk.LEFT)
-            tk.Entry(frame_fecha_cad, textvariable=fecha_cad_var, width=15).pack(side=tk.LEFT, padx=5)
-            tk.Label(frame_fecha_cad, text="(DD/MM/AAAA)").pack(side=tk.LEFT)
+            fecha_cad_field.insert(0, fecha_cad.strftime("%d/%m/%Y"))
 
             def generate_and_save():
-                titulo = titulo_var.get().strip()
-                algoritmo = algoritmo_var.get()
-                fecha_ini_str = fecha_ini_var.get().strip()
-                fecha_cad_str = fecha_cad_var.get().strip()
+                titulo = tiutlo_field.get().strip()
+                algoritmo = algoritmo_drop.get()
+                fecha_ini_str = fecha_exp_field.get().strip()
+                fecha_cad_str = fecha_cad_field.get().strip()
 
                 # Verificar campos usando la nueva función
                 mensaje, fecha_expedicion, fecha_caducidad = verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str)
@@ -146,19 +126,20 @@ class CertificadoDigitalApp:
                                     f"Válida desde: {fecha_expedicion}\n"
                                     f"Válida hasta: {fecha_caducidad}")
                     
-                    vista.destroy()
+                    self.vista_inicial()
                     
                 except Exception as e:
                     messagebox.showerror("Error", f"Error al generar claves: {str(e)}")
                     log_message("entGenApp.log",f"Error al generar claves: {str(e)}")
 
-            # Botones
-            frame_botones = tk.Frame(vista)
-            frame_botones.pack(pady=20)
-            tk.Button(frame_botones, text="Generar y Guardar", command=generate_and_save,
-                    bg="#4CAF50", fg="white", width=20).pack(side=tk.LEFT, padx=5)
-            tk.Button(frame_botones, text="Cancelar", command=vista.destroy,
-                    bg="#f44336", fg="white", width=10).pack(side=tk.LEFT, padx=5)
+            botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
+            botones_frame.pack(padx=20, pady=10, expand=True)
+
+            volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial())
+            volver_btn.pack(side="left", padx=(0, 250))
+
+            guardar_btn = create_button(botones_frame, "Generar", lambda: generate_and_save())
+            guardar_btn.pack(side="left")
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error al abrir ventana de generación de claves: {str(e)}")
