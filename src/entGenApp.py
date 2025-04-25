@@ -7,7 +7,7 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, key_data_list, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, key_data_list, resize_algoritmo_image_proportionally, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
 from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
@@ -191,17 +191,9 @@ class CertificadoDigitalApp:
                 base_dir=BASE_DIR,
                 row_count=0,
                 clave=selected_key,
-                es_clicable=False
+                es_clicable=False,
+                separador=False
                 )
-            
-            for widget in padding_frame.winfo_children():
-                if isinstance(widget, tk.Frame) and widget.winfo_height() == 1:
-                    # Verificar si el widget usa grid y tiene información de fila
-                    grid_info = widget.grid_info()
-                    if grid_info and 'row' in grid_info:
-                        if int(grid_info["row"]) == 1:
-                            widget.destroy()
-                            break
 
             datos_personales_frame = ctk.CTkFrame(datos_frame, fg_color="transparent")
             datos_personales_frame.pack(fill="x")
@@ -274,10 +266,10 @@ class CertificadoDigitalApp:
                     messagebox.showinfo("Éxito", 
                                     f"Certificados generados con {selected_key['algoritmo']} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
 
-                    self.vista_resultado_certificado(certificado=selected_key)
+                    self.vista_resultado_certificado(certificado_path=cert_auth_path)
                 except Exception as e:                
                     log_message("entGenApp.log", f"Error generando certificados: {str(e)}")
-                    self.vista_resultado_certificado(False)
+                    #self.vista_resultado_certificado(False)
 
             botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
             botones_frame.pack(padx=20, pady=10, expand=True)
@@ -292,28 +284,35 @@ class CertificadoDigitalApp:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")            
 
-    def vista_resultado_certificado(self, certificado = None, error = None):
+    def vista_resultado_certificado(self, certificado_path = None, error = None):
         """Muestra el resultado de la generación del certificado."""
         # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
 
-        datos_certificado = [
-            ("Titular", certificado.get('titulo', "No disponible")),
-            ("DNI", certificado.get('dni', "No disponible")),
-            ("Fecha Expedición", certificado.get('fecha_expedicion', "No disponible")),
-            ("Fecha Caducidad", certificado.get('fecha_caducidad', "No disponible")),
-            ("Algoritmo firma", certificado.get('algoritmo', "No disponible")),
-            ("Algoritmo hash firma", "SHA256"),
-            ("Entidad certificadora", "SafeInQ"),
-            ("Clave Pública Usuario", certificado.get('pk', "No disponible"))
-        ]
-        
+        img = resize_image_proportionally(BASE_DIR, "tick", 100)
 
-        frame = key_data_list(vista, datos_certificado)
-        frame.pack()
+        resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  # Fondo blanco grisáceo
+        resultado_frame.pack(padx=20, pady=20, fill="x")
+
+        # Imagen del check
+        label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
+        label_imagen.grid(row=0, column=0, padx=(10, 10), pady=10, sticky="w")
+
+        # Texto del mensaje
+        label_texto = ctk.CTkLabel(
+            resultado_frame,
+            text="El certificado se ha generado correctamente",
+            font=("Segoe UI", 27),
+            text_color="#000000",
+            bg_color="#f5f5f5"
+        )
+        label_texto.grid(row=0, column=1, padx=(5, 10), pady=10, sticky="w")
+
+        datos_list = key_data_list(vista, certificado_path, BASE_DIR)
+        datos_list.pack()
 
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial())
-        volver_btn.pack()
+        volver_btn.pack(pady=20)
 
 
 if __name__ == "__main__":

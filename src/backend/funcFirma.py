@@ -450,20 +450,6 @@ def buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir):
         log_message("firmaApp.log", f"Error al cargar archivo de claves públicas: {e}")
         return None
 
-def format_iso_display(iso_date_str):
-    """
-    Convierte una fecha ISO a formato legible por humanos (DD/MM/YYYY HH:MM:SS).
-    """
-    try:          
-        fecha_obj = datetime.fromisoformat(iso_date_str)
-        # Verificar si la hora es 00:00:00 (medianoche)
-        if fecha_obj.hour == 0 and fecha_obj.minute == 0 and fecha_obj.second == 0:
-            return fecha_obj.strftime("%d/%m/%Y")  # Solo fecha
-        else:
-            return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")  # Fecha y hora    
-    except (ValueError, TypeError):
-        return iso_date_str
-
 def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
     """Añade la firma y el certificado de autenticación a los metadatos del PDF preservando firmas anteriores."""
     try:

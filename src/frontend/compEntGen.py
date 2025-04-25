@@ -102,7 +102,7 @@ def create_key_list(parent, base_dir):
         
     return contenedor_principal
 
-def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True):
+def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True, separador=True):
     """
     Añade una fila con información de clave al frame scrollable
     """
@@ -118,7 +118,8 @@ def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, e
         row_count=row_count,
         column_sizes=column_sizes,
         click_callback=(lambda event=None: APP_INSTANCE.vista_crear_certificado(clave)) if es_clicable else None,
-        is_disabled=es_caducada
+        is_disabled=es_caducada,
+        separator=separador
     )
     
     # Fechas de validez
@@ -202,7 +203,7 @@ def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, e
     
     # Evento específico para el enlace de la clave pública
     def on_pk_click(event=None):
-        from backend.funcFirma import format_iso_display
+        from backend.funcComunes import format_iso_display
         from frontend.compComunes import vista_mostrar_pk
         log_message("entGenApp.log", f"Clic en clave pública detectado. APP_INSTANCE={APP_INSTANCE}")
         

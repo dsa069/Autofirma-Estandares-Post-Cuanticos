@@ -1,6 +1,6 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
-from backend.funcComunes import log_message
+from backend.funcComunes import log_message, format_iso_display
 
 # Variable global para mantener referencias a las imágenes
 LOGO_IMAGES = {}  # Mover a nivel global
@@ -68,7 +68,7 @@ def vista_mostrar_pk(parent, base_dir, volver_a, pk, titulo, algoritmo, fecha):
     cabecera_certificado = tk.Frame(vista, bg="#F5F5F5")
     cabecera_certificado.pack(fill="x", padx=(40, 0), pady=(40, 30))
 
-    algoritmo_img = resize_image_proportionally(base_dir, algoritmo, desired_height=75)
+    algoritmo_img = resize_algoritmo_image_proportionally(base_dir, algoritmo, desired_height=75)
 
     image_label = tk.Label(cabecera_certificado, image=algoritmo_img, bg="#F5F5F5")
     image_label.image = algoritmo_img
@@ -202,7 +202,7 @@ def create_button(parent, text, command=None, width=110):
     
     return container
 
-def create_text_field_with_title(parent, text, placeholder="", width=450, password=False):
+def create_text_field_with_title(parent, text, placeholder="", width=450):
     contenedor = ctk.CTkFrame(parent, fg_color="transparent")
     contenedor.pack(anchor="w", pady=(10, 10))  # Alineado a la izquierda
 
@@ -255,7 +255,34 @@ def setup_list_headers(header_frame, headers, column_sizes):
         )
         label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
 
-def resize_image_proportionally(base_dir, algoritmo, desired_height=75):
+def resize_image_proportionally(base_dir, nombre, desired_height=75):
+    """
+    Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones, devolviendo CTkImage.
+    """
+    from PIL import Image  # NO NECESITAS ImageTk
+    from customtkinter import CTkImage
+    import os
+
+    image_path = os.path.join(base_dir, "img", f"{nombre}.png")
+
+    # Cargar imagen original
+    original_img = Image.open(image_path)
+
+    # Obtener dimensiones originales
+    original_width, original_height = original_img.size
+
+    # Calcular ancho proporcionalmente
+    aspect_ratio = original_width / original_height
+    desired_width = int(desired_height * aspect_ratio)
+
+    # Redimensionar manteniendo las proporciones
+    resized_img = original_img.resize((desired_width, desired_height), Image.LANCZOS)
+
+    # Convertir a CTkImage para usar en CustomTkinter
+    return CTkImage(light_image=resized_img, dark_image=resized_img, size=(desired_width, desired_height))
+
+
+def resize_algoritmo_image_proportionally(base_dir, algoritmo, desired_height=75):
     """
     Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones.
     """
@@ -310,7 +337,7 @@ def cargar_logos_algoritmos():
         except Exception as e:
             log_message("entGenApp.log", f"Error al cargar logos: {e}")
 
-def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None, max_visible_items=1):
+def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None, max_visible_items=1, separator=True, custom_header_function=None):
     """
     Crea un esqueleto básico para cualquier lista con estilo consistente.
     
@@ -359,8 +386,11 @@ def create_base_list(parent, height=270, empty_message=None, process_data_functi
     )
     contenedor_principal.pack_propagate(False)  # Mantener tamaño fijo
     
-    # Configurar encabezados si se proporcionan
-    if headers and column_sizes:
+    if custom_header_function:
+        header_frame = custom_header_function(contenedor_principal)
+        linea_divisora = tk.Frame(contenedor_principal, height=1, bg="#CCCCCC")
+        linea_divisora.pack(fill="x", padx=15, pady=(2, 0))
+    elif headers and column_sizes:
         # Frame para encabezados (no scrollable)
         header_frame = ctk.CTkFrame(contenedor_principal, fg_color="#FFFFFF", corner_radius=0)
         header_frame.pack(fill="x", padx=10, pady=(10, 0))
@@ -392,9 +422,9 @@ def create_base_list(parent, height=270, empty_message=None, process_data_functi
         row_count = process_data_function(lista_frame, data)
     
     # Condicionales para gestionar el separador y mensaje vacío
-    if row_count > 0:
+    if row_count > 0 and separator:
         eliminar_ultimo_separador(lista_frame, row_count)
-    elif empty_message:
+    if row_count < 1 and empty_message:
         mostrar_mensaje_vacio(lista_frame, empty_message)
     
     # Modificar el scrollbar si hay pocos elementos
@@ -433,7 +463,7 @@ def create_pk_list(parent, pk):
         
     return contenedor_principal
 
-def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback=None, is_disabled=False):
+def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback=None, is_disabled=False, separator=True):
     """
     Crea una fila base con estructura consistente para cualquier lista.
     
@@ -496,12 +526,13 @@ def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback
         # Vincular después de que se hayan creado los widgets hijos
         fila_container.bind("<Map>", bind_to_children)
     
-    # Añadir línea divisoria después del elemento
-    linea_divisora = tk.Frame(lista_frame, height=1, bg="#DDDDDD")
-    linea_divisora.grid(row=row_count+1, column=0, columnspan=column_count, 
-                       sticky="ew", padx=25, pady=2)
+    if separator:
+        # Añadir línea divisoria después del elemento
+        linea_divisora = tk.Frame(lista_frame, height=1, bg="#DDDDDD")
+        linea_divisora.grid(row=row_count+1, column=0, columnspan=column_count, 
+                        sticky="ew", padx=25, pady=2)
     
-    return fila_container, row_count + 2, LOGO_IMAGES  # +2 para la fila y la línea
+    return fila_container, row_count +  (2 if separator else 1), LOGO_IMAGES  # +2 para la fila y la línea
 
 def create_pk_row(lista_frame, row_count, clave):
     """
@@ -588,34 +619,93 @@ def create_pk_row(lista_frame, row_count, clave):
 
     return next_row
 
-def key_data_list(parent, key_data):
+def key_data_list(parent, certificado_path, base_dir):
     """
     Crea una lista visual para mostrar datos de un certificado (titular, dni, etc.).
     """
     from frontend.compComunes import create_base_list
+    import json
+    # Leer el archivo JSON
+    with open(certificado_path, 'r') as f:
+        cert_data = json.load(f)
+    
+    key_data = [
+        ("Titular", cert_data.get('nombre')),
+        ("DNI", cert_data.get('dni')),
+        ("Fecha Expedición", cert_data.get('fecha_expedicion')),
+        ("Fecha Caducidad", cert_data.get('fecha_caducidad')),
+        ("Algoritmo firma", cert_data.get('algoritmo').upper()),
+        ("Algoritmo hash firma", "SHA256"),
+        ("Entidad certificadora", "SafeInQ"),
+        ("Clave Pública Usuario", cert_data.get('user_public_key')[:30] + "...")
+    ]
+
+    # Define callback for public key row
+    def on_pk_click(event=None):
+        from frontend.compComunes import vista_mostrar_pk
+        log_message("entGenApp.log", "Clic en clave pública de certificado")
+        
+        if APP_INSTANCE:
+            # Get the full public key and display it in a new view
+            vista_mostrar_pk(
+                parent=APP_INSTANCE.root,
+                base_dir=base_dir,
+                volver_a=lambda: APP_INSTANCE.vista_resultado_certificado(certificado_path),
+                pk=cert_data.get('user_public_key'), 
+                titulo=f"{cert_data.get("nombre")} - {cert_data.get("dni")}",
+                algoritmo=cert_data.get('algoritmo').lower(),
+                fecha=f"{format_iso_display(cert_data.get('fecha_expedicion'))} hasta {format_iso_display(cert_data.get('fecha_caducidad'))}",
+            )
+        return "break"
 
     def procesar_key_data(lista_frame, datos):
         row_count = 0
         for titulo, valor in datos:
-            row_count = key_data_row(lista_frame, row_count, titulo, valor)
+            # Check if this is the public key row
+            if titulo == "Clave Pública Usuario":
+                row_count = key_data_row(lista_frame, row_count, titulo, valor, on_pk_click)
+            else:
+                row_count = key_data_row(lista_frame, row_count, titulo, valor)
         return row_count
 
-    # Ajuste: si hay muchos datos, permitir más ítems visibles
-    max_items = 4 if len(key_data) > 6 else 2
+    # Crear header personalizado con imagen
+    def custom_header(parent_frame):
+        header_frame = ctk.CTkFrame(parent_frame, fg_color="transparent", corner_radius=0)
+        header_frame.pack(pady=10, padx = (10,0), anchor="w")
+        
+        # Create the image only once
+        algorithm_image = resize_algoritmo_image_proportionally(base_dir, cert_data.get('algoritmo').lower(), 40)
+        
+        # Use the same image reference
+        img_label = tk.Label(header_frame, image=algorithm_image, bg="white")
+        img_label.image = algorithm_image  # Keep a reference to prevent garbage collection
+        img_label.pack(side="left", padx=20)
+        
+        text_label = ctk.CTkLabel(
+            header_frame, 
+            text=f'{cert_data.get("nombre")} - {cert_data.get("dni")}',
+            font=("Inter", 17), 
+            text_color="#111111"
+        )
+        text_label.pack(side="left", pady= (10, 0))
+        
+        return header_frame
 
     contenedor_principal = create_base_list(
         parent,
-        height=360,
+        height=344,
         empty_message="Datos de certificado no disponibles",
         process_data_function=procesar_key_data,
         data=key_data,
         column_sizes=[200, 400],  # Tamaño para título y valor
-        max_visible_items=max_items
+        max_visible_items=10,
+        separator=False,
+        custom_header_function=custom_header
     )
 
     return contenedor_principal
 
-def key_data_row(lista_frame, row_count, titulo, valor):
+def key_data_row(lista_frame, row_count, titulo, valor, callback=None):
     """
     Crea una fila visual con título y valor para la lista de datos de un certificado.
     """
@@ -625,27 +715,30 @@ def key_data_row(lista_frame, row_count, titulo, valor):
     fila_container, next_row, _ = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
-        column_sizes=[200, 400]  # Primera columna para título, segunda para valor
+        column_sizes=[200, 400] ,
+        separator=False,
+        click_callback=callback
     )
 
     # Etiqueta de título
     titulo_label = ctk.CTkLabel(
         fila_container,
         text=titulo,
-        text_color="#666666",
-        font=("Segoe UI", 13, "bold"),
+        text_color="#111111",
+        font=("Inter", 16),
         anchor="w"
     )
-    titulo_label.grid(row=0, column=0, padx=10, pady=8, sticky="w")
+    titulo_label.grid(row=0, column=0, padx=(30, 0), pady=0, sticky="w")
 
     # Etiqueta de valor
     valor_label = ctk.CTkLabel(
         fila_container,
         text=valor,
-        text_color="#111111",
-        font=("Segoe UI", 13),
-        anchor="w"
+        text_color="#1a73e8" if callback else "#555555",
+        font=("Inter", 16, "underline") if callback else ("Inter", 16),
+        anchor="center",
+        cursor="hand2" if callback else ""
     )
-    valor_label.grid(row=0, column=1, padx=10, pady=8, sticky="w")
+    valor_label.grid(row=0, column=1, pady=0, sticky="ew")
 
     return next_row

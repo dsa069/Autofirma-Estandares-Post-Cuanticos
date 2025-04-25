@@ -18,6 +18,21 @@ def init_paths():
     
     return BASE_DIR
 
+def format_iso_display(iso_date_str):
+    """
+    Convierte una fecha ISO a formato legible por humanos (DD/MM/YYYY HH:MM:SS).
+    """
+    from datetime import datetime
+    try:          
+        fecha_obj = datetime.fromisoformat(iso_date_str)
+        # Verificar si la hora es 00:00:00 (medianoche)
+        if fecha_obj.hour == 0 and fecha_obj.minute == 0 and fecha_obj.second == 0:
+            return fecha_obj.strftime("%d/%m/%Y")  # Solo fecha
+        else:
+            return fecha_obj.strftime("%d/%m/%Y %H:%M:%S")  # Fecha y hora    
+    except (ValueError, TypeError):
+        return iso_date_str
+
 def log_message(log_file_name, message):
     """
     Registra un mensaje en un archivo de log en la carpeta 'logs'.

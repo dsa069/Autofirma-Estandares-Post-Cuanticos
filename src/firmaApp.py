@@ -456,7 +456,9 @@ class AutoFirmaApp:
 
     def verify_signatures(self, file_path, firmas, hash_documento_actual):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
-        from backend.funcFirma import determinar_estilo_firmas_validiadas, format_iso_display, verificar_firmas_cascada
+        from backend.funcFirma import determinar_estilo_firmas_validiadas, verificar_firmas_cascada
+        from backend.funcComunes import format_iso_display
+        
         # Crear ventana de resultados
         results_window = tk.Toplevel(self.root)
         results_window.title(f"Verificación de firmas: {os.path.basename(file_path)}")
