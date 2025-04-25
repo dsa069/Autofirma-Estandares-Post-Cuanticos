@@ -202,7 +202,7 @@ def create_button(parent, text, command=None, width=110):
     
     return container
 
-def create_text_field_with_title(parent, text, placeholder="", width=450):
+def create_text_field_with_title(parent, text, placeholder="", width=450, password=False):
     contenedor = ctk.CTkFrame(parent, fg_color="transparent")
     contenedor.pack(anchor="w", pady=(10, 10))  # Alineado a la izquierda
 
@@ -585,5 +585,67 @@ def create_pk_row(lista_frame, row_count, clave):
         
         # Ocultar después de 2 segundos
         window.after(1500, parent_container.message_frame.grid_remove)
+
+    return next_row
+
+def key_data_list(parent, key_data):
+    """
+    Crea una lista visual para mostrar datos de un certificado (titular, dni, etc.).
+    """
+    from frontend.compComunes import create_base_list
+
+    def procesar_key_data(lista_frame, datos):
+        row_count = 0
+        for titulo, valor in datos:
+            row_count = key_data_row(lista_frame, row_count, titulo, valor)
+        return row_count
+
+    # Ajuste: si hay muchos datos, permitir más ítems visibles
+    max_items = 4 if len(key_data) > 6 else 2
+
+    contenedor_principal = create_base_list(
+        parent,
+        height=360,
+        empty_message="Datos de certificado no disponibles",
+        process_data_function=procesar_key_data,
+        data=key_data,
+        column_sizes=[200, 400],  # Tamaño para título y valor
+        max_visible_items=max_items
+    )
+
+    return contenedor_principal
+
+def key_data_row(lista_frame, row_count, titulo, valor):
+    """
+    Crea una fila visual con título y valor para la lista de datos de un certificado.
+    """
+    from frontend.compComunes import create_base_row
+
+    # Crear la fila base
+    fila_container, next_row, _ = create_base_row(
+        lista_frame=lista_frame,
+        row_count=row_count,
+        column_sizes=[200, 400]  # Primera columna para título, segunda para valor
+    )
+
+    # Etiqueta de título
+    titulo_label = ctk.CTkLabel(
+        fila_container,
+        text=titulo,
+        text_color="#666666",
+        font=("Segoe UI", 13, "bold"),
+        anchor="w"
+    )
+    titulo_label.grid(row=0, column=0, padx=10, pady=8, sticky="w")
+
+    # Etiqueta de valor
+    valor_label = ctk.CTkLabel(
+        fila_container,
+        text=valor,
+        text_color="#111111",
+        font=("Segoe UI", 13),
+        anchor="w"
+    )
+    valor_label.grid(row=0, column=1, padx=10, pady=8, sticky="w")
 
     return next_row

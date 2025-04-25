@@ -7,7 +7,7 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, key_data_list, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
 from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
@@ -233,10 +233,12 @@ class CertificadoDigitalApp:
             requisitos_label.pack(anchor="w", padx=(20, 0), pady = (0,5))
 
             password_field = create_text_field(password_container, "Escriba la contraseña")
+            password_field.configure(show="*")
             password_field.pack(anchor="w")
 
             pass_confirm_field = create_text_field_with_title(datos_frame, "Confirmar contraseña:", "Escriba la contraseña de nuevo")
-            
+            pass_confirm_field.configure(show="*")
+
             def generate_and_save_certificado():
                 nombre = titular_field.get().strip()
                 dni = dni_field.get().upper().strip().replace(" ", "").replace("-", "")
@@ -272,7 +274,7 @@ class CertificadoDigitalApp:
                     messagebox.showinfo("Éxito", 
                                     f"Certificados generados con {selected_key['algoritmo']} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
 
-                    self.vista_resultado_certificado(True)
+                    self.vista_resultado_certificado(certificado=selected_key)
                 except Exception as e:                
                     log_message("entGenApp.log", f"Error generando certificados: {str(e)}")
                     self.vista_resultado_certificado(False)
@@ -290,10 +292,28 @@ class CertificadoDigitalApp:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")            
 
-    def vista_resultado_certificado(self, resultado):
+    def vista_resultado_certificado(self, certificado = None, error = None):
         """Muestra el resultado de la generación del certificado."""
         # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
+
+        datos_certificado = [
+            ("Titular", certificado.get('titulo', "No disponible")),
+            ("DNI", certificado.get('dni', "No disponible")),
+            ("Fecha Expedición", certificado.get('fecha_expedicion', "No disponible")),
+            ("Fecha Caducidad", certificado.get('fecha_caducidad', "No disponible")),
+            ("Algoritmo firma", certificado.get('algoritmo', "No disponible")),
+            ("Algoritmo hash firma", "SHA256"),
+            ("Entidad certificadora", "SafeInQ"),
+            ("Clave Pública Usuario", certificado.get('pk', "No disponible"))
+        ]
+        
+
+        frame = key_data_list(vista, datos_certificado)
+        frame.pack()
+
+        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial())
+        volver_btn.pack()
 
 
 if __name__ == "__main__":
