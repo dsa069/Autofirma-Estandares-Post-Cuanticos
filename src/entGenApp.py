@@ -192,7 +192,8 @@ class CertificadoDigitalApp:
                 row_count=0,
                 clave=selected_key,
                 es_clicable=False,
-                separador=False
+                separador=False,
+                pk_callback_volver_a= lambda: self.vista_crear_certificado(selected_key),
                 )
 
             datos_personales_frame = ctk.CTkFrame(datos_frame, fg_color="transparent")

@@ -81,7 +81,7 @@ def create_key_list(parent, base_dir):
     def procesar_claves(lista_frame, datos):
         row_count = 0
         for algoritmo, clave, es_caducada, es_futura in datos:
-            row_count = create_key_row(lista_frame, base_dir, row_count, clave, es_caducada, es_futura)
+            row_count = create_key_row(lista_frame, base_dir, row_count, clave, es_caducada, es_futura, pk_callback_volver_a= lambda: APP_INSTANCE.vista_inicial())
         return row_count
     
     # Definir encabezados específicos para claves
@@ -102,10 +102,11 @@ def create_key_list(parent, base_dir):
         
     return contenedor_principal
 
-def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True, separador=True):
+def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True, separador=True, pk_callback_volver_a = None ):
     """
     Añade una fila con información de clave al frame scrollable
     """
+
     algoritmo = clave.get("algoritmo")
     log_message("entGenApp.log", f"Creando fila para clave: {clave.get('titulo')} ({algoritmo})")
     from frontend.compComunes import create_base_row
@@ -217,7 +218,7 @@ def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, e
         vista_mostrar_pk(
             parent=APP_INSTANCE.root,
             base_dir=base_dir,
-            volver_a=APP_INSTANCE.vista_inicial,
+            volver_a= pk_callback_volver_a,
             pk=clave_publica, 
             titulo=clave["titulo"], 
             algoritmo=algoritmo,
