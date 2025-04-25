@@ -449,10 +449,11 @@ def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback
     """
     # Color de fondo según el estado
     color_fondo = "#F5F5F5" if is_disabled else "#FFFFFF"
+    radio_esquinas = 0 if is_disabled else 25
     column_count = len(column_sizes)
 
     # Contenedor de la fila
-    fila_container = tk.Frame(lista_frame, bg=color_fondo)
+    fila_container = ctk.CTkFrame(lista_frame, fg_color=color_fondo, corner_radius=radio_esquinas)
     fila_container.grid(row=row_count, column=0, columnspan=column_count, 
                        sticky="ew", padx=5, pady=2)
     

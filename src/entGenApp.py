@@ -7,8 +7,8 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
-from frontend.compEntGen import create_dropdown_with_text, create_key_list, set_app_instance_entidad
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
+from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
 PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
@@ -59,8 +59,8 @@ class CertificadoDigitalApp:
 
             vista = crear_vista_nueva(self.root)
 
-            vista_label = tk.Label(vista, text="Generar un par de claves", bg="#F5F5F5",
-                    font=("Inter", 18)).pack(pady= 40)
+            titulo_label = ctk.CTkLabel(vista, text="Generar un par de claves", font=("Inter", 25), fg_color="transparent")
+            titulo_label.pack(pady=40)
 
             datos_frame = ctk.CTkFrame(vista, fg_color="transparent")
             datos_frame.pack(fill="x",padx=40)
@@ -145,216 +145,128 @@ class CertificadoDigitalApp:
             messagebox.showerror("Error", f"Error al abrir ventana de generación de claves: {str(e)}")
             log_message("entGenApp.log",f"Error al abrir ventana de generación de claves: {str(e)}")
 
-    def vista_crear_certificado(self):
+    def vista_crear_certificado(self, selected_key):
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
-            from backend.funcEntGen import cargar_claves_entidad
             from backend.funcEntGen import generar_certificado, validar_datos_usuario, validate_password
-            # Obtener datos del usuario
-            nombre = self.name_entry.get().strip()
-            # Normalizar el DNI/NIE/CIF (quitar espacios y convertir a mayúsculas)
-            dni = self.dni_entry.get().upper().strip().replace(" ", "").replace("-", "")
+            
+            vista = crear_vista_nueva(self.root)
 
-            valid, msg= validar_datos_usuario(nombre, dni)
-            if not valid:
-                raise Exception(msg)
-            
-            
-            # Leer todas las claves disponibles
-            claves_disponibles = cargar_claves_entidad(SK_ENTIDAD_PATH, PK_ENTIDAD_PATH)
-            
-            # Verificar si hay claves disponibles
-            total_claves = len(claves_disponibles["sphincs"]) + len(claves_disponibles["dilithium"])
-            if total_claves == 0:
-                messagebox.showerror("Error", "No hay claves de entidad disponibles. Debe generar al menos una.")
-                return
-            
-            # Crear ventana para selección de clave
-            key_window = tk.Toplevel(self.root)
-            key_window.title("Selección de Clave de Entidad")
-            key_window.geometry("500x400")
-            key_window.transient(self.root)
-            key_window.grab_set()
-            
-            # Variables para la selección
-            selected_key_id = tk.StringVar()
-            selected_key = [None]  # Usamos lista para modificarla en función interna
-            
-            # Título
-            tk.Label(key_window, text="Seleccione la clave para firmar el certificado", 
-                    font=("Arial", 12, "bold")).pack(pady=10)
-            
-            # Frame con scroll para las claves
-            frame = tk.Frame(key_window)
-            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            # Scrollbar y canvas
-            scrollbar = tk.Scrollbar(frame)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            canvas = tk.Canvas(frame, yscrollcommand=scrollbar.set)
-            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            
-            scrollbar.config(command=canvas.yview)
-            
-            # Frame interior para contenido
-            interior = tk.Frame(canvas)
-            canvas.create_window((0, 0), window=interior, anchor=tk.NW)
-            interior.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-            
-            # Agregar claves por algoritmo
-            found_keys = False
-            
-            # Depuración: imprimir claves disponibles
-            log_message("entGenApp.log",f"\n--- ANÁLISIS DE CLAVES RECUPERADAS PARA UI ---")
-            log_message("entGenApp.log",f"Claves SPHINCS: {len(claves_disponibles['sphincs'])}")
-            log_message("entGenApp.log",f"Claves Dilithium: {len(claves_disponibles['dilithium'])}")
-            
-            for algoritmo in ["sphincs", "dilithium"]:
-                log_message("entGenApp.log",f"\nProcesando bloque de claves {algoritmo.upper()}")
-                if not claves_disponibles[algoritmo]:
-                    log_message("entGenApp.log",f"  No hay claves disponibles para {algoritmo}")
-                    continue
-                    
-                # Título del algoritmo
-                tk.Label(interior, text=f"Claves {algoritmo.upper()}", 
-                        font=("Arial", 11, "bold")).pack(anchor=tk.W, pady=(10, 5))
-                
-                for idx, key in enumerate(claves_disponibles[algoritmo]):
-                    log_message("entGenApp.log",f"  Agregando clave {idx+1}: {key['titulo']} (ID: {key['id']})")
-                    found_keys = True
-                    
-                    # Frame para esta clave
-                    key_frame = tk.Frame(interior, relief=tk.RIDGE, bd=1)
-                    key_frame.pack(fill=tk.X, pady=5, padx=5)
-                    
-                    # Color según vigencia
-                    bg_color = "#e8f5e9" if key["vigente"] else "#ffebee"
-                    key_frame.configure(bg=bg_color)
-                    
-                    # Radiobutton para selección
-                    rb = tk.Radiobutton(key_frame, variable=selected_key_id, 
-                                    value=f"{algoritmo}:{key['id']}", bg=bg_color)
-                    rb.pack(side=tk.LEFT, padx=5)
-                    
-                    # Panel de información
-                    info_frame = tk.Frame(key_frame, bg=bg_color)
-                    info_frame.pack(fill=tk.X, expand=True, padx=5)
-                    
-                    # Título y estado
-                    estado = "Vigente" if key["vigente"] else "Caducada"
-                    titulo_label = tk.Label(info_frame, 
-                                        text=f"{key['titulo']} - {estado}", 
-                                        font=("Arial", 10, "bold"),
-                                        fg="#388e3c" if key["vigente"] else "#d32f2f",
-                                        bg=bg_color)
-                    titulo_label.pack(anchor=tk.W)
-                    
-                    # Fechas formateadas
-                    try:
-                        import datetime
-                        fecha_exp = datetime.date.fromisoformat(key["fecha_expedicion"]).strftime("%d/%m/%Y")
-                        fecha_cad = datetime.date.fromisoformat(key["fecha_caducidad"]).strftime("%d/%m/%Y")
-                        fechas_text = f"Válida: {fecha_exp} - {fecha_cad}"
-                    except:
-                        fechas_text = "Fechas no disponibles"
-                    
-                    fechas_label = tk.Label(info_frame, text=fechas_text, bg=bg_color)
-                    fechas_label.pack(anchor=tk.W)
-            
-            # IMPORTANTE: Todo lo siguiente debe estar FUERA del bucle for
-            if not found_keys:
-                tk.Label(interior, text="No hay claves disponibles.", 
-                        font=("Arial", 10, "italic"), fg="#d32f2f").pack(pady=20)
-            else:
-                # Seleccionar primera clave por defecto
-                first_algo = "sphincs" if claves_disponibles["sphincs"] else "dilithium"
-                if claves_disponibles[first_algo]:
-                    first_key = claves_disponibles[first_algo][0]
-                    selected_key_id.set(f"{first_algo}:{first_key['id']}")
+            titulo_label = ctk.CTkLabel(vista, text="Generar un certificado Digital", font=("Inter", 25), fg_color="transparent")
+            titulo_label.pack(pady=(30, 10))
 
-            # Variable para confirmar selección
-            selection_confirmed = [False]
+            datos_frame = ctk.CTkFrame(vista, fg_color="transparent")
+            datos_frame.pack(fill="x",padx=40)
+
+            certificado_container = ctk.CTkFrame(datos_frame, fg_color="transparent")
+            certificado_container.pack(anchor="w", pady=(10, 10))
+
+            cert_label = ctk.CTkLabel(certificado_container, text="Claves utilizadas para firmar el certificado:",
+                                  font=("Inter", 17), text_color="#111111")
+            cert_label.pack(anchor="w")
+
+            datos_cert_container = ctk.CTkFrame(
+                certificado_container, 
+                fg_color="#FFFFFF",
+                corner_radius=25,
+                border_width=0,
+                border_color="#E0E0E0",
+                width=620, 
+                height=100
+            )
+            datos_cert_container.pack_propagate(False)
+
+            key_row = create_key_row(
+                lista_frame = datos_cert_container,
+                base_dir=BASE_DIR,
+                row_count=0,
+                clave=selected_key
+                )
             
-            def confirm_selection():
-                key_id = selected_key_id.get()
-                if not key_id:
-                    messagebox.showerror("Error", "Debe seleccionar una clave de entidad")
-                    return
+            for widget in datos_cert_container.winfo_children():
+                if isinstance(widget, tk.Frame) and widget.winfo_height() == 1:
+                    # Verificar si el widget usa grid y tiene información de fila
+                    grid_info = widget.grid_info()
+                    if grid_info and 'row' in grid_info:
+                        if int(grid_info["row"]) == 1:
+                            widget.destroy()
+                            break
+
+            datos_cert_container.pack()
+
+            datos_personales_frame = ctk.CTkFrame(datos_frame, fg_color="transparent")
+            datos_personales_frame.pack(fill="x")
+
+            # Crear subframes para cada campo
+            titular_container = ctk.CTkFrame(datos_personales_frame, fg_color="transparent")
+            titular_container.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+            dni_container = ctk.CTkFrame(datos_personales_frame, fg_color="transparent")
+            dni_container.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+            titular_field = create_text_field_with_title(titular_container, "Titular del certificado:", "Escriba el nombre completo del particular o entidad", 300)
+            dni_field = create_text_field_with_title(dni_container, "Dcomuneto identificativo del titular:", "Escriba el documento identificativo del particular o entidad", 300)
+
+            password_container = ctk.CTkFrame(datos_frame, fg_color="transparent")
+            password_container.pack(anchor="w", pady=(10, 10)) 
+
+            pass_label = ctk.CTkLabel(password_container, text="Establecer contraseña del certificado:",
+                                  font=("Inter", 17), text_color="#111111")
+            pass_label.pack(anchor="w")
+
+            requisitos_label = ctk.CTkLabel(password_container, text="""La contraseña debe tener:
+                - Al menos 8 caracteres
+                - Al menos una letra mayúscula
+                - Al menos un número
+                - Al menos un carácter especial (ej: !@#$%^&*)""",
+                font=("Inter", 13), text_color="#111111", justify="left")
+            
+            requisitos_label.pack(anchor="w", padx=(20, 0), pady=10)
+
+            password_field = create_text_field(password_container, "Escriba la contraseña")
+            password_field.pack(anchor="w")
+
+            pass_confirm_field = create_text_field_with_title(datos_frame, "Confirmar contraseña:", "Escriba la contraseña de nuevo")
+            
+            def generate_and_save_certificado():
+                nombre = titular_field.get().strip()
+                dni = dni_field.get().upper().strip().replace(" ", "").replace("-", "")
+                password = password_field.get().strip()
+
+                valid, msg= validar_datos_usuario(nombre, dni)
+                if not valid:
+                    raise Exception(msg)
+                # -----------------------Usar la clave seleccionada----------------------------
+                clave_seleccionada = selected_key[0]
                 
-                # Extraer algoritmo e ID
-                algoritmo, id_clave = key_id.split(":")
+                log_message("entGenApp.log",f"Usando clave de entidad: {clave_seleccionada['titulo']} ({clave_seleccionada["algoritmo"].capitalize()})")
                 
-                # Buscar clave seleccionada
-                for key in claves_disponibles[algoritmo]:
-                    if key["id"] == id_clave:
-                        selected_key[0] = key
-                        break
-                
-                if not selected_key[0]:
-                    messagebox.showerror("Error", "Clave no encontrada")
-                    return
-                
-                # Advertir si está caducada
-                if not selected_key[0]["vigente"]:
-                    if not messagebox.askyesno("Advertencia", 
-                                            "La clave seleccionada está caducada. ¿Desea continuar?"):
-                        return
-                
-                selection_confirmed[0] = True
-                key_window.destroy()
-            
-            # IMPORTANTE: Los botones deben estar FUERA de confirm_selection
-            button_frame = tk.Frame(key_window)
-            button_frame.pack(pady=10)
-            
-            tk.Button(button_frame, text="Usar clave seleccionada", command=confirm_selection,
-                    bg="#0078D4", fg="white", width=20).pack(side=tk.LEFT, padx=5)
-            
-            tk.Button(button_frame, text="Cancelar", command=key_window.destroy,
-                    width=10).pack(side=tk.LEFT, padx=5)
-            
-            # Esperar a que se cierre la ventana
-            self.root.wait_window(key_window)
-            
-            # Verificar si se confirmó la selección
-            if not selection_confirmed[0] or not selected_key[0]:
-                return
-            
-            # -----------------------Usar la clave seleccionada----------------------------
-            clave_seleccionada = selected_key[0]
-            
-            log_message("entGenApp.log",f"Usando clave de entidad: {clave_seleccionada['titulo']} ({clave_seleccionada["algoritmo"].capitalize()})")
-            
-            # Solicitar contraseña de cifrado al usuario con validación
-            password = None
-            while password is None:
-                password = simpledialog.askstring("Contraseña", 
-                                                "Introduce una contraseña para cifrar la clave privada:\n\n"
-                                                "La contraseña debe tener:\n"
-                                                "- Al menos 8 caracteres\n"
-                                                "- Al menos una letra mayúscula\n"
-                                                "- Al menos un número\n"
-                                                "- Al menos un carácter especial (ej: !@#$%^&*)", 
-                                                show="*")
-                
-                if password is None:  # Usuario canceló el diálogo
-                    return
+                # Solicitar contraseña de cifrado al usuario con validación
                 
                 valid, message = validate_password(password)
                 if not valid:
                     messagebox.showerror("Contraseña insegura", message)
                     password = None
 
-            cert_auth_path, cert_sign_path = generar_certificado(
-                clave_seleccionada,
-                nombre=nombre,
-                dni=dni,
-                password=password
-            )
-            
-            messagebox.showinfo("Éxito", 
-                            f"Certificados generados con {algoritmo} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
+                cert_auth_path, cert_sign_path = generar_certificado(
+                    clave_seleccionada,
+                    nombre=nombre,
+                    dni=dni,
+                    password=password
+                )
+                
+                messagebox.showinfo("Éxito", 
+                                f"Certificados generados con {selected_key[algoritmo]} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
+        
+            botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
+            botones_frame.pack(padx=20, pady=10, expand=True)
+
+            volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial())
+            volver_btn.pack(side="left", padx=(0, 250))
+
+            guardar_btn = create_button(botones_frame, "Generar", lambda: generate_and_save_certificado())
+            guardar_btn.pack(side="left")
+
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")            

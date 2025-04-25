@@ -12,7 +12,6 @@ def set_app_instance_entidad(app):
     log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
 
 def create_dropdown(parent, opciones = [], placeholder = ""):
-    # Contenedor principal (transparente)
     container = ctk.CTkFrame(parent, fg_color="transparent")
     container.pack(anchor="w", padx=(10, 0)) 
     
@@ -22,9 +21,9 @@ def create_dropdown(parent, opciones = [], placeholder = ""):
         width=304,
         height=38,
         corner_radius=10,
-        fg_color="transparent",  # Transparente
-        border_width=1,          # Borde visible
-        border_color="#E0E0E0"   # Color claro para el borde
+        fg_color="transparent",
+        border_width=1,
+        border_color="#E0E0E0"
     )
     border_frame.grid(row=0, column=0, padx=0, pady=0)
     border_frame.grid_propagate(False)  # Mantener tamaño fijo
@@ -82,7 +81,7 @@ def create_key_list(parent, base_dir):
     def procesar_claves(lista_frame, datos):
         row_count = 0
         for algoritmo, clave, es_caducada, es_futura in datos:
-            row_count = create_key_row(lista_frame, base_dir, row_count, algoritmo, clave, es_caducada, es_futura)
+            row_count = create_key_row(lista_frame, base_dir, row_count, clave, es_caducada, es_futura)
         return row_count
     
     # Definir encabezados específicos para claves
@@ -103,21 +102,22 @@ def create_key_list(parent, base_dir):
         
     return contenedor_principal
 
-def create_key_row(lista_frame, base_dir, row_count, algoritmo, clave, es_caducada=False, es_futura=False):
+def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False):
     """
     Añade una fila con información de clave al frame scrollable
     """
+    algoritmo = clave.get("algoritmo")
     log_message("entGenApp.log", f"Creando fila para clave: {clave.get('titulo')} ({algoritmo})")
     from frontend.compComunes import create_base_row
     # Definir tamaños específicos para columnas de claves
     column_sizes = [80, 175, 150, 190]  # Algoritmo, Título, PK, Período
-    
+
     # Crear la fila base
     fila_container, next_row, logo_images = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback="vista_generacion_claves",
+        click_callback=lambda event=None: APP_INSTANCE.vista_crear_certificado(clave),
         is_disabled=es_caducada
     )
     
