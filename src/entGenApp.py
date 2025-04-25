@@ -158,8 +158,9 @@ class CertificadoDigitalApp:
             datos_frame = ctk.CTkFrame(vista, fg_color="transparent")
             datos_frame.pack(fill="x",padx=40)
 
-            certificado_container = ctk.CTkFrame(datos_frame, fg_color="transparent")
-            certificado_container.pack(anchor="w", pady=(10, 10))
+            certificado_container = ctk.CTkFrame(datos_frame, fg_color="transparent", height=98)
+            certificado_container.pack_propagate(False)
+            certificado_container.pack(anchor="w", expand=True, fill ="x")   
 
             cert_label = ctk.CTkLabel(certificado_container, text="Claves utilizadas para firmar el certificado:",
                                   font=("Inter", 17), text_color="#111111")
@@ -169,21 +170,31 @@ class CertificadoDigitalApp:
                 certificado_container, 
                 fg_color="#FFFFFF",
                 corner_radius=25,
-                border_width=0,
+                border_width=1,
                 border_color="#E0E0E0",
-                width=620, 
-                height=100
+                width=620
             )
-            datos_cert_container.pack_propagate(False)
+            datos_cert_container.pack(fill="both", expand=True)
+
+            # Crear un frame intermedio con padding para contener key_row
+            padding_frame = ctk.CTkFrame(
+                datos_cert_container,
+                fg_color="transparent",  # Mismo color que el contenedor padre
+                corner_radius=0      # Sin esquinas redondeadas para que sea invisible
+            )
+            # Usar padding generoso en todos los lados
+            padding_frame.pack(pady=(9,0), padx=(1,0))
+
 
             key_row = create_key_row(
-                lista_frame = datos_cert_container,
+                lista_frame = padding_frame,
                 base_dir=BASE_DIR,
                 row_count=0,
-                clave=selected_key
+                clave=selected_key,
+                es_clicable=False
                 )
             
-            for widget in datos_cert_container.winfo_children():
+            for widget in padding_frame.winfo_children():
                 if isinstance(widget, tk.Frame) and widget.winfo_height() == 1:
                     # Verificar si el widget usa grid y tiene información de fila
                     grid_info = widget.grid_info()
@@ -191,8 +202,6 @@ class CertificadoDigitalApp:
                         if int(grid_info["row"]) == 1:
                             widget.destroy()
                             break
-
-            datos_cert_container.pack()
 
             datos_personales_frame = ctk.CTkFrame(datos_frame, fg_color="transparent")
             datos_personales_frame.pack(fill="x")
@@ -204,24 +213,24 @@ class CertificadoDigitalApp:
             dni_container = ctk.CTkFrame(datos_personales_frame, fg_color="transparent")
             dni_container.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
-            titular_field = create_text_field_with_title(titular_container, "Titular del certificado:", "Escriba el nombre completo del particular o entidad", 300)
-            dni_field = create_text_field_with_title(dni_container, "Dcomuneto identificativo del titular:", "Escriba el documento identificativo del particular o entidad", 300)
+            titular_field = create_text_field_with_title(titular_container, "Titular del certificado:", "Nombre completo (particular o entidad)", 300)
+            dni_field = create_text_field_with_title(dni_container, "Dcomuneto identificativo del titular:", "Escriba NIE/NIF/CIF", 300)
 
             password_container = ctk.CTkFrame(datos_frame, fg_color="transparent")
-            password_container.pack(anchor="w", pady=(10, 10)) 
+            password_container.pack(anchor="w") 
 
             pass_label = ctk.CTkLabel(password_container, text="Establecer contraseña del certificado:",
                                   font=("Inter", 17), text_color="#111111")
             pass_label.pack(anchor="w")
 
             requisitos_label = ctk.CTkLabel(password_container, text="""La contraseña debe tener:
-                - Al menos 8 caracteres
-                - Al menos una letra mayúscula
-                - Al menos un número
-                - Al menos un carácter especial (ej: !@#$%^&*)""",
+    - Al menos 8 caracteres
+    - Al menos una letra mayúscula
+    - Al menos un número
+    - Al menos un carácter especial (ej: !@#$%^&*)""",
                 font=("Inter", 13), text_color="#111111", justify="left")
             
-            requisitos_label.pack(anchor="w", padx=(20, 0), pady=10)
+            requisitos_label.pack(anchor="w", padx=(20, 0), pady = (0,5))
 
             password_field = create_text_field(password_container, "Escriba la contraseña")
             password_field.pack(anchor="w")
@@ -232,32 +241,42 @@ class CertificadoDigitalApp:
                 nombre = titular_field.get().strip()
                 dni = dni_field.get().upper().strip().replace(" ", "").replace("-", "")
                 password = password_field.get().strip()
+                password_confirm = pass_confirm_field.get().strip()
 
                 valid, msg= validar_datos_usuario(nombre, dni)
                 if not valid:
-                    raise Exception(msg)
-                # -----------------------Usar la clave seleccionada----------------------------
-                clave_seleccionada = selected_key[0]
+                    messagebox.showerror("Error de validación", msg)
+                    log_message("entGenApp.log", f"Error de validación: {msg}")
+                    return  
                 
-                log_message("entGenApp.log",f"Usando clave de entidad: {clave_seleccionada['titulo']} ({clave_seleccionada["algoritmo"].capitalize()})")
-                
-                # Solicitar contraseña de cifrado al usuario con validación
-                
+                log_message("entGenApp.log",f"Usando clave de entidad: {selected_key['titulo']} ({selected_key["algoritmo"].capitalize()})")
+                                
+                if password != password_confirm:
+                    messagebox.showerror("Error de validación", "Las contraseñas no coinciden")
+                    log_message("entGenApp.log", "Error: Las contraseñas introducidas no coinciden")
+                    return
+
                 valid, message = validate_password(password)
                 if not valid:
                     messagebox.showerror("Contraseña insegura", message)
-                    password = None
+                    return
 
-                cert_auth_path, cert_sign_path = generar_certificado(
-                    clave_seleccionada,
-                    nombre=nombre,
-                    dni=dni,
-                    password=password
-                )
+                try:
+                    cert_auth_path, cert_sign_path = generar_certificado(
+                        selected_key,
+                        nombre=nombre,
+                        dni=dni,
+                        password=password
+                    )
                 
-                messagebox.showinfo("Éxito", 
-                                f"Certificados generados con {selected_key[algoritmo]} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
-        
+                    messagebox.showinfo("Éxito", 
+                                    f"Certificados generados con {selected_key['algoritmo']} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
+
+                    self.vista_resultado_certificado(True)
+                except Exception as e:                
+                    log_message("entGenApp.log", f"Error generando certificados: {str(e)}")
+                    self.vista_resultado_certificado(False)
+
             botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
             botones_frame.pack(padx=20, pady=10, expand=True)
 

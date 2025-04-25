@@ -102,7 +102,7 @@ def create_key_list(parent, base_dir):
         
     return contenedor_principal
 
-def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False):
+def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True):
     """
     Añade una fila con información de clave al frame scrollable
     """
@@ -117,7 +117,7 @@ def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, e
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback=lambda event=None: APP_INSTANCE.vista_crear_certificado(clave),
+        click_callback=(lambda event=None: APP_INSTANCE.vista_crear_certificado(clave)) if es_clicable else None,
         is_disabled=es_caducada
     )
     
