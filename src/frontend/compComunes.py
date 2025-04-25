@@ -544,16 +544,17 @@ def create_pk_row(lista_frame, row_count, clave):
     def callback_copy(event=None, widget=None):
         if APP_INSTANCE and APP_INSTANCE.root:
             # Guardar el color original
-            original_bg = fila_container["bg"]
+            original_fg = fila_container.cget("fg_color")
             
             # Cambiar temporalmente el color de fondo
-            fila_container.configure(bg="#E3F2FD")  # Azul claro
+            fila_container.configure(fg_color="#E3F2FD")  # Azul claro
             
             # Copiar al portapapeles
             copiar_al_portapapeles(APP_INSTANCE.root, clave, lista_frame)
             
             # Restaurar color original después de un tiempo
-            APP_INSTANCE.root.after(1500, lambda: fila_container.configure(bg=original_bg))
+            APP_INSTANCE.root.after(1500, lambda: fila_container.configure(fg_color=original_fg))
+
         return "break"
 
     # Crear la fila base

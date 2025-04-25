@@ -270,7 +270,7 @@ class CertificadoDigitalApp:
                     self.vista_resultado_certificado(certificado_path=cert_auth_path)
                 except Exception as e:                
                     log_message("entGenApp.log", f"Error generando certificados: {str(e)}")
-                    #self.vista_resultado_certificado(False)
+                    self.vista_resultado_certificado(error=e)
 
             botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
             botones_frame.pack(padx=20, pady=10, expand=True)
@@ -290,7 +290,7 @@ class CertificadoDigitalApp:
         # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
 
-        img = resize_image_proportionally(BASE_DIR, "tick", 100)
+        img = resize_image_proportionally(BASE_DIR, "error" if error else "tick", 100)
 
         resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  # Fondo blanco grisáceo
         resultado_frame.pack(padx=20, pady=20, fill="x")
@@ -302,15 +302,38 @@ class CertificadoDigitalApp:
         # Texto del mensaje
         label_texto = ctk.CTkLabel(
             resultado_frame,
-            text="El certificado se ha generado correctamente",
+            text="El certificado se ha generado correctamente" if not error else "La generación del certificado ha fallado",
             font=("Segoe UI", 27),
             text_color="#000000",
             bg_color="#f5f5f5"
         )
         label_texto.grid(row=0, column=1, padx=(5, 10), pady=10, sticky="w")
 
-        datos_list = key_data_list(vista, certificado_path, BASE_DIR)
-        datos_list.pack()
+        if error:
+            error_fondo = ctk.CTkFrame(
+                vista, 
+                fg_color="#FFFFFF",
+                corner_radius=25,
+                border_width=1,
+                border_color="#E0E0E0",
+                width=620, 
+                height=344
+            )
+            error_fondo.pack(expand=True, fill="both", padx=20, pady=(10, 0))
+            
+            # Mostrar el mensaje de error
+            error_message = ctk.CTkLabel(
+                error_fondo, 
+                text=str(error),
+                font=("Inter", 16),
+                text_color="#CB1616",
+                wraplength=610,
+                justify="left"
+            )
+            error_message.pack(pady=(5, 20), padx=20, anchor="w")
+        else:
+            datos_list = key_data_list(vista, certificado_path, BASE_DIR)
+            datos_list.pack()
 
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial())
         volver_btn.pack(pady=20)
