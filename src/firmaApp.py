@@ -41,14 +41,14 @@ class AutoFirmaApp:
         
         def handle_selected_file(document_path):
             log_message("firmaApp.log", f"Archivo seleccionado: {document_path}")
-            self.document_path = document_path 
+            self.document_path = document_path #self es probelma
 
         create_drop_area(vista, callback=handle_selected_file)
 
         botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
         botones_frame.pack(padx=20, pady=10, expand=True)
 
-        volver_btn = create_button(botones_frame, "Firmar", lambda: self)
+        volver_btn = create_button(botones_frame, "Firmar", lambda: self.sign_message())
         volver_btn.pack(side="left", padx=(0, 250))
 
         guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures(self.document_path) if hasattr(self, 'document_path') else messagebox.showinfo("Aviso", "Primero seleccione un documento para verificar"))
@@ -445,8 +445,7 @@ class AutoFirmaApp:
 
     def verify_signatures(self, file_path):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
-        from backend.funcFirma import determinar_estilo_firmas_validiadas, verificar_firmas_cascada, extraer_firmas_documento
-        from backend.funcComunes import format_iso_display
+        from backend.funcFirma import determinar_estilo_firmas_validadas, verificar_firmas_cascada, extraer_firmas_documento
         
         # Llamar a la función del backend
         success, firmas, hash_documento_actual = extraer_firmas_documento(file_path)
@@ -455,26 +454,55 @@ class AutoFirmaApp:
             messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
             return
                     
+        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
+
         vista = crear_vista_nueva(self.root)
+
+        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, BASE_DIR, resultados_validacion)
         
+        summary_img, summary_text = determinar_estilo_firmas_validadas(valid_count, invalid_count)
+        
+        # Crear un frame para el resultado
+        resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
+        resultado_frame.pack(padx=20, pady=15, fill="x")
+
+        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
+        label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
+        label_imagen.grid(row=0, column=0, padx=(10, 10), sticky="w")
+
+        label_texto = ctk.CTkLabel(
+            resultado_frame,
+            text=summary_text,
+            font=("Inter", 25),
+            text_color="#000000",
+            bg_color="#f5f5f5"
+        )
+        label_texto.grid(row=0, column=1, padx=(0, 10), sticky="w", pady=(5, 0))
+        
+        # Frame para el pdf
+        doc_label = ctk.CTkLabel(vista, text="Documento validado:",
+                                font=("Inter", 19), text_color="#111111")
+        doc_label.pack(anchor="w", padx=(30,0), pady=(5,0))
+
         fondo_pdf_frame = ctk.CTkFrame(
             vista,
-            width=600,
-            height=240,
+            width=620,
+            height=75,
             fg_color="white",
-            corner_radius=25
+            corner_radius=25,
+            border_width=1,
+            border_color="#E0E0E0"
         )
-        fondo_pdf_frame.pack(padx=10, pady=10)
+        fondo_pdf_frame.pack(pady=5)
+        fondo_pdf_frame.pack_propagate(False)
 
-        # Imagen de Adobe
-        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 40)
+        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
         image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
         image_label.image = img_pdf
-        image_label.pack(side="left", padx=(0, 10))
+        image_label.pack(side="left", padx=20)
 
-        # Título y ruta
         pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
-        pdf_frame.pack(side="left", fill="x", expand=True)
+        pdf_frame.pack(side="left", expand=True, anchor="w")
 
         filename = os.path.basename(file_path)
         folder_path = os.path.dirname(file_path)
@@ -483,7 +511,7 @@ class AutoFirmaApp:
             pdf_frame,
             text=filename,
             text_color="#111111",
-            font=("Inter", 16),
+            font=("Inter", 18),
             fg_color="transparent",
             anchor="w"
         )
@@ -493,37 +521,19 @@ class AutoFirmaApp:
             pdf_frame,
             text=folder_path,
             text_color="#555555",
-            font=("Inter", 12),
+            font=("Inter", 14),
             fg_color="transparent",
             anchor="w"
         )
         label_path.pack(anchor="w")
-        
-        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
 
-        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, BASE_DIR, resultados_validacion)
-        certificados_frame.pack(padx=20)
+        # Frame para los certificados
+        certificados_label = ctk.CTkLabel(vista, text="Firmas detectadas:",
+                                font=("Inter", 19), text_color="#111111")
+        certificados_label.pack(anchor="w", padx=(30,0), pady=(10,0))
+        certificados_frame.pack(pady=5)
 
-        summary_img, summary_text = determinar_estilo_firmas_validiadas(valid_count, invalid_count)
-        
-        resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  # Fondo blanco grisáceo
-        resultado_frame.pack(padx=20, pady=20, fill="x")
-
-        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
-        label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
-        label_imagen.grid(row=0, column=0, padx=(10, 10), pady=10, sticky="w")
-
-        # Texto del mensaje
-        label_texto = ctk.CTkLabel(
-            resultado_frame,
-            text=summary_text,
-            font=("Inter", 25),
-            text_color="#000000",
-            bg_color="#f5f5f5"
-        )
-        label_texto.grid(row=0, column=1, padx=(5, 10), pady=10, sticky="w")
-
-        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma)
+        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
         volver_btn.pack(pady=20)
 
 if __name__ == "__main__":

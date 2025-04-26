@@ -277,11 +277,11 @@ def create_certificate_list(parent, base_dir, firmas):
     # Obtener la estructura base de la lista
     contenedor_principal = create_base_list(
         parent, 
-        height=270,
+        height=210,
         empty_message="No hay certificados disponibles.",
         process_data_function=procesar_certificados,
         data=firmas,
-        max_visible_items=3
+        max_visible_items=2
     )
     
     return contenedor_principal, valid_count, invalid_count

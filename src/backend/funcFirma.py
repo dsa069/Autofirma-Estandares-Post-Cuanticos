@@ -181,21 +181,21 @@ def extraer_firmas_documento(file_path):
         log_message("firmaApp.log", f"Error al extraer firmas: {e}")
         return False, None, None
 
-def determinar_estilo_firmas_validiadas(valid_count, invalid_count):
+def determinar_estilo_firmas_validadas(valid_count, invalid_count):
     if invalid_count == 0 and valid_count > 0:
         return (
             "tick",
-            f"Todas las firmas son válidas ({valid_count})"
+            f"El documento posee firmas válidas"
         )
     elif valid_count == 0:
         return (
             "error",
-            f"Ninguna firma es válida ({invalid_count})"
+            f"Las firmas del documento no son válidas"
         )
     else:
         return (
             "caution",
-            f"Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
+            f"Algunas del documento firmas son inválidas"
         )
 
 def verificar_certificado(cert_data, base_dir):
