@@ -41,6 +41,7 @@ class AutoFirmaApp:
         
         def handle_selected_file(document_path):
             log_message("firmaApp.log", f"Archivo seleccionado: {document_path}")
+            self.document_path = document_path 
 
         create_drop_area(vista, callback=handle_selected_file)
 
@@ -50,7 +51,7 @@ class AutoFirmaApp:
         volver_btn = create_button(botones_frame, "Firmar", lambda: self)
         volver_btn.pack(side="left", padx=(0, 250))
 
-        guardar_btn = create_button(botones_frame, "Verificar", lambda: self)
+        guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures(self.document_path))
         guardar_btn.pack(side="left")
 
     def load_certificate(self, tipo):
@@ -442,19 +443,13 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
             log_message("firmaApp.log",f"Error al firmar documento: {e}")
 
-    def seleccionar_pdf_verificar(self):
-        """Verifica todas las firmas en un documento PDF."""
+    def verify_signatures(self, file_path):
+        """Muestra los resultados de la verificación de múltiples firmas en cascada."""
+        from backend.funcFirma import determinar_estilo_firmas_validiadas, verificar_firmas_cascada
+        from backend.funcComunes import format_iso_display
+        
         try:
             from backend.funcFirma import extraer_firmas_documento
-            # Seleccionar documento firmado
-            file_path = filedialog.askopenfilename(
-                title="Seleccionar archivo firmado",
-                filetypes=[("Archivos PDF", "*.pdf")],
-            )
-            if not file_path:
-                messagebox.showerror("Error", "No se seleccionó ningún archivo válido.")
-                return
-
             # Llamar a la función del backend
             success, firmas, hash_documento_actual = extraer_firmas_documento(file_path)
             
@@ -462,19 +457,11 @@ class AutoFirmaApp:
             if not success:
                 messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
                 return
-                
-            # Verificar todas las firmas y mostrar resultados
-            self.verify_signatures(file_path, firmas, hash_documento_actual)
                     
         except Exception as e:
             messagebox.showerror("Error", f"Error al verificar firmas: {e}")
             log_message("firmaApp.log",f"Error al verificar firmas: {e}")
 
-    def verify_signatures(self, file_path, firmas, hash_documento_actual):
-        """Muestra los resultados de la verificación de múltiples firmas en cascada."""
-        from backend.funcFirma import determinar_estilo_firmas_validiadas, verificar_firmas_cascada
-        from backend.funcComunes import format_iso_display
-        
         # Crear ventana de resultados
         results_window = tk.Toplevel(self.root)
         results_window.title(f"Verificación de firmas: {os.path.basename(file_path)}")
@@ -660,14 +647,14 @@ class AutoFirmaApp:
         """Maneja la UI y llama al backend"""
         from backend.funcFirma import process_uri
         # process_uri devuelve: (success, file_path, firmas, hash_documento)
-        success, file_path, firmas, hash_documento = process_uri(uri)
+        success, file_path = process_uri(uri)
         
         if not success:
             messagebox.showerror("Error", "No se pudo verificar el documento. Por favor asegúrese de que el PDF esté abierto y sea accesible.")
             return False
             
         # Mostrar resultados en la UI usando los valores desempaquetados de la tupla
-        self.verify_signatures(file_path, firmas, hash_documento)
+        self.verify_signatures(file_path)
         return True
         
 if __name__ == "__main__":
@@ -676,8 +663,8 @@ if __name__ == "__main__":
         # Iniciar aplicación
         root = TkinterDnD.Tk()
         app = AutoFirmaApp(root)
-        set_app_instance(app)
-        set_app_instance_autofirma(app)
+        #set_app_instance(app)
+        #set_app_instance_autofirma(app)
         
         # Verificar desde URI (autofirma://...)
         if len(sys.argv) > 2:

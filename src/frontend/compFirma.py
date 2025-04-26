@@ -61,7 +61,9 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     from tkinterdnd2 import DND_FILES # type: ignore
     def open_file_dialog(event=None):
         from tkinter import filedialog
-        file_path = filedialog.askopenfilename(filetypes=[("Archivos PDF", "*.pdf")])
+        file_path = filedialog.askopenfilename(
+            title="Seleccionar archivo firmado",
+            filetypes=[("Archivos PDF", "*.pdf")])
         if file_path:
             update_label(file_path)
             if callback:

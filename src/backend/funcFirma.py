@@ -732,7 +732,7 @@ def process_uri(uri):
         # Validar formato de la URI
         if not uri.startswith("autofirma://"):
             log_message("firmaApp.log", "El formato de la URI no es válido.")
-            return False, None, None, None
+            return False, None
         
         # Extraer la ruta codificada
         encoded_path = uri[len("autofirma://"):].rstrip('/')
@@ -745,7 +745,7 @@ def process_uri(uri):
             file_path = detect_active_pdf()
             if not file_path:
                 log_message("firmaApp.log", "No se pudo detectar automáticamente el PDF activo.")
-                return False, None, None, None
+                return False, None
             log_message("firmaApp.log", f"PDF activo detectado: {file_path}")
         
         # Caso normal: decodificar ruta
@@ -755,30 +755,15 @@ def process_uri(uri):
                 file_path = base64.urlsafe_b64decode(encoded_path.encode()).decode()
             except Exception:
                 log_message("firmaApp.log", "No se pudo decodificar la ruta del PDF.")
-                return False, None, None, None
+                return False, None
         
         # Verificar existencia del archivo
         if not os.path.exists(file_path):
             log_message("firmaApp.log", f"No se encuentra el archivo: {file_path}")
-            return False, None, None, None
+            return False, None
         
-        # Extraer metadatos y firmas
-        doc = fitz.open(file_path)
-        metadata = doc.metadata
-        doc.close()
-        
-        meta_data = json.loads(metadata.get("keywords", "{}"))
-        firmas = meta_data.get("firmas", [])
-        
-        # Verificar que existan firmas
-        if not firmas:
-            log_message("firmaApp.log", "No se encontraron firmas en el documento.")
-            return False, None, None, None
-        
-        # Calcular hash y retornar resultados
-        hash_documento_actual = calcular_hash_documento(file_path)
-        return True, file_path, firmas, hash_documento_actual
+        return True, file_path
         
     except Exception as e:
         log_message("firmaApp.log", f"Error al verificar desde URI: {e}")
-        return False, None, None, None
+        return False, None
