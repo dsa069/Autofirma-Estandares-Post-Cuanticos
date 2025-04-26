@@ -499,153 +499,17 @@ class AutoFirmaApp:
         )
         label_path.pack(anchor="w")
         
-        def temporal_list():
-            # Frame con scroll para resultados
-            list_frame = tk.Frame(vista)
-            list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            # Título para la lista
-            tk.Label(
-                list_frame, 
-                text="Firmas encontradas:", 
-                font=("Arial", 11, "bold"),
-                anchor="w"
-            ).pack(fill=tk.X, pady=(0, 5))
-            
-            # Crear un frame con scroll para contener los resultados
-            canvas = tk.Canvas(list_frame)
-            scrollbar = tk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
-            scrollable_frame = tk.Frame(canvas)
-            
-            scrollable_frame.bind(
-                "<Configure>",
-                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-            )
-            
-            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-            canvas.configure(yscrollcommand=scrollbar.set)
-            
-            canvas.pack(side="left", fill="both", expand=True)
-            scrollbar.pack(side="right", fill="y")
-            
-            # Inicializar contadores
-            valid_count = 0
-            invalid_count = 0
-            
-            resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
-            
-            # FASE 2: Mostrar los resultados en orden original (de la más antigua a la más reciente)
-            
-            for resultado in resultados_validacion:
-                i = resultado["indice"]
-                firma_data = resultado["firma_data"]
-                firma_valida = resultado["firma_valida"]
-                cert_valido = resultado["cert_valido"]
-                integridad_valida = resultado["integridad_valida"]
+        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
 
-                todo_valido = firma_valida and cert_valido and integridad_valida
-                
-                # Extraer datos para la visualización
-                nombre = firma_data["certificado_autenticacion"].get("nombre", "Desconocido")
-                fecha_firma = format_iso_display(firma_data.get("fecha_firma", "Desconocida"))
-                
-                algoritmo = firma_data["certificado_autenticacion"].get("algoritmo", "sphincs").lower()
-                
-                # Actualizar contadores
-                if todo_valido:
-                    valid_count += 1
-                else:
-                    invalid_count += 1
-                
-                # Crear frame para esta firma
-                firma_frame = tk.Frame(scrollable_frame, relief=tk.RIDGE, bd=1)
-                firma_frame.pack(fill=tk.X, pady=5, padx=5)
-                
-                # Configurar colores según resultado
-                bg_color = "#e8f5e9" if todo_valido else "#ffebee"  # Verde claro o rojo claro
-                firma_frame.configure(bg=bg_color)
-                
-                # Información de la firma
-                header_frame = tk.Frame(firma_frame, bg=bg_color)
-                header_frame.pack(fill=tk.X, padx=5, pady=5)
-                
-                # Número de firma e icono de estado
-                status_icon = "✓" if todo_valido else "✗"
-                status_color = "#388e3c" if todo_valido else "#d32f2f"  # Verde oscuro o rojo oscuro
-                
-                tk.Label(
-                    header_frame, 
-                    text=f"{i+1}. ",
-                    font=("Arial", 11, "bold"),
-                    bg=bg_color
-                ).pack(side=tk.LEFT)
-                
-                tk.Label(
-                    header_frame, 
-                    text=status_icon,
-                    font=("Arial", 14, "bold"),
-                    fg=status_color,
-                    bg=bg_color
-                ).pack(side=tk.LEFT)
-                
-                tk.Label(
-                    header_frame, 
-                    text=f" {nombre}",
-                    font=("Arial", 11, "bold"),
-                    bg=bg_color
-                ).pack(side=tk.LEFT)
-                
-                # Detalles de la firma
-                details_frame = tk.Frame(firma_frame, bg=bg_color)
-                details_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-                
-                tk.Label(
-                    details_frame, 
-                    text=f"Fecha: {fecha_firma}",
-                    font=("Arial", 10),
-                    bg=bg_color
-                ).pack(anchor="w")
-                
-                tk.Label(
-                    details_frame, 
-                    text=f"Algoritmo: {algoritmo.upper()}",
-                    font=("Arial", 10),
-                    bg=bg_color
-                ).pack(anchor="w")
-                
-                tk.Label(
-                    details_frame, 
-                    text=f"Estado: {'Válida' if firma_valida else 'No válida'}",
-                    font=("Arial", 10, "bold"),
-                    fg=status_color,
-                    bg=bg_color
-                ).pack(anchor="w")
-                
-                if not cert_valido:
-                    tk.Label(
-                        details_frame, 
-                        text="El certificado no es válido o ha expirado",
-                        font=("Arial", 10, "italic"),
-                        fg="#d32f2f",
-                        bg=bg_color
-                    ).pack(anchor="w")
-
-            return valid_count, invalid_count
-        
-        #print(firmas)
-
-        certificados_frame = create_certificate_list(vista, BASE_DIR, firmas)
+        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, BASE_DIR, resultados_validacion)
         certificados_frame.pack(padx=20)
 
-        valid_count, invalid_count = temporal_list()
         summary_img, summary_text = determinar_estilo_firmas_validiadas(valid_count, invalid_count)
         
-        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
-
         resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  # Fondo blanco grisáceo
         resultado_frame.pack(padx=20, pady=20, fill="x")
 
-        # Imagen del check
+        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
         label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
         label_imagen.grid(row=0, column=0, padx=(10, 10), pady=10, sticky="w")
 
@@ -661,7 +525,7 @@ class AutoFirmaApp:
 
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma)
         volver_btn.pack(pady=20)
-        
+
 if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática
     if len(sys.argv) > 1 and sys.argv[1] == "--verify":

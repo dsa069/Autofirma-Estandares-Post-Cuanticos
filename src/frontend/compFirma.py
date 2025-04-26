@@ -247,13 +247,31 @@ def create_certificate_list(parent, base_dir, firmas):
     Crea una lista específica para mostrar certificados
     """
     from frontend.compComunes import create_base_list
-    # Cargar datos simulados
-    
+
+    valid_count = 0
+    invalid_count = 0    
     # Definir función para procesar datos
     def procesar_certificados(lista_frame, datos):
+        nonlocal valid_count, invalid_count
         row_count = 0
-        for cert in datos:
-            row_count = create_certificate_row(base_dir, lista_frame, row_count, cert)
+        for resultado in datos:
+            #i = resultado["indice"]
+            firma_data = resultado["firma_data"]
+
+            estado = 0
+            if not resultado["firma_valida"]:
+                estado = 1
+            elif not resultado["cert_valido"]:
+                estado = 2
+            elif not resultado["integridad_valida"]:
+                estado = 3
+
+            if estado == 0:
+                valid_count += 1
+            else:
+                invalid_count += 1
+
+            row_count = create_certificate_row(base_dir, lista_frame, row_count, firma_data, estado)
         return row_count
 
     # Obtener la estructura base de la lista
@@ -263,13 +281,23 @@ def create_certificate_list(parent, base_dir, firmas):
         empty_message="No hay certificados disponibles.",
         process_data_function=procesar_certificados,
         data=firmas,
-        max_visible_items=4
+        max_visible_items=3
     )
     
-    return contenedor_principal
+    return contenedor_principal, valid_count, invalid_count
 
-def create_certificate_row(base_dir, lista_frame, row_count, firma):
+def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0):
     from frontend.compComunes import create_base_row
+
+    def razon_error(motivo_error):
+        if motivo_error == 1:
+            return "La firma digital no es válida"
+        elif motivo_error == 2:
+            return "El certificado ha expirado o ha sido revocado"
+        elif motivo_error == 3:
+            return "La integridad del documento está comprometida"
+        else:
+            return "La firma no es válida"
 
     # Definir tamaños específicos para columnas
     column_sizes = [50, 200, 100, 50]  # Logo | Nombre + Estado | Fecha | Check
@@ -283,6 +311,8 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma):
     )
 
     cert_info = firma["certificado_autenticacion"]
+
+    es_valida = not estado
 
     # --- Columna 0: logo del algoritmo ---
     algoritmo = cert_info["algoritmo"]
@@ -311,12 +341,12 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma):
     )
     nombre_dni_label.grid(row=0, column=1, sticky="w", padx=5)
 
-    estado_certificado = firma.get("estado", "El certificado es válido")  # Por si quieres meter el texto dinámico
+    estado_certificado = "El certificado es válido" if es_valida else f"{razon_error(estado)}"
     estado_label = ctk.CTkLabel(
         fila_container, 
         text=estado_certificado, 
         font=("Inter", 11),
-        text_color="#00AA00"  # Verde
+        text_color="#15984C" if es_valida else "#CB1616"
     )
     estado_label.grid(row=1, column=1, sticky="w", padx=5)
 
@@ -331,7 +361,7 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma):
     fecha_label.grid(row=0, column=2, rowspan=2, padx=10, pady=8, sticky="e")
 
     # --- Columna 3: icono de verificación ---
-    img = resize_image_proportionally(base_dir, "tick", 30)
+    img = resize_image_proportionally(base_dir, "tick" if es_valida else "error", 30)
 
     if img:
         check_label = ctk.CTkLabel(
