@@ -7,12 +7,10 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
 from tkinterdnd2 import TkinterDnD # type: ignore
+import customtkinter as ctk # type: ignore
 from backend.funcFirma import register_protocol_handler
-from frontend.compComunes import center_window, set_app_instance, setup_app_icons
-from frontend.compFirma import create_drop_area
-
-        #checkbox_firma = create_checkbox(root, "Firma visible en dentro del pdf")
-        #estado = checkbox_firma.get()
+from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, set_app_instance, setup_app_icons
+from frontend.compFirma import create_drop_area, set_app_instance_autofirma
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -22,21 +20,39 @@ class AutoFirmaApp:
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
         center_window(self.root)
-        set_app_instance(self)
-
         setup_app_icons(self.root, BASE_DIR, "Diego")
 
-        # Título
-        self.title_label = tk.Label(
-            root, text="AutoFirma con Sphincs", font=("Arial", 16, "bold")
+        self.vista_inicial_autofirma()
+
+    def vista_inicial_autofirma(self):
+        vista = crear_vista_nueva(self.root)
+
+        bienvenida_label = create_text(
+            vista, text="Bienvenido a la aplicación de AutoFirma Post-Cuántica"
         )
-        self.title_label.pack(pady=10)
+        bienvenida_label.pack(pady=(30,10), padx=(50, 0))
 
-        def handle_selected_file(path):
-            log_message("firmaApp.log","Archivo seleccionado:", path)
+        introduction_label = create_text(
+            vista, text="Esta herramienta te permite generar certificados digitales y claves con criptografía resistentes a ataques cuánticos, garantizando la seguridad a largo plazo. " \
+            "La aplicación utiliza estándares avanzados como Dilithium y SPHINCS+. "
+            "Para crear firmar o validar un documento, selecciona el archivo PDF en el area inferior." 
+        )
+        introduction_label.pack(pady=(10,30), padx=(50, 0))
+        
+        def handle_selected_file(document_path):
+            log_message("firmaApp.log", f"Archivo seleccionado: {document_path}")
 
-        create_drop_area(self.root, callback=handle_selected_file)
-                
+        create_drop_area(vista, callback=handle_selected_file)
+
+        botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
+        botones_frame.pack(padx=20, pady=10, expand=True)
+
+        volver_btn = create_button(botones_frame, "Firmar", lambda: self)
+        volver_btn.pack(side="left", padx=(0, 250))
+
+        guardar_btn = create_button(botones_frame, "Verificar", lambda: self)
+        guardar_btn.pack(side="left")
+
     def load_certificate(self, tipo):
         """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
         try:
@@ -660,6 +676,8 @@ if __name__ == "__main__":
         # Iniciar aplicación
         root = TkinterDnD.Tk()
         app = AutoFirmaApp(root)
+        set_app_instance(app)
+        set_app_instance_autofirma(app)
         
         # Verificar desde URI (autofirma://...)
         if len(sys.argv) > 2:
@@ -672,6 +690,8 @@ if __name__ == "__main__":
         # Inicialización normal
         root = TkinterDnD.Tk()
         app = AutoFirmaApp(root)
+        set_app_instance(app)
+        set_app_instance_autofirma(app)
         
         # Registrar el protocolo al iniciar la aplicación (solo una vez)
         register_protocol_handler()

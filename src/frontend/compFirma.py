@@ -1,7 +1,15 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
+from backend.funcComunes import log_message # type: ignore
 ctk.set_appearance_mode("light")
 
+APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
+
+# Función para establecer la instancia de la aplicación
+def set_app_instance_autofirma(app):
+    global APP_INSTANCE
+    APP_INSTANCE = app
+    log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
 
 def create_checkbox(parent, text):
     # Contenedor principal (transparente)
@@ -171,7 +179,7 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     outer_container = ctk.CTkFrame(
         parent,
         width=620,
-        height=220,
+        height=260,
         corner_radius=25,
         fg_color="#FFFFFF",
         border_width=1,
@@ -184,7 +192,7 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     frame_container = tk.Frame(
         outer_container,
         width=600,
-        height=200,
+        height=240,
         bg="white",
         highlightthickness=0
     )

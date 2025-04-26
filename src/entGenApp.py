@@ -21,13 +21,11 @@ class CertificadoDigitalApp:
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
         center_window(self.root)
-
-        # Rutas del icono
         setup_app_icons(self.root, BASE_DIR, "AlterDiego")
 
-        self.vista_inicial()
+        self.vista_inicial_entidad_generadora()
 
-    def vista_inicial(self):
+    def vista_inicial_entidad_generadora(self):
         # Título
 
         vista = crear_vista_nueva(self.root)
@@ -49,8 +47,6 @@ class CertificadoDigitalApp:
         
         lista_frame = create_key_list(vista, BASE_DIR)
         lista_frame.pack(padx=10, pady=10) 
-
-        #dropdown_algoritmo = create_dropdown_with_text(root, "Elige el algoritmo de generación de claves:", ["DILITHIUM3", "SPHINCS+ (SHA-256)"], "Seleccione algoritmo" )
 
     def vista_generacion_claves(self):
         """Genera nuevas claves de entidad con parámetros personalizados."""
@@ -126,7 +122,7 @@ class CertificadoDigitalApp:
                                     f"Válida desde: {fecha_expedicion}\n"
                                     f"Válida hasta: {fecha_caducidad}")
                     
-                    self.vista_inicial()
+                    self.vista_inicial_entidad_generadora()
                     
                 except Exception as e:
                     messagebox.showerror("Error", f"Error al generar claves: {str(e)}")
@@ -135,7 +131,7 @@ class CertificadoDigitalApp:
             botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
             botones_frame.pack(padx=20, pady=10, expand=True)
 
-            volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial())
+            volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial_entidad_generadora())
             volver_btn.pack(side="left", padx=(0, 250))
 
             guardar_btn = create_button(botones_frame, "Generar", lambda: generate_and_save())
@@ -275,7 +271,7 @@ class CertificadoDigitalApp:
             botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
             botones_frame.pack(padx=20, pady=10, expand=True)
 
-            volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial())
+            volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial_entidad_generadora())
             volver_btn.pack(side="left", padx=(0, 250))
 
             guardar_btn = create_button(botones_frame, "Generar", lambda: generate_and_save_certificado())
@@ -335,7 +331,7 @@ class CertificadoDigitalApp:
             datos_list = key_data_list(vista, certificado_path, BASE_DIR)
             datos_list.pack()
 
-        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial())
+        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_entidad_generadora())
         volver_btn.pack(pady=20)
 
 
