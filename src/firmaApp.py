@@ -51,7 +51,7 @@ class AutoFirmaApp:
         volver_btn = create_button(botones_frame, "Firmar", lambda: self)
         volver_btn.pack(side="left", padx=(0, 250))
 
-        guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures(self.document_path))
+        guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures(self.document_path) if hasattr(self, 'document_path') else messagebox.showinfo("Aviso", "Primero seleccione un documento para verificar"))
         guardar_btn.pack(side="left")
 
     def load_certificate(self, tipo):
@@ -445,39 +445,27 @@ class AutoFirmaApp:
 
     def verify_signatures(self, file_path):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
-        from backend.funcFirma import determinar_estilo_firmas_validiadas, verificar_firmas_cascada
+        from backend.funcFirma import determinar_estilo_firmas_validiadas, verificar_firmas_cascada, extraer_firmas_documento
         from backend.funcComunes import format_iso_display
         
-        try:
-            from backend.funcFirma import extraer_firmas_documento
-            # Llamar a la función del backend
-            success, firmas, hash_documento_actual = extraer_firmas_documento(file_path)
-            
-            # Manejar resultados
-            if not success:
-                messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
-                return
+        # Llamar a la función del backend
+        success, firmas, hash_documento_actual = extraer_firmas_documento(file_path)
+        
+        if not success:
+            messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
+            return
                     
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al verificar firmas: {e}")
-            log_message("firmaApp.log",f"Error al verificar firmas: {e}")
-
-        # Crear ventana de resultados
-        results_window = tk.Toplevel(self.root)
-        results_window.title(f"Verificación de firmas: {os.path.basename(file_path)}")
-        results_window.geometry("800x600")
-        results_window.transient(self.root)
-        results_window.grab_set()
+        vista = crear_vista_nueva(self.root)
         
         # Título
         tk.Label(
-            results_window, 
+            vista, 
             text="Verificación de Firmas Digitales", 
             font=("Arial", 14, "bold")
         ).pack(pady=10)
         
         # Información del documento
-        doc_frame = tk.Frame(results_window)
+        doc_frame = tk.Frame(vista)
         doc_frame.pack(fill=tk.X, padx=10, pady=5)
         
         tk.Label(
@@ -488,7 +476,7 @@ class AutoFirmaApp:
         ).pack(fill=tk.X)
         
         # Frame con scroll para resultados
-        list_frame = tk.Frame(results_window)
+        list_frame = tk.Frame(vista)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Título para la lista
@@ -618,7 +606,7 @@ class AutoFirmaApp:
                 ).pack(anchor="w")
         
         # Resumen de verificación
-        summary_frame = tk.Frame(results_window)
+        summary_frame = tk.Frame(vista)
         summary_frame.pack(fill=tk.X, padx=10, pady=10)
         
         bg_summary, fg_summary, summary_text = determinar_estilo_firmas_validiadas(valid_count, invalid_count)
@@ -636,26 +624,12 @@ class AutoFirmaApp:
         
         # Botón para cerrar
         tk.Button(
-            results_window, 
+            vista, 
             text="Cerrar", 
             font=("Arial", 11),
-            command=results_window.destroy,
+            command=vista.destroy,
             width=10
         ).pack(pady=10)
-        
-    def verify_from_uri(self, uri):
-        """Maneja la UI y llama al backend"""
-        from backend.funcFirma import process_uri
-        # process_uri devuelve: (success, file_path, firmas, hash_documento)
-        success, file_path = process_uri(uri)
-        
-        if not success:
-            messagebox.showerror("Error", "No se pudo verificar el documento. Por favor asegúrese de que el PDF esté abierto y sea accesible.")
-            return False
-            
-        # Mostrar resultados en la UI usando los valores desempaquetados de la tupla
-        self.verify_signatures(file_path)
-        return True
         
 if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática
@@ -669,8 +643,19 @@ if __name__ == "__main__":
         # Verificar desde URI (autofirma://...)
         if len(sys.argv) > 2:
             uri = sys.argv[2]
+
+            def verify_from_uri(uri):
+                """Maneja la UI y llama al backend"""
+                from backend.funcFirma import process_uri
+                
+                success, file_path = process_uri(uri)
+                if not success:
+                    messagebox.showerror("Error", "No se pudo verificar el documento. Por favor asegúrese de que el PDF esté abierto y sea accesible.")
+                    
+                app.verify_signatures(file_path)
+
             # Programar verificación para después de iniciar la UI
-            root.after(500, lambda: app.verify_from_uri(uri))
+            root.after(500, lambda: verify_from_uri(uri))
         
         root.mainloop()
     else:
