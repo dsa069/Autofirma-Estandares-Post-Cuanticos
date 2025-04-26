@@ -1,6 +1,7 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
-from backend.funcComunes import log_message # type: ignore
+from backend.funcComunes import format_iso_display, log_message
+from frontend.compComunes import resize_image_proportionally # type: ignore
 ctk.set_appearance_mode("light")
 
 APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
@@ -241,19 +242,18 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
 
     return frame_container
 
-def create_certificate_list(parent):
+def create_certificate_list(parent, base_dir, firmas):
     """
     Crea una lista específica para mostrar certificados
     """
     from frontend.compComunes import create_base_list
     # Cargar datos simulados
-    certificados = generar_certificados_simulados()
     
     # Definir función para procesar datos
     def procesar_certificados(lista_frame, datos):
         row_count = 0
         for cert in datos:
-            row_count = create_certificate_row(lista_frame, row_count, cert)
+            row_count = create_certificate_row(base_dir, lista_frame, row_count, cert)
         return row_count
 
     # Obtener la estructura base de la lista
@@ -262,21 +262,18 @@ def create_certificate_list(parent):
         height=270,
         empty_message="No hay certificados disponibles.",
         process_data_function=procesar_certificados,
-        data=certificados,
+        data=firmas,
         max_visible_items=4
     )
     
     return contenedor_principal
 
-def create_certificate_row(lista_frame, row_count, certificado):
-    """
-    Añade una fila con información de certificado al frame scrollable
-    """
+def create_certificate_row(base_dir, lista_frame, row_count, firma):
     from frontend.compComunes import create_base_row
 
-    # Definir tamaños específicos para columnas de certificados
-    column_sizes = [400, 180]  # Certificado, Algoritmo
-    
+    # Definir tamaños específicos para columnas
+    column_sizes = [50, 200, 100, 50]  # Logo | Nombre + Estado | Fecha | Check
+
     # Crear la fila base
     fila_container, next_row, logo_images = create_base_row(
         lista_frame=lista_frame,
@@ -284,65 +281,66 @@ def create_certificate_row(lista_frame, row_count, certificado):
         column_sizes=column_sizes,
         click_callback="mostrar_roumualdo"
     )
-    
-    # Título del certificado (columna 0)
-    cert_label = ctk.CTkLabel(
-        fila_container, 
-        text=certificado["titulo"], 
-        font=("Segoe UI", 13),
-        text_color="#111111"
-    )
-    cert_label.grid(row=0, column=0, padx=15, pady=8, sticky="w")
-    
-    # Mostrar logo o nombre del algoritmo (columna 1)
-    algoritmo = certificado["algoritmo"]
+
+    cert_info = firma["certificado_autenticacion"]
+
+    # --- Columna 0: logo del algoritmo ---
+    algoritmo = cert_info["algoritmo"]
     if algoritmo in logo_images and logo_images[algoritmo]:
         logo_label = tk.Label(
             fila_container, 
             image=logo_images[algoritmo], 
             bg=fila_container["bg"]
         )
-        logo_label.grid(row=0, column=1, padx=15, pady=8, sticky="w")
+        logo_label.grid(row=0, column=0, rowspan=2, padx=10, pady=8, sticky="w")
     else:
         alg_nombre = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
         alg_label = ctk.CTkLabel(
             fila_container, 
             text=alg_nombre, 
-            font=("Segoe UI", 12)
+            font=("Inter", 10)
         )
-        alg_label.grid(row=0, column=1, padx=15, pady=8, sticky="w")
-    
-    return next_row
+        alg_label.grid(row=0, column=0, rowspan=2, padx=10, pady=8, sticky="w")
 
-def generar_certificados_simulados():
-    """
-    Genera datos de certificados simulados para pruebas
-    """
-    certificados = [
-        {
-            "titulo": "Certificado de Identidad Digital",
-            "algoritmo": "dilithium",
-            "fecha_emision": "2023-12-15"
-        },
-        {
-            "titulo": "Certificado de Servidor Web",
-            "algoritmo": "sphincs",
-            "fecha_emision": "2024-01-10"
-        },
-                {
-            "titulo": "Certificado de Servidor Web",
-            "algoritmo": "sphincs",
-            "fecha_emision": "2024-01-10"
-        },
-                {
-            "titulo": "Certificado de Servidor Web",
-            "algoritmo": "sphincs",
-            "fecha_emision": "2024-01-10"
-        },
-        {
-            "titulo": "Certificado de Firma de Código",
-            "algoritmo": "dilithium",
-            "fecha_emision": "2024-01-25"
-        }
-    ]
-    return certificados
+    # --- Columna 1: nombre y dni, estado de certificado ---
+    nombre_dni_label = ctk.CTkLabel(
+        fila_container, 
+        text=f"{cert_info['nombre']} - {cert_info['dni']}", 
+        font=("Inter", 13, "bold"),
+        text_color="#111111"
+    )
+    nombre_dni_label.grid(row=0, column=1, sticky="w", padx=5)
+
+    estado_certificado = firma.get("estado", "El certificado es válido")  # Por si quieres meter el texto dinámico
+    estado_label = ctk.CTkLabel(
+        fila_container, 
+        text=estado_certificado, 
+        font=("Inter", 11),
+        text_color="#00AA00"  # Verde
+    )
+    estado_label.grid(row=1, column=1, sticky="w", padx=5)
+
+    # --- Columna 2: fecha ---
+    fecha_firma = firma.get("fecha", f"{format_iso_display(firma["fecha_firma"])}")
+    fecha_label = ctk.CTkLabel(
+        fila_container, 
+        text=fecha_firma, 
+        font=("Inter", 12),
+        text_color="#555555"
+    )
+    fecha_label.grid(row=0, column=2, rowspan=2, padx=10, pady=8, sticky="e")
+
+    # --- Columna 3: icono de verificación ---
+    img = resize_image_proportionally(base_dir, "tick", 30)
+
+    if img:
+        check_label = ctk.CTkLabel(
+            fila_container,
+            image=img,
+            text="", 
+            bg_color=fila_container["bg"]
+        )
+        check_label.image = img
+        check_label.grid(row=0, column=3, rowspan=2, padx=5, pady=8, sticky="e")
+
+    return next_row

@@ -182,33 +182,20 @@ def extraer_firmas_documento(file_path):
         return False, None, None
 
 def determinar_estilo_firmas_validiadas(valid_count, invalid_count):
-    """
-    Determina los colores y texto del resumen de firmas.
-    
-    Args:
-        valid_count: Número de firmas válidas
-        invalid_count: Número de firmas inválidas
-        
-    Returns:
-        tuple: (bg_color, fg_color, texto_resumen)
-    """
     if invalid_count == 0 and valid_count > 0:
         return (
-            "#e8f5e9",  # Verde claro
-            "#388e3c",  # Verde oscuro
-            f"✓ Todas las firmas son válidas ({valid_count})"
+            "tick",
+            f"Todas las firmas son válidas ({valid_count})"
         )
     elif valid_count == 0:
         return (
-            "#ffebee",  # Rojo claro
-            "#d32f2f",  # Rojo oscuro
-            f"✗ Ninguna firma es válida ({invalid_count})"
+            "error",
+            f"Ninguna firma es válida ({invalid_count})"
         )
     else:
         return (
-            "#fff3e0",  # Naranja claro
-            "#e65100",  # Naranja oscuro
-            f"⚠ Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
+            "caution",
+            f"Algunas firmas no son válidas ({valid_count} válidas, {invalid_count} no válidas)"
         )
 
 def verificar_certificado(cert_data, base_dir):
