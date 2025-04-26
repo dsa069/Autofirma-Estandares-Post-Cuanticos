@@ -300,10 +300,10 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0):
             return "La firma no es válida"
 
     # Definir tamaños específicos para columnas
-    column_sizes = [50, 200, 100, 50]  # Logo | Nombre + Estado | Fecha | Check
+    column_sizes = [100, 300, 130, 40]  # Logo | Nombre + Estado | Fecha | Check //610
 
     # Crear la fila base
-    fila_container, next_row, logo_images = create_base_row(
+    fila_container, next_row, _ = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
@@ -315,53 +315,47 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0):
     es_valida = not estado
 
     # --- Columna 0: logo del algoritmo ---
-    algoritmo = cert_info["algoritmo"]
-    if algoritmo in logo_images and logo_images[algoritmo]:
-        logo_label = tk.Label(
-            fila_container, 
-            image=logo_images[algoritmo], 
-            bg=fila_container["bg"]
-        )
-        logo_label.grid(row=0, column=0, rowspan=2, padx=10, pady=8, sticky="w")
-    else:
-        alg_nombre = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
-        alg_label = ctk.CTkLabel(
-            fila_container, 
-            text=alg_nombre, 
-            font=("Inter", 10)
-        )
-        alg_label.grid(row=0, column=0, rowspan=2, padx=10, pady=8, sticky="w")
+    img_algortimo = resize_image_proportionally(base_dir, cert_info["algoritmo"], 45)
+
+    logo_label = ctk.CTkLabel(
+        fila_container,
+        image=img_algortimo,
+        text="", 
+        bg_color=fila_container["bg"]
+    )
+    logo_label.image = img_algortimo
+    logo_label.grid(row=0, column=0, rowspan=2, pady=8, sticky="nsew")
 
     # --- Columna 1: nombre y dni, estado de certificado ---
     nombre_dni_label = ctk.CTkLabel(
         fila_container, 
         text=f"{cert_info['nombre']} - {cert_info['dni']}", 
-        font=("Inter", 13, "bold"),
+        font=("Inter", 17),
         text_color="#111111"
     )
-    nombre_dni_label.grid(row=0, column=1, sticky="w", padx=5)
+    nombre_dni_label.grid(row=0, column=1, padx=(10,0), sticky="w")
 
     estado_certificado = "El certificado es válido" if es_valida else f"{razon_error(estado)}"
     estado_label = ctk.CTkLabel(
         fila_container, 
         text=estado_certificado, 
-        font=("Inter", 11),
+        font=("Inter", 13),
         text_color="#15984C" if es_valida else "#CB1616"
     )
-    estado_label.grid(row=1, column=1, sticky="w", padx=5)
+    estado_label.grid(row=1, column=1, padx=(10,0), sticky="w")
 
     # --- Columna 2: fecha ---
     fecha_firma = firma.get("fecha", f"{format_iso_display(firma["fecha_firma"])}")
     fecha_label = ctk.CTkLabel(
         fila_container, 
         text=fecha_firma, 
-        font=("Inter", 12),
+        font=("Inter", 17),
         text_color="#555555"
     )
-    fecha_label.grid(row=0, column=2, rowspan=2, padx=10, pady=8, sticky="e")
+    fecha_label.grid(row=0, column=2, rowspan=2, pady=8, sticky="nsew")
 
     # --- Columna 3: icono de verificación ---
-    img = resize_image_proportionally(base_dir, "tick" if es_valida else "error", 30)
+    img = resize_image_proportionally(base_dir, "tick" if es_valida else "error", 40)
 
     if img:
         check_label = ctk.CTkLabel(
