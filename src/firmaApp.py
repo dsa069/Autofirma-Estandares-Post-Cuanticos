@@ -42,7 +42,7 @@ class AutoFirmaApp:
         
         def handle_selected_file(document_path):
             log_message("firmaApp.log", f"Archivo seleccionado: {document_path}")
-            self.document_path = document_path #self es probelma
+            self.document_path = document_path
 
         create_drop_area(vista, callback=handle_selected_file)
 
@@ -52,7 +52,7 @@ class AutoFirmaApp:
         volver_btn = create_button(botones_frame, "Firmar", lambda: self.sign_message())
         volver_btn.pack(side="left", padx=(0, 250))
 
-        guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures(self.document_path) if hasattr(self, 'document_path') else messagebox.showinfo("Aviso", "Primero seleccione un documento para verificar"))
+        guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures() if hasattr(self, 'document_path') else messagebox.showinfo("Aviso", "Primero seleccione un documento para verificar"))
         guardar_btn.pack(side="left")
 
     def load_certificate(self, tipo):
@@ -444,12 +444,12 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al firmar documento: {e}")
             log_message("firmaApp.log",f"Error al firmar documento: {e}")
 
-    def verify_signatures(self, file_path):
+    def verify_signatures(self):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
         from backend.funcFirma import determinar_estilo_firmas_validadas, verificar_firmas_cascada, extraer_firmas_documento
         
         # Llamar a la función del backend
-        success, firmas, hash_documento_actual = extraer_firmas_documento(file_path)
+        success, firmas, hash_documento_actual = extraer_firmas_documento(self.document_path)
         
         if not success:
             messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
@@ -505,8 +505,8 @@ class AutoFirmaApp:
         pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
         pdf_frame.pack(side="left", expand=True, anchor="w")
 
-        filename = os.path.basename(file_path)
-        folder_path = os.path.dirname(file_path)
+        filename = os.path.basename(self.document_path)
+        folder_path = os.path.dirname(self.document_path)
 
         label_title = ctk.CTkLabel(
             pdf_frame,
@@ -549,7 +549,7 @@ class AutoFirmaApp:
         datos_list = cert_data_list(vista, cert_data, BASE_DIR, fecha_firma)
         datos_list.pack()
 
-        volver_btn = create_button(vista, "Volver", lambda: volver_a)
+        volver_btn = create_button(vista, "Volver", lambda: volver_a())
         volver_btn.pack(pady=40)
 
 if __name__ == "__main__":
@@ -573,7 +573,8 @@ if __name__ == "__main__":
                 if not success:
                     messagebox.showerror("Error", "No se pudo verificar el documento. Por favor asegúrese de que el PDF esté abierto y sea accesible.")
                     
-                app.verify_signatures(file_path)
+                app.document_path = file_path
+                app.verify_signatures()
 
             # Programar verificación para después de iniciar la UI
             root.after(500, lambda: verify_from_uri(uri))

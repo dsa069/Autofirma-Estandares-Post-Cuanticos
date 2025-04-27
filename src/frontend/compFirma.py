@@ -271,7 +271,7 @@ def create_certificate_list(parent, base_dir, firmas):
             else:
                 invalid_count += 1
 
-            row_count = create_certificate_row(base_dir, lista_frame, row_count, firma_data, estado)
+            row_count = create_certificate_row(base_dir, lista_frame, row_count, firma_data, estado, APP_INSTANCE.verify_signatures)
         return row_count
 
     # Obtener la estructura base de la lista
@@ -309,7 +309,7 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0, 
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback=lambda event, c=cert_info, f=firma.get("fecha_firma"): APP_INSTANCE.vista_info_certificado(c, f)
+        click_callback=lambda event, c=cert_info, f=firma.get("fecha_firma"), v=callback_volver_a: APP_INSTANCE.vista_info_certificado(c, f, v)
     )
 
     es_valida = not estado
