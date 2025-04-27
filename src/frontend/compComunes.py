@@ -646,7 +646,7 @@ def cert_data_list(parent, cert_data, base_dir, fecha_firma=None):
             vista_mostrar_pk(
                 parent=APP_INSTANCE.root,
                 base_dir=base_dir,
-                volver_a=lambda: APP_INSTANCE.vista_info_certificado(cert_data, fecha_firma) if fecha_firma else APP_INSTANCE.vista_resultado_certificado(cert_data),
+                volver_a=lambda: APP_INSTANCE.vista_info_certificado(cert_data, fecha_firma, APP_INSTANCE.verify_signatures) if fecha_firma else APP_INSTANCE.vista_resultado_certificado(cert_data),
                 pk=cert_data.get('user_public_key'), 
                 titulo=f"{cert_data.get("nombre")} - {cert_data.get("dni")}",
                 algoritmo=cert_data.get('algoritmo').lower(),
