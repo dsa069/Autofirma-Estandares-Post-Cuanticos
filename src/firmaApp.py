@@ -9,8 +9,8 @@ from tkinter import PhotoImage, messagebox, filedialog, simpledialog
 from tkinterdnd2 import TkinterDnD # type: ignore
 import customtkinter as ctk # type: ignore
 from backend.funcFirma import register_protocol_handler
-from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, resize_image_proportionally, set_app_instance, setup_app_icons
-from frontend.compFirma import create_certificate_list, create_drop_area, set_app_instance_autofirma
+from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons
+from frontend.compFirma import create_cert_area, create_certificate_list, create_checkbox, create_drop_area, set_app_instance_autofirma
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -49,68 +49,225 @@ class AutoFirmaApp:
         botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
         botones_frame.pack(padx=20, pady=10, expand=True)
 
-        volver_btn = create_button(botones_frame, "Firmar", lambda: self.sign_message())
+        firmar_btn = create_button(botones_frame, "Firmar", lambda: self.sign_document() if self.document_path else messagebox.showinfo("Aviso", "Primero seleccione un documento para firmar"))
+        firmar_btn.pack(side="left", padx=(0, 250))
+
+        verificar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures() if self.document_path else messagebox.showinfo("Aviso", "Primero seleccione un documento para verificar"))
+        verificar_btn.pack(side="left")
+
+    def verify_signatures(self):
+        """Muestra los resultados de la verificación de múltiples firmas en cascada."""
+        from backend.funcFirma import determinar_estilo_firmas_validadas, verificar_firmas_cascada, extraer_firmas_documento
+        
+        # Llamar a la función del backend
+        success, firmas, hash_documento_actual = extraer_firmas_documento(self.document_path)
+        
+        if not success:
+            messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
+            return
+                    
+        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
+
+        vista = crear_vista_nueva(self.root)
+
+        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, BASE_DIR, resultados_validacion)
+        
+        summary_img, summary_text = determinar_estilo_firmas_validadas(valid_count, invalid_count)
+        
+        # Crear un frame para el resultado
+        resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
+        resultado_frame.pack(padx=20, pady=15, fill="x")
+
+        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
+        label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
+        label_imagen.grid(row=0, column=0, padx=(10, 10), sticky="w")
+
+        label_texto = ctk.CTkLabel(
+            resultado_frame,
+            text=summary_text,
+            font=("Inter", 25),
+            text_color="#000000",
+            bg_color="#f5f5f5"
+        )
+        label_texto.grid(row=0, column=1, padx=(0, 10), sticky="w", pady=(5, 0))
+        
+        # Frame para el pdf
+        doc_label = ctk.CTkLabel(vista, text="Documento validado:",
+                                font=("Inter", 19), text_color="#111111")
+        doc_label.pack(anchor="w", padx=(30,0), pady=(5,0))
+
+        fondo_pdf_frame = ctk.CTkFrame(
+            vista,
+            width=620,
+            height=75,
+            fg_color="white",
+            corner_radius=25,
+            border_width=1,
+            border_color="#E0E0E0"
+        )
+        fondo_pdf_frame.pack(pady=5)
+        fondo_pdf_frame.pack_propagate(False)
+
+        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
+        image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
+        image_label.image = img_pdf
+        image_label.pack(side="left", padx=20)
+
+        pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
+        pdf_frame.pack(side="left", expand=True, anchor="w")
+
+        filename = os.path.basename(self.document_path)
+        folder_path = os.path.dirname(self.document_path)
+
+        label_title = ctk.CTkLabel(
+            pdf_frame,
+            text=filename,
+            text_color="#111111",
+            font=("Inter", 18),
+            fg_color="transparent",
+            anchor="w"
+        )
+        label_title.pack(anchor="w")
+
+        label_path = ctk.CTkLabel(
+            pdf_frame,
+            text=folder_path,
+            text_color="#555555",
+            font=("Inter", 14),
+            fg_color="transparent",
+            anchor="w"
+        )
+        label_path.pack(anchor="w")
+
+        # Frame para los certificados
+        certificados_label = ctk.CTkLabel(vista, text="Firmas detectadas:",
+                                font=("Inter", 19), text_color="#111111")
+        certificados_label.pack(anchor="w", padx=(30,0), pady=(10,0))
+        certificados_frame.pack(pady=5)
+
+        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
+        volver_btn.pack(pady=20)
+
+    def sign_document(self):
+        """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
+
+        password_trys = [0]  # Using a mutable object (list) to maintain state
+
+        cert_file_path = [None]
+        def handle_selected_cert(cert_path):
+            log_message("firmaApp.log", f"Archivo seleccionado: {cert_path}")
+            cert_file_path[0] = cert_path
+
+        vista = crear_vista_nueva(self.root)
+
+        titulo_label = ctk.CTkLabel(vista, text="Firmar un documento", font=("Inter", 25), fg_color="transparent")
+        titulo_label.pack(pady=30)
+
+        cert_area_container = ctk.CTkFrame(vista, fg_color="transparent")
+        cert_area_container.pack(pady=(10, 10), anchor="w", fill="x")
+
+        label = ctk.CTkLabel(cert_area_container, text="Selecciona el certificado de firma:", font=("Inter", 17), text_color="#111111")
+        label.pack(anchor="w", padx= 30)
+
+        cert_area = create_cert_area(cert_area_container, BASE_DIR, callback= handle_selected_cert)
+        cert_area.pack(anchor="center")
+
+        pass_container = ctk.CTkFrame(vista, fg_color="transparent")
+        pass_container.pack(padx= 30, anchor="w", fill="x", pady=30)
+
+        pass_field = create_text_field_with_title(pass_container, "Contraseña del certificado:", "Escriba la contraseña de nuevo")
+        pass_field.configure(show="*")
+
+        visible_sign_check = create_checkbox(vista, "Firma visible en dentro del pdf")
+
+        botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
+        botones_frame.pack(padx=20, pady=10, expand=True)
+
+        volver_btn = create_button(botones_frame, "Cancelar", lambda: self.vista_inicial_autofirma())
         volver_btn.pack(side="left", padx=(0, 250))
 
-        guardar_btn = create_button(botones_frame, "Verificar", lambda: self.verify_signatures() if hasattr(self, 'document_path') else messagebox.showinfo("Aviso", "Primero seleccione un documento para verificar"))
+        guardar_btn = create_button(botones_frame, "Firmar", lambda: verify_and_create_sign())
         guardar_btn.pack(side="left")
 
-    def load_certificate(self, tipo):
-        """Carga el certificado del usuario según el tipo ('firmar' o 'autenticacion')."""
-        try:
-            from backend.funcFirma import cargar_datos_certificado, decrypt_private_key, enviar_alerta_certificado
-            # Comprobar si existe la carpeta certificados_postC
-            user_home = os.path.expanduser("~")
-            certs_folder = os.path.join(user_home, "certificados_postC")
-            
-            # Verificar si la carpeta existe
-            if not os.path.exists(certs_folder):
-                messagebox.showerror("Error", "No se encuentra la carpeta certificados_postC en su directorio de usuario.")
-                log_message("firmaApp.log","Error: No se encuentra la carpeta certificados_postC")
-                return None, None, None, None, None, None
-                
-            cert_path = filedialog.askopenfilename(
-                title="Seleccionar certificado",
-                initialdir=certs_folder,
-                filetypes=[("Certificados", f"certificado_digital_{tipo}_*.json")]
-            )
-            if not cert_path:
-                return None, None, None, None, None, None
+        def verify_and_create_sign():
+            try:
+                from backend.funcFirma import enviar_alerta_certificado, cargar_certificado_autenticacion, copiar_contenido_pdf, firmar_documento_pdf, cargar_datos_certificado, decrypt_private_key
 
-            cert_data, user_pk, ent_pk, exp_date, issue_date = cargar_datos_certificado(cert_path, BASE_DIR)
+                firma_cert_path = cert_file_path[0]
+                password = pass_field.get()
+                visible_sign = visible_sign_check.get()
 
-            if tipo == "firmar":
-                encrypted_sk = cert_data.get("user_secret_key")
+                #----------------------OBTENEMOS DATOS CERTIFICADO DE FIRMA----------------------
+                if not firma_cert_path:
+                    messagebox.showerror("Error", "No se ha seleccionado un certificado de firma.")
+                    return
+
+                cert_firma, _, _, _, _ = cargar_datos_certificado(firma_cert_path, BASE_DIR)
+
+                #-----------------------VERIFICAMOS LA CONTRASEÑA DEL CERTIFICADO----------------------
+                encrypted_sk = cert_firma.get("user_secret_key")
                 if not encrypted_sk:
                     raise ValueError("No se encontró la clave privada cifrada en el certificado.")
 
-                intento = 0
-                while True:  # Bucle infinito hasta que se introduzca la contraseña correcta
+                user_sk = decrypt_private_key(encrypted_sk, password)
 
-                    password = simpledialog.askstring(
-                        "Contraseña", "Introduce la contraseña del certificado:", show="*"
-                    )
+                if not user_sk:
+                    password_trys[0] += 1
+                    messagebox.showerror("Error", "Contraseña incorrecta. Inténtalo de nuevo.")
+                    log_message("firmaApp.log",f"Contraseña incorrecta para el certificado de firma. Intento {password_trys[0]}")
+                    if password_trys[0] == 3:
+                        enviar_alerta_certificado(cert_firma["nombre"], cert_firma["dni"])
+                    return
+                
+                #---------------BUSCAMOS EL CERTIFICADO DE AUTENTICACION ASOCIADO----------------------
+                success, cert_auth, error_msg = cargar_certificado_autenticacion(cert_firma, BASE_DIR)
+                if not success:
+                    messagebox.showerror("Error", error_msg)
+                    return
+                
+                # -----------------GUARDAR EL DOCUMENTO FIRMADO---------------------
+                original_filename = os.path.basename(self.document_path)
+                filename_without_ext, extension = os.path.splitext(original_filename)
 
-                    if not password:
-                        return None, None, None, None, None, None  # Usuario canceló
+                save_path = filedialog.asksaveasfilename(
+                    title="Guardar nuevo documento firmado",
+                    initialfile=f"{filename_without_ext}_firmado{extension}",
+                    initialdir= os.path.join(os.path.expanduser("~"), "Desktop"),
+                    defaultextension=".pdf",
+                    filetypes=[("Archivos PDF", "*.pdf")],
+                )
 
-                    user_sk = decrypt_private_key(encrypted_sk, password)
+                if not save_path:
+                    messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
+                    return
 
-                    if user_sk:
-                        break  # Clave descifrada correctamente
+                # GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
+                if not copiar_contenido_pdf(self.document_path, save_path):
+                    messagebox.showerror("Error", "No se pudo copiar el contenido del archivo original.")
+                    return
+
+                # -------------------PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA---------------------
+                visual_signature_hash = None
+                
+                if visible_sign:
+                    success, visual_hash = self.add_written_signature(save_path, cert_firma["nombre"])
+                    if success:
+                        visual_signature_hash = visual_hash
                     else:
-                        messagebox.showerror("Error", "Contraseña incorrecta. Inténtalo de nuevo.")
-                        intento += 1
-                        if intento == 3:  # Mostrar alerta cada 3 intentos
-                            enviar_alerta_certificado(cert_data["nombre"], cert_data["dni"])
+                        # Si se cancela la firma escrita, seguimos con la firma digital normal
+                        log_message("firmaApp.log","Firma escrita cancelada, continuando con firma digital.")
 
-            log_message("firmaApp.log",f"Certificado {tipo} cargado correctamente.")
-            return user_sk, user_pk, ent_pk, issue_date, exp_date, cert_data
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al cargar certificado {tipo}: {e}")
-            log_message("firmaApp.log",f"Error al cargar certificado {tipo}: {e}")
-            return None, None, None, None, None, None
-        
+                #-------------------FIRMAR EL DOCUMENTO---------------------
+                resultado, mensaje = firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash)
+                if resultado:
+                    messagebox.showinfo("Éxito", mensaje)
+                else:
+                    messagebox.showerror("Error", mensaje)
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al firmar documento: {e}")
+                log_message("firmaApp.log",f"Error al firmar documento: {e}")
+
     def add_written_signature(self, pdf_path, nombre_certificado):
         """Ventana unificada para seleccionar página y posición de firma."""
         import fitz  # type: ignore # PyMuPDF para manejar metadatos en PDFs
@@ -379,163 +536,6 @@ class AutoFirmaApp:
             messagebox.showerror("Error", f"Error al seleccionar posición: {e}")
             log_message("firmaApp.log",f"Error al seleccionar posición: {e}")
             return False
-
-    def sign_message(self):
-        """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
-        try:
-            from backend.funcFirma import cargar_certificado_autenticacion, copiar_contenido_pdf, firmar_documento_pdf
-            # Cargar certificado de firma
-            user_sk, _, _, _, _, cert_firma = self.load_certificate("firmar")
-            if not user_sk:
-                return
-            
-            # SELECCIONAR DOCUMENTO PARA FIRMAR
-            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            file_path = filedialog.askopenfilename(
-                title="Seleccionar archivo para firmar",
-                initialdir=desktop_path,  # Usar el Escritorio como carpeta inicial
-                filetypes=[("Archivos PDF", "*.pdf")],
-            )
-            if not file_path:
-                return
-
-            # PERMITIR RENOMBRAR Y GUARDAR EL DOCUMENTO
-            save_path = filedialog.asksaveasfilename(
-                title="Guardar documento firmado",
-                initialfile="documento_firmado.pdf",
-                defaultextension=".pdf",
-                filetypes=[("Archivos PDF", "*.pdf")],
-            )
-
-            if not save_path:
-                messagebox.showinfo("Cancelado", "Firma cancelada, no se ha guardado el archivo.")
-                return
-
-            success, cert_auth, error_msg = cargar_certificado_autenticacion(cert_firma, BASE_DIR)
-            if not success:
-                messagebox.showerror("Error", error_msg)
-                return
-
-            # GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
-            if not copiar_contenido_pdf(file_path, save_path):
-                messagebox.showerror("Error", "No se pudo copiar el contenido del archivo original.")
-                return
-
-            visual_signature_hash = None
-            
-            # PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA
-            agregar_firma = messagebox.askyesno("Firma Escrita", "¿Desea añadir una firma escrita en el PDF?")
-            if agregar_firma:
-                success, visual_hash = self.add_written_signature(save_path, cert_firma["nombre"])
-                if success:
-                    visual_signature_hash = visual_hash
-                else:
-                    # Si se cancela la firma escrita, seguimos con la firma digital normal
-                    log_message("firmaApp.log","Firma escrita cancelada, continuando con firma digital.")
-
-            # CALCULAR HASH DEL DOCUMENTO (después de añadir la firma escrita si se solicitó)
-            resultado, mensaje = firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash)
-            if resultado:
-                messagebox.showinfo("Éxito", mensaje)
-            else:
-                messagebox.showerror("Error", mensaje)
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al firmar documento: {e}")
-            log_message("firmaApp.log",f"Error al firmar documento: {e}")
-
-    def verify_signatures(self):
-        """Muestra los resultados de la verificación de múltiples firmas en cascada."""
-        from backend.funcFirma import determinar_estilo_firmas_validadas, verificar_firmas_cascada, extraer_firmas_documento
-        
-        # Llamar a la función del backend
-        success, firmas, hash_documento_actual = extraer_firmas_documento(self.document_path)
-        
-        if not success:
-            messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
-            return
-                    
-        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
-
-        vista = crear_vista_nueva(self.root)
-
-        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, BASE_DIR, resultados_validacion)
-        
-        summary_img, summary_text = determinar_estilo_firmas_validadas(valid_count, invalid_count)
-        
-        # Crear un frame para el resultado
-        resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
-        resultado_frame.pack(padx=20, pady=15, fill="x")
-
-        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
-        label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
-        label_imagen.grid(row=0, column=0, padx=(10, 10), sticky="w")
-
-        label_texto = ctk.CTkLabel(
-            resultado_frame,
-            text=summary_text,
-            font=("Inter", 25),
-            text_color="#000000",
-            bg_color="#f5f5f5"
-        )
-        label_texto.grid(row=0, column=1, padx=(0, 10), sticky="w", pady=(5, 0))
-        
-        # Frame para el pdf
-        doc_label = ctk.CTkLabel(vista, text="Documento validado:",
-                                font=("Inter", 19), text_color="#111111")
-        doc_label.pack(anchor="w", padx=(30,0), pady=(5,0))
-
-        fondo_pdf_frame = ctk.CTkFrame(
-            vista,
-            width=620,
-            height=75,
-            fg_color="white",
-            corner_radius=25,
-            border_width=1,
-            border_color="#E0E0E0"
-        )
-        fondo_pdf_frame.pack(pady=5)
-        fondo_pdf_frame.pack_propagate(False)
-
-        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
-        image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
-        image_label.image = img_pdf
-        image_label.pack(side="left", padx=20)
-
-        pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
-        pdf_frame.pack(side="left", expand=True, anchor="w")
-
-        filename = os.path.basename(self.document_path)
-        folder_path = os.path.dirname(self.document_path)
-
-        label_title = ctk.CTkLabel(
-            pdf_frame,
-            text=filename,
-            text_color="#111111",
-            font=("Inter", 18),
-            fg_color="transparent",
-            anchor="w"
-        )
-        label_title.pack(anchor="w")
-
-        label_path = ctk.CTkLabel(
-            pdf_frame,
-            text=folder_path,
-            text_color="#555555",
-            font=("Inter", 14),
-            fg_color="transparent",
-            anchor="w"
-        )
-        label_path.pack(anchor="w")
-
-        # Frame para los certificados
-        certificados_label = ctk.CTkLabel(vista, text="Firmas detectadas:",
-                                font=("Inter", 19), text_color="#111111")
-        certificados_label.pack(anchor="w", padx=(30,0), pady=(10,0))
-        certificados_frame.pack(pady=5)
-
-        volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
-        volver_btn.pack(pady=20)
 
     def vista_info_certificado(self, cert_data, fecha_firma, volver_a = None):
         from frontend.compComunes import cert_data_list
