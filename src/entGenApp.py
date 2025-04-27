@@ -259,11 +259,15 @@ class CertificadoDigitalApp:
                         dni=dni,
                         password=password
                     )
+
+                    import json
+                    with open(cert_auth_path, 'r') as f:
+                        cert_data = json.load(f)
                 
                     messagebox.showinfo("Éxito", 
                                     f"Certificados generados con {selected_key['algoritmo']} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
 
-                    self.vista_resultado_certificado(certificado_path=cert_auth_path)
+                    self.vista_resultado_certificado(cert_data=cert_data)
                 except Exception as e:                
                     log_message("entGenApp.log", f"Error generando certificados: {str(e)}")
                     self.vista_resultado_certificado(error=e)
@@ -281,7 +285,7 @@ class CertificadoDigitalApp:
             messagebox.showerror("Error", f"Error al generar certificados: {e}")
             log_message("entGenApp.log",f"Error al generar certificados: {e}")            
 
-    def vista_resultado_certificado(self, certificado_path = None, error = None):
+    def vista_resultado_certificado(self, cert_data = None, error = None):
         """Muestra el resultado de la generación del certificado."""
         # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
@@ -328,9 +332,6 @@ class CertificadoDigitalApp:
             )
             error_message.pack(pady=(5, 20), padx=20, anchor="w")
         else:
-            import json
-            with open(certificado_path, 'r') as f:
-                cert_data = json.load(f)
 
             datos_list = cert_data_list(vista, cert_data, BASE_DIR)
             datos_list.pack()

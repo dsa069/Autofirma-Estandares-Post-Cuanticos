@@ -259,8 +259,8 @@ def resize_image_proportionally(base_dir, nombre, desired_height=75):
     """
     Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones, devolviendo CTkImage.
     """
-    from PIL import Image  # NO NECESITAS ImageTk
-    from customtkinter import CTkImage
+    from PIL import Image # type: ignore
+    from customtkinter import CTkImage # type: ignore
     import os
 
     image_path = os.path.join(base_dir, "img", f"{nombre}.png")
@@ -628,8 +628,8 @@ def cert_data_list(parent, cert_data, base_dir, fecha_firma=None):
     key_data = [
         ("Titular", cert_data.get('nombre')),
         ("DNI", cert_data.get('dni')),
-        ("Fecha Expedición", cert_data.get('fecha_expedicion')),
-        ("Fecha Caducidad", cert_data.get('fecha_caducidad')),
+        ("Fecha Expedición", f"{format_iso_display(cert_data.get('fecha_expedicion'))}"),
+        ("Fecha Caducidad", f"{format_iso_display(cert_data.get('fecha_caducidad'))}"),
         ("Algoritmo firma", cert_data.get('algoritmo').upper()),
         ("Algoritmo hash firma", "SHA256"),
         ("Entidad certificadora", "SafeInQ"),
@@ -646,7 +646,7 @@ def cert_data_list(parent, cert_data, base_dir, fecha_firma=None):
             vista_mostrar_pk(
                 parent=APP_INSTANCE.root,
                 base_dir=base_dir,
-                volver_a=lambda: APP_INSTANCE.vista_resultado_certificado(certificado_path),
+                volver_a=lambda: APP_INSTANCE.vista_info_certificado(cert_data, fecha_firma) if fecha_firma else APP_INSTANCE.vista_resultado_certificado(cert_data),
                 pk=cert_data.get('user_public_key'), 
                 titulo=f"{cert_data.get("nombre")} - {cert_data.get("dni")}",
                 algoritmo=cert_data.get('algoritmo').lower(),

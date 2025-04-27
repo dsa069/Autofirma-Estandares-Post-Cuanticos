@@ -25,6 +25,7 @@ class AutoFirmaApp:
         self.vista_inicial_autofirma()
 
     def vista_inicial_autofirma(self):
+        self.document_path = None
         vista = crear_vista_nueva(self.root)
 
         bienvenida_label = create_text(
@@ -536,7 +537,7 @@ class AutoFirmaApp:
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
         volver_btn.pack(pady=20)
 
-    def vista_info_certificado(self, firma, volver_a):
+    def vista_info_certificado(self, cert_data, fecha_firma, volver_a = None):
         from frontend.compComunes import cert_data_list
 
         vista = crear_vista_nueva(self.root)
@@ -545,7 +546,7 @@ class AutoFirmaApp:
         titulo_label.pack(pady=(40, 50))
 
         # Use the cert parameter instead of undefined certificado_path
-        datos_list = cert_data_list(vista, firma["certificado_autenticacion"], BASE_DIR, firma["fecha_firma"])
+        datos_list = cert_data_list(vista, cert_data, BASE_DIR, fecha_firma)
         datos_list.pack()
 
         volver_btn = create_button(vista, "Volver", lambda: volver_a)

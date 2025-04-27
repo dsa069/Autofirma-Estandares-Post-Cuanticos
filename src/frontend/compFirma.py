@@ -302,15 +302,15 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0, 
     # Definir tamaños específicos para columnas
     column_sizes = [100, 300, 130, 40]  # Logo | Nombre + Estado | Fecha | Check //610
 
+    cert_info = firma["certificado_autenticacion"]
+
     # Crear la fila base
     fila_container, next_row, _ = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback=lambda event, f=firma: APP_INSTANCE.vista_info_certificado(f, None)
+        click_callback=lambda event, c=cert_info, f=firma.get("fecha_firma"): APP_INSTANCE.vista_info_certificado(c, f)
     )
-
-    cert_info = firma["certificado_autenticacion"]
 
     es_valida = not estado
 

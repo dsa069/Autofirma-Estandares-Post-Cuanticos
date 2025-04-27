@@ -81,7 +81,7 @@ def create_key_list(parent, base_dir):
     def procesar_claves(lista_frame, datos):
         row_count = 0
         for algoritmo, clave, es_caducada, es_futura in datos:
-            row_count = create_key_row(lista_frame, base_dir, row_count, clave, es_caducada, es_futura, pk_callback_volver_a= lambda: APP_INSTANCE.vista_inicial())
+            row_count = create_key_row(lista_frame, base_dir, row_count, clave, es_caducada, es_futura, pk_callback_volver_a= lambda: APP_INSTANCE.vista_inicial_entidad_generadora())
         return row_count
     
     # Definir encabezados específicos para claves
