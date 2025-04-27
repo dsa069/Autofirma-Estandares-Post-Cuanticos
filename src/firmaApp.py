@@ -536,6 +536,21 @@ class AutoFirmaApp:
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
         volver_btn.pack(pady=20)
 
+    def vista_info_certificado(self, firma, volver_a):
+        from frontend.compComunes import cert_data_list
+
+        vista = crear_vista_nueva(self.root)
+        
+        titulo_label = ctk.CTkLabel(vista, text="Información sobre el certificado", font=("Inter", 25), fg_color="transparent")
+        titulo_label.pack(pady=(40, 50))
+
+        # Use the cert parameter instead of undefined certificado_path
+        datos_list = cert_data_list(vista, firma["certificado_autenticacion"], BASE_DIR, firma["fecha_firma"])
+        datos_list.pack()
+
+        volver_btn = create_button(vista, "Volver", lambda: volver_a)
+        volver_btn.pack(pady=40)
+
 if __name__ == "__main__":
     # Comprobar si se inicia para verificación automática
     if len(sys.argv) > 1 and sys.argv[1] == "--verify":

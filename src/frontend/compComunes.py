@@ -620,16 +620,11 @@ def create_pk_row(lista_frame, row_count, clave):
 
     return next_row
 
-def key_data_list(parent, certificado_path, base_dir):
+def cert_data_list(parent, cert_data, base_dir, fecha_firma=None):
     """
     Crea una lista visual para mostrar datos de un certificado (titular, dni, etc.).
     """
     from frontend.compComunes import create_base_list
-    import json
-    # Leer el archivo JSON
-    with open(certificado_path, 'r') as f:
-        cert_data = json.load(f)
-    
     key_data = [
         ("Titular", cert_data.get('nombre')),
         ("DNI", cert_data.get('dni')),
@@ -664,31 +659,45 @@ def key_data_list(parent, certificado_path, base_dir):
         for titulo, valor in datos:
             # Check if this is the public key row
             if titulo == "Clave Pública Usuario":
-                row_count = key_data_row(lista_frame, row_count, titulo, valor, on_pk_click)
+                row_count = cert_data_row(lista_frame, row_count, titulo, valor, on_pk_click)
             else:
-                row_count = key_data_row(lista_frame, row_count, titulo, valor)
+                row_count = cert_data_row(lista_frame, row_count, titulo, valor)
         return row_count
 
-    # Crear header personalizado con imagen
     def custom_header(parent_frame):
+        # Frame principal sin width fijo para que se adapte
         header_frame = ctk.CTkFrame(parent_frame, fg_color="transparent", corner_radius=0)
-        header_frame.pack(pady=10, padx = (10,0), anchor="w")
+        header_frame.pack(pady=10, padx=20, fill="x")
         
-        # Create the image only once
+        # Configuración con 3 columnas
+        header_frame.grid_columnconfigure(0, weight=0)  # Icono (ancho fijo)
+        header_frame.grid_columnconfigure(1, weight=1)  # Nombre (expandible)
+        header_frame.grid_columnconfigure(2, weight=0)  # Fecha (ancho fijo)
+        
+        # 1. ICONO
         algorithm_image = resize_algoritmo_image_proportionally(base_dir, cert_data.get('algoritmo').lower(), 40)
-        
-        # Use the same image reference
         img_label = tk.Label(header_frame, image=algorithm_image, bg="white")
-        img_label.image = algorithm_image  # Keep a reference to prevent garbage collection
-        img_label.pack(side="left", padx=20)
+        img_label.image = algorithm_image
+        img_label.grid(row=0, column=0, padx=(0, 10))
         
+        # 2. NOMBRE Y DNI
         text_label = ctk.CTkLabel(
             header_frame, 
             text=f'{cert_data.get("nombre")} - {cert_data.get("dni")}',
             font=("Inter", 17), 
-            text_color="#111111"
+            text_color="#111111",
         )
-        text_label.pack(side="left", pady= (10, 0))
+        text_label.grid(row=0, column=1, sticky="w", pady=(5, 0))
+        
+        # 3. FECHA (a la derecha)
+        if fecha_firma:
+            fecha_label = ctk.CTkLabel(
+                header_frame, 
+                text=f'{format_iso_display(fecha_firma)}',
+                font=("Inter", 17), 
+                text_color="#555555",
+            )
+            fecha_label.grid(row=0, column=2, sticky="e", padx=(10, 0))
         
         return header_frame
 
@@ -706,7 +715,7 @@ def key_data_list(parent, certificado_path, base_dir):
 
     return contenedor_principal
 
-def key_data_row(lista_frame, row_count, titulo, valor, callback=None):
+def cert_data_row(lista_frame, row_count, titulo, valor, callback=None):
     """
     Crea una fila visual con título y valor para la lista de datos de un certificado.
     """

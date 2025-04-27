@@ -286,7 +286,7 @@ def create_certificate_list(parent, base_dir, firmas):
     
     return contenedor_principal, valid_count, invalid_count
 
-def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0):
+def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0, callback_volver_a = None):
     from frontend.compComunes import create_base_row
 
     def razon_error(motivo_error):
@@ -307,7 +307,7 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0):
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback="mostrar_roumualdo"
+        click_callback=lambda event, f=firma: APP_INSTANCE.vista_info_certificado(f, None)
     )
 
     cert_info = firma["certificado_autenticacion"]

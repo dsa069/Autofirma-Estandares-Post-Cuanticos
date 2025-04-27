@@ -7,7 +7,7 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, key_data_list, resize_algoritmo_image_proportionally, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, cert_data_list, resize_algoritmo_image_proportionally, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
 from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
 
 SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
@@ -328,7 +328,11 @@ class CertificadoDigitalApp:
             )
             error_message.pack(pady=(5, 20), padx=20, anchor="w")
         else:
-            datos_list = key_data_list(vista, certificado_path, BASE_DIR)
+            import json
+            with open(certificado_path, 'r') as f:
+                cert_data = json.load(f)
+
+            datos_list = cert_data_list(vista, cert_data, BASE_DIR)
             datos_list.pack()
 
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_entidad_generadora())
