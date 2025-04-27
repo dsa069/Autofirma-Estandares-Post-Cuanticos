@@ -553,41 +553,29 @@ class AutoFirmaApp:
         volver_btn.pack(pady=40)
 
 if __name__ == "__main__":
-    # Comprobar si se inicia para verificación automática
-    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
-        # Iniciar aplicación
-        root = TkinterDnD.Tk()
-        app = AutoFirmaApp(root)
-        #set_app_instance(app)
-        #set_app_instance_autofirma(app)
-        
-        # Verificar desde URI (autofirma://...)
-        if len(sys.argv) > 2:
-            uri = sys.argv[2]
+    # Iniciar aplicación
+    root = TkinterDnD.Tk()
+    app = AutoFirmaApp(root)
+    set_app_instance(app)
+    set_app_instance_autofirma(app)
+    register_protocol_handler()
 
-            def verify_from_uri(uri):
-                """Maneja la UI y llama al backend"""
-                from backend.funcFirma import process_uri
+    # Comprobar si se inicia para verificación automática, Verificar desde URI (autofirma://...)
+    if len(sys.argv) > 1 and sys.argv[1] == "--verify" and len(sys.argv) > 2:
+        uri = sys.argv[2]
+        
+        def verify_from_uri(uri):
+            """Maneja la UI y llama al backend"""
+            from backend.funcFirma import process_uri
+            
+            success, file_path = process_uri(uri)
+            if not success:
+                messagebox.showerror("Error", "No se pudo verificar el documento. Por favor asegúrese de que el PDF esté abierto y sea accesible.")
                 
-                success, file_path = process_uri(uri)
-                if not success:
-                    messagebox.showerror("Error", "No se pudo verificar el documento. Por favor asegúrese de que el PDF esté abierto y sea accesible.")
-                    
-                app.document_path = file_path
-                app.verify_signatures()
+            app.document_path = file_path
+            app.verify_signatures()
 
-            # Programar verificación para después de iniciar la UI
-            root.after(500, lambda: verify_from_uri(uri))
-        
-        root.mainloop()
-    else:
-        # Inicialización normal
-        root = TkinterDnD.Tk()
-        app = AutoFirmaApp(root)
-        set_app_instance(app)
-        set_app_instance_autofirma(app)
-        
-        # Registrar el protocolo al iniciar la aplicación (solo una vez)
-        register_protocol_handler()
-        
-        root.mainloop()
+        # Programar verificación para después de iniciar la UI
+        root.after(500, lambda: verify_from_uri(uri))
+    
+    root.mainloop()
