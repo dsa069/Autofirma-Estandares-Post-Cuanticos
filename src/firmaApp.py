@@ -10,7 +10,7 @@ from tkinterdnd2 import TkinterDnD # type: ignore
 import customtkinter as ctk # type: ignore
 from backend.funcFirma import register_protocol_handler
 from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons
-from frontend.compFirma import create_cert_area, create_certificate_list, create_checkbox, create_drop_area, set_app_instance_autofirma
+from frontend.compFirma import create_cert_area, create_certificate_list, create_certificate_row, create_checkbox, create_drop_area, set_app_instance_autofirma
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -259,10 +259,14 @@ class AutoFirmaApp:
 
                 #-------------------FIRMAR EL DOCUMENTO---------------------
                 resultado, mensaje = firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash)
+
                 if resultado:
-                    messagebox.showinfo("Éxito", mensaje)
-                else:
-                    messagebox.showerror("Error", mensaje)
+                    self.document_path = save_path
+
+                self.root.geometry("700x584")
+                center_window(self.root)
+
+                self.vista_resultado_firma(resultado, cert_firma)
 
             except Exception as e:
                 messagebox.showerror("Error", f"Error al firmar documento: {e}")
@@ -280,14 +284,17 @@ class AutoFirmaApp:
             # Definir tamaño de la firma
             signature_width = 175
             signature_height = 30
-            
-            # Crear ventana para seleccionar posición
-            signature_window = tk.Toplevel(self.root)
-            signature_window.title("Selección de página y posición")
-            signature_window.geometry("800x700")
-            signature_window.resizable(True, True)
-            signature_window.transient(self.root)
-            signature_window.grab_set()
+
+            self.root.geometry("700x750")
+            center_window(self.root)
+
+            vista = crear_vista_nueva(self.root)
+
+            titulo_label = ctk.CTkLabel(vista, text="Ubicar firma visible", font=("Inter", 25), fg_color="transparent")
+            titulo_label.pack(pady=20)
+
+            label = ctk.CTkLabel(vista, text="Seleccione una página y haga clic en ella en la posición donde desea ubicar la firma:", font=("Inter", 17), text_color="#111111")
+            label.pack(anchor="w", padx= 30)
             
             # Variables para almacenar la posición seleccionada
             selected_x = tk.IntVar(value=0)
@@ -375,7 +382,6 @@ class AutoFirmaApp:
                 # Resetear posición seleccionada
                 selected_x.set(0)
                 selected_y.set(0)
-                position_label.config(text="Posición: No seleccionada")
             
             def change_page(delta):
                 new_page = current_page.get() + delta
@@ -405,9 +411,6 @@ class AutoFirmaApp:
                 selected_x.set(int(real_x - signature_width/2))
                 selected_y.set(int(real_y - signature_height/2))
                 
-                # Actualizar etiqueta
-                position_label.config(text=f"Posición: ({selected_x.get()}, {selected_y.get()})")
-                
                 # Eliminar rectángulo anterior si existe
                 if signature_rect[0]:
                     canvas.delete(signature_rect[0])
@@ -431,36 +434,38 @@ class AutoFirmaApp:
                 result["success"] = True
                 result["page"] = int(current_page.get()) - 1
                 result["position"] = (selected_x.get(), selected_y.get())
-                signature_window.destroy()
+                vista.destroy()
+                #return True, None
             
             def on_cancel():
-                signature_window.destroy()
+                vista.destroy()
+                """return False, None"""
             
             # CAMBIO: Primero crear el panel de previsualización
             # Panel principal con altura fija para mostrar la página y seleccionar posición
-            preview_frame = tk.Frame(signature_window, height=500)
+            preview_frame = tk.Frame(vista, height=500, bg="#F5F5F5", borderwidth=0)
             preview_frame.pack(fill=tk.X, padx=10, pady=10)
             preview_frame.pack_propagate(False)  # Evitar que el frame cambie de tamaño
             
             # Canvas con tamaño fijo para mostrar la página
-            canvas = tk.Canvas(preview_frame, bg="#f0f0f0", width=780, height=500)
+            canvas = tk.Canvas(preview_frame, bg="#F5F5F5", width=780, height=500, borderwidth=0)
             canvas.pack(expand=True)
             
             # Vincular evento de clic
             canvas.bind("<Button-1>", on_canvas_click)
             
             # CAMBIO: Ahora crear el selector de página DESPUÉS de la previsualización
-            page_frame_container = tk.Frame(signature_window)
+            page_frame_container = tk.Frame(vista, bg="#F5F5F5")
             page_frame_container.pack(fill=tk.X, pady=10)
             
-            page_frame = tk.Frame(page_frame_container)
+            page_frame = tk.Frame(page_frame_container, bg="#F5F5F5")
             page_frame.pack(side=tk.TOP, pady=5)
             
             # Etiqueta y selector de página
-            tk.Label(page_frame, text="Página:", font=("Arial", 11)).pack(side=tk.LEFT, padx=5)
+            tk.Label(page_frame, text="Página:", font=("Arial", 11), bg="#F5F5F5").pack(side=tk.LEFT, padx=5)
             
             # Botón página anterior
-            prev_btn = tk.Button(page_frame, text="◀", command=lambda: change_page(-1))
+            prev_btn = tk.Button(page_frame, text="◀", command=lambda: change_page(-1), bg="#DCDCDC")
             prev_btn.pack(side=tk.LEFT, padx=5)
             
             # Entry para seleccionar página
@@ -484,44 +489,32 @@ class AutoFirmaApp:
             page_entry.bind("<FocusOut>", validate_page)
             
             # Botón página siguiente
-            next_btn = tk.Button(page_frame, text="▶", command=lambda: change_page(1))
+            next_btn = tk.Button(page_frame, text="▶", command=lambda: change_page(1), bg="#DCDCDC")
             next_btn.pack(side=tk.LEFT, padx=5)
             
             # Etiqueta de total de páginas
-            tk.Label(page_frame, text=f"de {total_pages}", font=("Arial", 11)).pack(side=tk.LEFT, padx=5)
-            
-            # Panel inferior para instrucciones y botones
-            instruction_frame = tk.Frame(signature_window)
-            instruction_frame.pack(fill=tk.X, pady=10)
-            
-            # Instrucciones
-            instruction_label = tk.Label(instruction_frame, 
-                                    text="Haga clic en la página donde desea ubicar la firma",
-                                    font=("Arial", 10))
-            instruction_label.pack(pady=5)
-            
-            # Etiqueta para mostrar la posición seleccionada
-            position_label = tk.Label(instruction_frame, text="Posición: No seleccionada")
-            position_label.pack(pady=5)
-            
-            # Botones de acción
-            button_frame = tk.Frame(signature_window)
-            button_frame.pack(pady=10)
-            
+            tk.Label(page_frame, text=f"de {total_pages}", font=("Arial", 11), bg="#F5F5F5").pack(side=tk.LEFT, padx=5)
+                
             # Botones de aceptar/cancelar
-            tk.Button(button_frame, text="Aceptar", command=on_accept, width=10).pack(side=tk.LEFT, padx=20)
-            tk.Button(button_frame, text="Cancelar", command=on_cancel, width=10).pack(side=tk.RIGHT, padx=20)
-            
+            botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
+            botones_frame.pack(padx=20, pady=10, expand=True)
+
+            volver_btn = create_button(botones_frame, "Cancelar", lambda: on_cancel())
+            volver_btn.pack(side="left", padx=(0, 250))
+
+            guardar_btn = create_button(botones_frame, "Firmar", lambda: on_accept())
+            guardar_btn.pack(side="left")
+
             # Mostrar vista previa inicial después de crear el canvas
-            signature_window.update()
+            vista.update()
             update_preview()
             
             # Esperar a que se cierre la ventana
-            self.root.wait_window(signature_window)
+            self.root.wait_window(vista)
             
             # Resto del código igual que antes para añadir la firma al PDF
             if not result["success"]:
-                return False
+                return False, None
 
             return añadir_firma_visual_pdf(
             pdf_path, 
@@ -535,7 +528,108 @@ class AutoFirmaApp:
         except Exception as e:
             messagebox.showerror("Error", f"Error al seleccionar posición: {e}")
             log_message("firmaApp.log",f"Error al seleccionar posición: {e}")
-            return False
+            return False, None
+
+    def vista_resultado_firma(self, success, cert):
+        vista = crear_vista_nueva(self.root)
+
+        # Crear un frame para el resultado
+        resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
+        resultado_frame.pack(padx=20, pady=15, fill="x")
+
+        img = resize_image_proportionally(BASE_DIR, "tick" if success else "error", 100)
+        label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
+        label_imagen.grid(row=0, column=0, padx=(10, 10))
+
+        label_texto = ctk.CTkLabel(
+            resultado_frame,
+            text="El documento se firmó correctamente" if success else "La operación de firma ha fallado",
+            font=("Inter", 25),
+            text_color="#000000",
+            bg_color="#f5f5f5"
+        )
+        label_texto.grid(row=0, column=1, padx=(0, 10), sticky="w", pady=(5, 0))
+
+        # Frame para el pdf
+        doc_label = ctk.CTkLabel(vista, text="Documento firmado:",
+                                font=("Inter", 19), text_color="#111111")
+        doc_label.pack(anchor="w", padx=(30,0), pady=(5,0))
+
+        fondo_pdf_frame = ctk.CTkFrame(
+            vista,
+            width=620,
+            height=75,
+            fg_color="white",
+            corner_radius=25,
+            border_width=1,
+            border_color="#E0E0E0"
+        )
+        fondo_pdf_frame.pack(pady=5)
+        fondo_pdf_frame.pack_propagate(False)
+
+        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
+        image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
+        image_label.image = img_pdf
+        image_label.pack(side="left", padx=20)
+
+        pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
+        pdf_frame.pack(side="left", expand=True, anchor="w")
+
+        filename = os.path.basename(self.document_path)
+        folder_path = os.path.dirname(self.document_path)
+
+        label_title = ctk.CTkLabel(
+            pdf_frame,
+            text=filename,
+            text_color="#111111",
+            font=("Inter", 18),
+            fg_color="transparent",
+            anchor="w"
+        )
+        label_title.pack(anchor="w")
+
+        label_path = ctk.CTkLabel(
+            pdf_frame,
+            text=folder_path,
+            text_color="#555555",
+            font=("Inter", 14),
+            fg_color="transparent",
+            anchor="w"
+        )
+        label_path.pack(anchor="w")
+
+        certificado_label = ctk.CTkLabel(vista, text="Certificado digital:",
+                                font=("Inter", 19), text_color="#111111")
+        certificado_label.pack(anchor="w", padx=(30,0), pady=(10,0))
+
+        datos_cert_container = ctk.CTkFrame(
+            vista, 
+            fg_color="#FFFFFF",
+            corner_radius=25,
+            border_width=1,
+            border_color="#E0E0E0",
+            width=620,
+            height = 400
+        )
+        datos_cert_container.pack(expand = True, fill = "both")
+
+        padding_frame = ctk.CTkFrame(
+            datos_cert_container,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        # Usar padding generoso en todos los lados
+        padding_frame.pack(pady=(9,0), padx=(1,0))
+
+        from datetime import datetime
+        certificado_row = create_certificate_row(
+            base_dir=BASE_DIR,
+            lista_frame= padding_frame,
+            row_count=0,
+            cert_info=cert,
+            fecha_firma=datetime.now()
+        )
+
 
     def vista_info_certificado(self, cert_data, fecha_firma, volver_a = None):
         from frontend.compComunes import cert_data_list

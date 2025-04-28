@@ -464,6 +464,8 @@ def create_certificate_list(parent, base_dir, firmas):
         for resultado in datos:
             #i = resultado["indice"]
             firma_data = resultado["firma_data"]
+            cert_info = firma_data["certificado_autenticacion"]
+            fecha_firma = firma_data.get("fecha_firma")
 
             estado = 0
             if not resultado["firma_valida"]:
@@ -478,7 +480,7 @@ def create_certificate_list(parent, base_dir, firmas):
             else:
                 invalid_count += 1
 
-            row_count = create_certificate_row(base_dir, lista_frame, row_count, firma_data, estado, APP_INSTANCE.verify_signatures)
+            row_count = create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_firma, estado, APP_INSTANCE.verify_signatures)
         return row_count
 
     # Obtener la estructura base de la lista
@@ -493,7 +495,7 @@ def create_certificate_list(parent, base_dir, firmas):
     
     return contenedor_principal, valid_count, invalid_count
 
-def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0, callback_volver_a = None):
+def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None):
     from frontend.compComunes import create_base_row
 
     def razon_error(motivo_error):
@@ -509,14 +511,12 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0, 
     # Definir tamaños específicos para columnas
     column_sizes = [100, 300, 130, 40]  # Logo | Nombre + Estado | Fecha | Check //610
 
-    cert_info = firma["certificado_autenticacion"]
-
     # Crear la fila base
     fila_container, next_row, _ = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback=lambda event, c=cert_info, f=firma.get("fecha_firma"), v=callback_volver_a: APP_INSTANCE.vista_info_certificado(c, f, v)
+        click_callback=lambda event, c=cert_info, f=fecha_firma, v=callback_volver_a: APP_INSTANCE.vista_info_certificado(c, f, v)
     )
 
     es_valida = not estado
@@ -552,10 +552,10 @@ def create_certificate_row(base_dir, lista_frame, row_count, firma, estado = 0, 
     estado_label.grid(row=1, column=1, padx=(10,0), sticky="w")
 
     # --- Columna 2: fecha ---
-    fecha_firma = firma.get("fecha", f"{format_iso_display(firma["fecha_firma"])}")
+    fecha_firma_display = f"{format_iso_display(fecha_firma)}"
     fecha_label = ctk.CTkLabel(
         fila_container, 
-        text=fecha_firma, 
+        text=fecha_firma_display, 
         font=("Inter", 17),
         text_color="#555555"
     )
