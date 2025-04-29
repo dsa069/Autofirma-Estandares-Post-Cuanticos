@@ -620,7 +620,7 @@ def create_pk_row(lista_frame, row_count, clave):
 
     return next_row
 
-def cert_data_list(parent, cert_data, base_dir, fecha_firma=None):
+def cert_data_list(parent, cert_data, base_dir, fecha_firma=None, cert_valido = 1):
     """
     Crea una lista visual para mostrar datos de un certificado (titular, dni, etc.).
     """
@@ -642,11 +642,27 @@ def cert_data_list(parent, cert_data, base_dir, fecha_firma=None):
         log_message("entGenApp.log", "Clic en clave pública de certificado")
         
         if APP_INSTANCE:
+            # Determinar la función de retorno según el origen
+            if cert_valido in [0, 2]:  # Viene de vista_resultado_firma
+                return_function = lambda: APP_INSTANCE.vista_info_certificado(
+                    cert_data, 
+                    fecha_firma, 
+                    APP_INSTANCE.vista_resultado_firma, 
+                    cert_valido
+                )
+            elif fecha_firma:  # Viene de verify_signatures
+                return_function = lambda: APP_INSTANCE.vista_info_certificado(
+                    cert_data, 
+                    fecha_firma, 
+                    APP_INSTANCE.verify_signatures
+                )
+            else:  # Otro origen
+                return_function = lambda: APP_INSTANCE.vista_resultado_certificado(cert_data)
             # Get the full public key and display it in a new view
             vista_mostrar_pk(
                 parent=APP_INSTANCE.root,
                 base_dir=base_dir,
-                volver_a=lambda: APP_INSTANCE.vista_info_certificado(cert_data, fecha_firma, APP_INSTANCE.verify_signatures) if fecha_firma else APP_INSTANCE.vista_resultado_certificado(cert_data),
+                volver_a=return_function,
                 pk=cert_data.get('user_public_key'), 
                 titulo=f"{cert_data.get("nombre")} - {cert_data.get("dni")}",
                 algoritmo=cert_data.get('algoritmo').lower(),

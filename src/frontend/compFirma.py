@@ -511,12 +511,21 @@ def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_fi
     # Definir tamaños específicos para columnas
     column_sizes = [100, 300, 130, 40]  # Logo | Nombre + Estado | Fecha | Check //610
 
+        # Determinar el valor correcto de cert_valido
+    if callback_volver_a and callback_volver_a.__name__ == 'verify_signatures':
+        # Para certificados que vienen de verify_signatures, usamos 1 (el valor neutral)
+        cert_valido_value = 1
+    else:
+        # Para certificados de vista_resultado_firma, usamos 0 o 2 según el estado
+        cert_valido_value = 2 if estado == 0 else 0
+
     # Crear la fila base
     fila_container, next_row, _ = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback=lambda event, c=cert_info, f=fecha_firma, v=callback_volver_a: APP_INSTANCE.vista_info_certificado(c, f, v),
+        click_callback=lambda event, c=cert_info, f=fecha_firma, v=callback_volver_a, e=estado: 
+        APP_INSTANCE.vista_info_certificado(c, f, v, cert_valido_value),
         separator=separator
     )
 

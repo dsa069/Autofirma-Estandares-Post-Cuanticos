@@ -634,6 +634,8 @@ class AutoFirmaApp:
             cert_info=cert,
             fecha_firma=datetime.now().isoformat(),
             estado= 0 if success else 2,
+            callback_volver_a= lambda: self.vista_resultado_firma(success, cert),
+            
             separator=False
         )
 
@@ -641,7 +643,8 @@ class AutoFirmaApp:
         fin_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
         fin_btn.pack(pady=(50,0))
 
-    def vista_info_certificado(self, cert_data, fecha_firma, volver_a = None):
+    # cert valido = 1 = no hace falta parametro, 2 = valido, 0 = no valido
+    def vista_info_certificado(self, cert_data, fecha_firma, volver_a = None, cert_valido = 1):
         from frontend.compComunes import cert_data_list
 
         vista = crear_vista_nueva(self.root)
@@ -650,10 +653,17 @@ class AutoFirmaApp:
         titulo_label.pack(pady=(40, 50))
 
         # Use the cert parameter instead of undefined certificado_path
-        datos_list = cert_data_list(vista, cert_data, BASE_DIR, fecha_firma)
+        datos_list = cert_data_list(vista, cert_data, BASE_DIR, fecha_firma, cert_valido)
         datos_list.pack()
-
-        volver_btn = create_button(vista, "Volver", lambda: volver_a())
+        
+        # Detectar si volver_a es un método directo o una lambda
+        if volver_a.__name__ == 'vista_resultado_firma':
+            # Es vista_resultado_firma directamente, necesita argumentos
+            volver_btn = create_button(vista, "Volver", 
+                lambda: volver_a(cert_valido == 2, cert_data))
+        else:
+            # Es una lambda u otra función, llamar sin argumentos
+            volver_btn = create_button(vista, "Volver", lambda: volver_a())
         volver_btn.pack(pady=40)
 
 if __name__ == "__main__":
