@@ -438,17 +438,18 @@ class AutoFirmaApp:
                 #return True, None
             
             def on_cancel():
+                result["success"] = False
                 vista.destroy()
                 """return False, None"""
             
             # CAMBIO: Primero crear el panel de previsualización
             # Panel principal con altura fija para mostrar la página y seleccionar posición
-            preview_frame = tk.Frame(vista, height=500, bg="#F5F5F5", borderwidth=0)
-            preview_frame.pack(fill=tk.X, padx=10, pady=10)
+            preview_frame = tk.Frame(vista, height=500, bg="#F5F5F5", borderwidth=0, highlightthickness=0)
+            preview_frame.pack(fill=tk.X, padx=0, pady=0)
             preview_frame.pack_propagate(False)  # Evitar que el frame cambie de tamaño
             
             # Canvas con tamaño fijo para mostrar la página
-            canvas = tk.Canvas(preview_frame, bg="#F5F5F5", width=780, height=500, borderwidth=0)
+            canvas = tk.Canvas(preview_frame, bg="#F5F5F5", width=780, height=500, borderwidth=0, highlightthickness=0)
             canvas.pack(expand=True)
             
             # Vincular evento de clic
