@@ -207,6 +207,7 @@ class AutoFirmaApp:
                 #-----------------------VERIFICAMOS LA CONTRASEÑA DEL CERTIFICADO----------------------
                 encrypted_sk = cert_firma.get("user_secret_key")
                 if not encrypted_sk:
+                    log_message("firmaApp.log","No se encontró la clave privada cifrada en el certificado.")
                     raise ValueError("No se encontró la clave privada cifrada en el certificado.")
 
                 user_sk = decrypt_private_key(encrypted_sk, password)
@@ -222,8 +223,8 @@ class AutoFirmaApp:
                 #---------------BUSCAMOS EL CERTIFICADO DE AUTENTICACION ASOCIADO----------------------
                 success, cert_auth, error_msg = cargar_certificado_autenticacion(cert_firma, BASE_DIR)
                 if not success:
-                    messagebox.showerror("Error", error_msg)
-                    return
+                    log_message("firmaApp.log", error_msg)
+                    raise ValueError(error_msg)
                 
                 # -----------------GUARDAR EL DOCUMENTO FIRMADO---------------------
                 original_filename = os.path.basename(self.document_path)
@@ -243,8 +244,8 @@ class AutoFirmaApp:
 
                 # GUARDAR EL DOCUMENTO FIRMADO DIGITALMENTE
                 if not copiar_contenido_pdf(self.document_path, save_path):
-                    messagebox.showerror("Error", "No se pudo copiar el contenido del archivo original.")
-                    return
+                    log_message("firmaApp.log", "No se pudo copiar el contenido del archivo original.")
+                    raise ValueError("No se pudo copiar el contenido del archivo original.")
 
                 # -------------------PREGUNTAR AL USUARIO SI DESEA AÑADIR FIRMA ESCRITA---------------------
                 visual_signature_hash = None
@@ -258,7 +259,7 @@ class AutoFirmaApp:
                         log_message("firmaApp.log","Firma escrita cancelada, continuando con firma digital.")
 
                 #-------------------FIRMAR EL DOCUMENTO---------------------
-                resultado, mensaje = firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash)
+                resultado, _ = firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash)
 
                 if resultado:
                     self.document_path = save_path
@@ -269,8 +270,10 @@ class AutoFirmaApp:
                 self.vista_resultado_firma(resultado, cert_firma)
 
             except Exception as e:
-                messagebox.showerror("Error", f"Error al firmar documento: {e}")
                 log_message("firmaApp.log",f"Error al firmar documento: {e}")
+                self.root.geometry("700x584")
+                center_window(self.root)
+                self.vista_resultado_firma(False, cert_firma)
 
     def add_written_signature(self, pdf_path, nombre_certificado):
         """Ventana unificada para seleccionar página y posición de firma."""
@@ -536,11 +539,11 @@ class AutoFirmaApp:
 
         # Crear un frame para el resultado
         resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
-        resultado_frame.pack(padx=20, pady=15, fill="x")
+        resultado_frame.pack(padx=20, pady=(30,40))
 
         img = resize_image_proportionally(BASE_DIR, "tick" if success else "error", 100)
         label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
-        label_imagen.grid(row=0, column=0, padx=(10, 10))
+        label_imagen.grid(row=0, column=0, padx=(0, 30))
 
         label_texto = ctk.CTkLabel(
             resultado_frame,
@@ -549,12 +552,12 @@ class AutoFirmaApp:
             text_color="#000000",
             bg_color="#f5f5f5"
         )
-        label_texto.grid(row=0, column=1, padx=(0, 10), sticky="w", pady=(5, 0))
+        label_texto.grid(row=0, column=1, pady=(5, 0))
 
         # Frame para el pdf
         doc_label = ctk.CTkLabel(vista, text="Documento firmado:",
                                 font=("Inter", 19), text_color="#111111")
-        doc_label.pack(anchor="w", padx=(30,0), pady=(5,0))
+        doc_label.pack(anchor="w", padx=(30,0), pady=(0,15))
 
         fondo_pdf_frame = ctk.CTkFrame(
             vista,
@@ -565,7 +568,7 @@ class AutoFirmaApp:
             border_width=1,
             border_color="#E0E0E0"
         )
-        fondo_pdf_frame.pack(pady=5)
+        fondo_pdf_frame.pack()
         fondo_pdf_frame.pack_propagate(False)
 
         img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
@@ -599,9 +602,10 @@ class AutoFirmaApp:
         )
         label_path.pack(anchor="w")
 
+        # Frame para el certificado
         certificado_label = ctk.CTkLabel(vista, text="Certificado digital:",
                                 font=("Inter", 19), text_color="#111111")
-        certificado_label.pack(anchor="w", padx=(30,0), pady=(10,0))
+        certificado_label.pack(anchor="w", padx=(30,0), pady=(40,15))
 
         datos_cert_container = ctk.CTkFrame(
             vista, 
@@ -610,16 +614,16 @@ class AutoFirmaApp:
             border_width=1,
             border_color="#E0E0E0",
             width=620,
-            height = 400
+            height = 80
         )
-        datos_cert_container.pack(expand = True, fill = "both")
+        datos_cert_container.pack()
+        datos_cert_container.pack_propagate(False)
 
         padding_frame = ctk.CTkFrame(
             datos_cert_container,
             fg_color="transparent",
             corner_radius=0
         )
-        # Usar padding generoso en todos los lados
         padding_frame.pack(pady=(9,0), padx=(1,0))
 
         from datetime import datetime
@@ -628,9 +632,14 @@ class AutoFirmaApp:
             lista_frame= padding_frame,
             row_count=0,
             cert_info=cert,
-            fecha_firma=datetime.now()
+            fecha_firma=datetime.now().isoformat(),
+            estado= 0 if success else 2,
+            separator=False
         )
 
+        # Boton finalizar
+        fin_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())
+        fin_btn.pack(pady=(50,0))
 
     def vista_info_certificado(self, cert_data, fecha_firma, volver_a = None):
         from frontend.compComunes import cert_data_list

@@ -495,14 +495,14 @@ def create_certificate_list(parent, base_dir, firmas):
     
     return contenedor_principal, valid_count, invalid_count
 
-def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None):
+def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None, separator = True):
     from frontend.compComunes import create_base_row
 
     def razon_error(motivo_error):
         if motivo_error == 1:
             return "La firma digital no es válida"
         elif motivo_error == 2:
-            return "El certificado ha expirado o ha sido revocado"
+            return "El certificado ha expirado o ha sido alterado"
         elif motivo_error == 3:
             return "La integridad del documento está comprometida"
         else:
@@ -516,7 +516,8 @@ def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_fi
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
-        click_callback=lambda event, c=cert_info, f=fecha_firma, v=callback_volver_a: APP_INSTANCE.vista_info_certificado(c, f, v)
+        click_callback=lambda event, c=cert_info, f=fecha_firma, v=callback_volver_a: APP_INSTANCE.vista_info_certificado(c, f, v),
+        separator=separator
     )
 
     es_valida = not estado
