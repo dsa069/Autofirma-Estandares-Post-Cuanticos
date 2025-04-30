@@ -166,8 +166,12 @@ def create_drag_drop_area(parent, text, callback=None, height=260,
             if image_provider:
                 image = image_provider(file_path)
                 if image:
-                    image_label = tk.Label(content_frame, image=image, bg="white")
-                    image_label.image = image
+                    image_label = ctk.CTkLabel(
+                        content_frame, 
+                        image=image,
+                        text="",
+                        fg_color="white"
+                    )
                     image_label.pack(side="left", padx=(0, 10))
             
             # Título y ruta
@@ -203,33 +207,72 @@ def create_drag_drop_area(parent, text, callback=None, height=260,
         label_title.bind("<Button-1>", open_file_dialog)
         label_path.bind("<Button-1>", open_file_dialog)
         
-        # Código para actualizar fondos en hover
         def update_all_bg_enter(event):
             frame_container.config(bg="#FAFAFA")
             for child in frame_container.winfo_children():
-                if isinstance(child, tk.Label) or isinstance(child, tk.Frame):
+                # Determinar si es un widget CTk o un widget tk estándar
+                if "CTk" in child.__class__.__name__:  # Es un widget CustomTkinter
+                    try:
+                        child.configure(fg_color="#FAFAFA")
+                    except Exception:
+                        pass
+                elif isinstance(child, (tk.Label, tk.Frame)):  # Es un widget tk estándar
                     child.config(bg="#FAFAFA")
+                        
+                # Manejar widgets anidados de primer nivel
                 if isinstance(child, tk.Frame):
                     for grandchild in child.winfo_children():
-                        if isinstance(grandchild, tk.Label) or isinstance(grandchild, tk.Frame):
+                        if "CTk" in grandchild.__class__.__name__:  # Es un widget CustomTkinter
+                            try:
+                                grandchild.configure(fg_color="#FAFAFA")
+                            except Exception:
+                                pass
+                        elif isinstance(grandchild, (tk.Label, tk.Frame)):  # Es un widget tk estándar
                             grandchild.config(bg="#FAFAFA")
+                                
+                        # Manejar widgets anidados de segundo nivel
                         if isinstance(grandchild, tk.Frame):
                             for great_grandchild in grandchild.winfo_children():
-                                if isinstance(great_grandchild, tk.Label):
+                                if "CTk" in great_grandchild.__class__.__name__:  # Es un widget CustomTkinter
+                                    try:
+                                        great_grandchild.configure(fg_color="#FAFAFA")
+                                    except Exception:
+                                        pass
+                                elif isinstance(great_grandchild, tk.Label):  # Es un widget tk estándar
                                     great_grandchild.config(bg="#FAFAFA")
         
         def update_all_bg_leave(event):
             frame_container.config(bg="white")
             for child in frame_container.winfo_children():
-                if isinstance(child, tk.Label) or isinstance(child, tk.Frame):
+                # Determinar si es un widget CTk o un widget tk estándar
+                if "CTk" in child.__class__.__name__:  # Es un widget CustomTkinter
+                    try:
+                        child.configure(fg_color="white")
+                    except Exception:
+                        pass
+                elif isinstance(child, (tk.Label, tk.Frame)):  # Es un widget tk estándar
                     child.config(bg="white")
+                        
+                # Manejar widgets anidados de primer nivel
                 if isinstance(child, tk.Frame):
                     for grandchild in child.winfo_children():
-                        if isinstance(grandchild, tk.Label) or isinstance(grandchild, tk.Frame):
+                        if "CTk" in grandchild.__class__.__name__:  # Es un widget CustomTkinter
+                            try:
+                                grandchild.configure(fg_color="white")
+                            except Exception:
+                                pass
+                        elif isinstance(grandchild, (tk.Label, tk.Frame)):  # Es un widget tk estándar
                             grandchild.config(bg="white")
+                                
+                        # Manejar widgets anidados de segundo nivel
                         if isinstance(grandchild, tk.Frame):
                             for great_grandchild in grandchild.winfo_children():
-                                if isinstance(great_grandchild, tk.Label):
+                                if "CTk" in great_grandchild.__class__.__name__:  # Es un widget CustomTkinter
+                                    try:
+                                        great_grandchild.configure(fg_color="white")
+                                    except Exception:
+                                        pass
+                                elif isinstance(great_grandchild, tk.Label):  # Es un widget tk estándar
                                     great_grandchild.config(bg="white")
 
         # Vincular eventos de clic a todos los elementos
@@ -310,12 +353,13 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     import os
     from PIL import Image, ImageTk # type: ignore
     
+    # 1. Corregir get_pdf_image para usar CTkImage
     def get_pdf_image(file_path):
         """Obtiene la imagen de Adobe para un PDF"""
         img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img", "adobe.png")
         img = Image.open(img_path)
-        img = img.resize((57, 57))
-        return ImageTk.PhotoImage(img)
+        # Usar CTkImage en lugar de ImageTk.PhotoImage
+        return ctk.CTkImage(light_image=img, size=(57, 57))
     
     return create_drag_drop_area(
         parent=parent,
@@ -351,7 +395,7 @@ def create_cert_area(parent, text="Pulse el area y seleccione el certificado de 
         nombre_sin_prefijo = filename[len("certificado_digital_firmar_"):].lower()
         
         algoritmo = "dilithium" if "dilithium" in nombre_sin_prefijo else "sphincs"
-        return resize_algoritmo_image_proportionally(algoritmo, 50)
+        return resize_image_proportionally(algoritmo.capitalize(), 50)
     
     return create_drag_drop_area(
         parent=parent,

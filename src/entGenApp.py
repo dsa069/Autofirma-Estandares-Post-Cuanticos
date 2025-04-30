@@ -6,7 +6,7 @@ BASE_DIR = init_paths()
 import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, cert_data_list, resize_algoritmo_image_proportionally, resize_image_proportionally, set_app_instance, set_base_dir, setup_app_icons, vista_mostrar_pk
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, cert_data_list, resize_image_proportionally, set_app_instance, set_base_dir, setup_app_icons, vista_mostrar_pk
 from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
 
 class CertificadoDigitalApp:

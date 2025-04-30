@@ -555,88 +555,89 @@ class AutoFirmaApp:
         label_texto.grid(row=0, column=1, pady=(5, 0))
 
         # Frame para el pdf
-        doc_label = ctk.CTkLabel(vista, text="Documento firmado:",
-                                font=("Inter", 19), text_color="#111111")
-        doc_label.pack(anchor="w", padx=(30,0), pady=(0,15))
+        if self.document_path:
+            doc_label = ctk.CTkLabel(vista, text="Documento firmado:",
+                                    font=("Inter", 19), text_color="#111111")
+            doc_label.pack(anchor="w", padx=(30,0), pady=(0,15))
 
-        fondo_pdf_frame = ctk.CTkFrame(
-            vista,
-            width=620,
-            height=75,
-            fg_color="white",
-            corner_radius=25,
-            border_width=1,
-            border_color="#E0E0E0"
-        )
-        fondo_pdf_frame.pack()
-        fondo_pdf_frame.pack_propagate(False)
+            fondo_pdf_frame = ctk.CTkFrame(
+                vista,
+                width=620,
+                height=75,
+                fg_color="white",
+                corner_radius=25,
+                border_width=1,
+                border_color="#E0E0E0"
+            )
+            fondo_pdf_frame.pack()
+            fondo_pdf_frame.pack_propagate(False)
 
-        img_pdf = resize_image_proportionally("adobe", 50)
-        image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
-        image_label.image = img_pdf
-        image_label.pack(side="left", padx=20)
+            img_pdf = resize_image_proportionally("adobe", 50)
+            image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
+            image_label.image = img_pdf
+            image_label.pack(side="left", padx=20)
 
-        pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
-        pdf_frame.pack(side="left", expand=True, anchor="w")
+            pdf_frame = ctk.CTkFrame(fondo_pdf_frame, fg_color="transparent")
+            pdf_frame.pack(side="left", expand=True, anchor="w")
 
-        filename = os.path.basename(self.document_path)
-        folder_path = os.path.dirname(self.document_path)
+            filename = os.path.basename(self.document_path)
+            folder_path = os.path.dirname(self.document_path)
 
-        label_title = ctk.CTkLabel(
-            pdf_frame,
-            text=filename,
-            text_color="#111111",
-            font=("Inter", 18),
-            fg_color="transparent",
-            anchor="w"
-        )
-        label_title.pack(anchor="w")
+            label_title = ctk.CTkLabel(
+                pdf_frame,
+                text=filename,
+                text_color="#111111",
+                font=("Inter", 18),
+                fg_color="transparent",
+                anchor="w"
+            )
+            label_title.pack(anchor="w")
 
-        label_path = ctk.CTkLabel(
-            pdf_frame,
-            text=folder_path,
-            text_color="#555555",
-            font=("Inter", 14),
-            fg_color="transparent",
-            anchor="w"
-        )
-        label_path.pack(anchor="w")
+            label_path = ctk.CTkLabel(
+                pdf_frame,
+                text=folder_path,
+                text_color="#555555",
+                font=("Inter", 14),
+                fg_color="transparent",
+                anchor="w"
+            )
+            label_path.pack(anchor="w")
 
-        # Frame para el certificado
-        certificado_label = ctk.CTkLabel(vista, text="Certificado digital:",
-                                font=("Inter", 19), text_color="#111111")
-        certificado_label.pack(anchor="w", padx=(30,0), pady=(40,15))
+        # Frame para el certificado (solo si hay certificado)
+        if cert is not None:
+            certificado_label = ctk.CTkLabel(vista, text="Certificado digital:",
+                                        font=("Inter", 19), text_color="#111111")
+            certificado_label.pack(anchor="w", padx=(30,0), pady=(40,15))
 
-        datos_cert_container = ctk.CTkFrame(
-            vista, 
-            fg_color="#FFFFFF",
-            corner_radius=25,
-            border_width=1,
-            border_color="#E0E0E0",
-            width=620,
-            height = 80
-        )
-        datos_cert_container.pack()
-        datos_cert_container.pack_propagate(False)
+            datos_cert_container = ctk.CTkFrame(
+                vista, 
+                fg_color="#FFFFFF",
+                corner_radius=25,
+                border_width=1,
+                border_color="#E0E0E0",
+                width=620,
+                height = 80
+            )
+            datos_cert_container.pack()
+            datos_cert_container.pack_propagate(False)
 
-        padding_frame = ctk.CTkFrame(
-            datos_cert_container,
-            fg_color="transparent",
-            corner_radius=0
-        )
-        padding_frame.pack(pady=(9,0), padx=(1,0))
+            padding_frame = ctk.CTkFrame(
+                datos_cert_container,
+                fg_color="transparent",
+                corner_radius=0
+            )
+            padding_frame.pack(pady=(9,0), padx=(1,0))
 
-        from datetime import datetime
-        certificado_row = create_certificate_row(
-            lista_frame= padding_frame,
-            row_count=0,
-            cert_info=cert,
-            fecha_firma=datetime.now().isoformat(),
-            estado= 0 if success else 2,
-            callback_volver_a= lambda: self.vista_resultado_firma(success, cert),
-            
-            separator=False
-        )
+            from datetime import datetime
+            certificado_row = create_certificate_row(
+                lista_frame= padding_frame,
+                row_count=0,
+                cert_info=cert,
+                fecha_firma=datetime.now().isoformat(),
+                estado= 0 if success else 2,
+                callback_volver_a= lambda: self.vista_resultado_firma(success, cert),
+                separator=False
+            )
 
         # Boton finalizar
         fin_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_autofirma())

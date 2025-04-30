@@ -73,10 +73,14 @@ def vista_mostrar_pk(parent, volver_a, pk, titulo, algoritmo, fecha):
     cabecera_certificado = tk.Frame(vista, bg="#F5F5F5")
     cabecera_certificado.pack(fill="x", padx=(40, 0), pady=(40, 30))
 
-    algoritmo_img = resize_algoritmo_image_proportionally(algoritmo, desired_height=75)
+    algoritmo_img = resize_image_proportionally(algoritmo.capitalize(), desired_height=75)
 
-    image_label = tk.Label(cabecera_certificado, image=algoritmo_img, bg="#F5F5F5")
-    image_label.image = algoritmo_img
+    image_label = ctk.CTkLabel(
+        cabecera_certificado, 
+        image=algoritmo_img,
+        text="",
+        fg_color="#F5F5F5"
+    )
     image_label.pack(side="left", padx=(0, 30))
 
     # Título y ruta
@@ -695,9 +699,13 @@ def cert_data_list(parent, cert_data, fecha_firma=None, cert_valido = 1):
         header_frame.grid_columnconfigure(2, weight=0)  # Fecha (ancho fijo)
         
         # 1. ICONO
-        algorithm_image = resize_algoritmo_image_proportionally(cert_data.get('algoritmo').lower(), 40)
-        img_label = tk.Label(header_frame, image=algorithm_image, bg="white")
-        img_label.image = algorithm_image
+        algorithm_image = resize_image_proportionally(cert_data.get('algoritmo').capitalize(), 40)
+        img_label = ctk.CTkLabel(
+            header_frame, 
+            image=algorithm_image,
+            text="",  # Texto vacío necesario para CTkLabel
+            fg_color="transparent"
+        )
         img_label.grid(row=0, column=0, padx=(0, 10))
         
         # 2. NOMBRE Y DNI
