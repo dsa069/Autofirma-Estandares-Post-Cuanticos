@@ -5,12 +5,17 @@ from backend.funcComunes import log_message, format_iso_display
 # Variable global para mantener referencias a las imágenes
 LOGO_IMAGES = {}  # Mover a nivel global
 APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
+BASE_DIR = None  # Para guardar la ruta base de la aplicación
 
 # Función para establecer la instancia de la aplicación
 def set_app_instance(app):
     global APP_INSTANCE
     APP_INSTANCE = app
-    log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
+
+def set_base_dir(base_dir):
+    global BASE_DIR
+    BASE_DIR = base_dir
+
 
 ctk.set_appearance_mode("light")
 
@@ -23,19 +28,19 @@ def center_window(root):
     y = (root.winfo_screenheight() // 2) - (height // 2) - 50
     root.geometry(f'{width}x{height}+{x}+{y}')
 
-def setup_app_icons(root, base_dir, icon_name):
+def setup_app_icons(root, icon_name):
     import ctypes
     import os
     import sys
     from tkinter import messagebox, PhotoImage
     if getattr(sys, 'frozen', False):
         # Ejecutando como archivo compilado
-        ruta_icono = os.path.join(base_dir, f"{icon_name}.ico")
-        ruta_icono_png = os.path.join(base_dir, f"{icon_name}.png")
+        ruta_icono = os.path.join(BASE_DIR, f"{icon_name}.ico")
+        ruta_icono_png = os.path.join(BASE_DIR, f"{icon_name}.png")
     else:
         # Ejecutando como script Python
-        ruta_icono = os.path.join(base_dir, "img", f"{icon_name}.ico")
-        ruta_icono_png = os.path.join(base_dir, "img", f"{icon_name}.png")
+        ruta_icono = os.path.join(BASE_DIR, "img", f"{icon_name}.ico")
+        ruta_icono_png = os.path.join(BASE_DIR, "img", f"{icon_name}.png")
     # Asegurar que Windows asocia la aplicación correctamente a la barra de tareas
     myappid = 'miapp.certificadosdigitales'  # Nombre único
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -58,7 +63,7 @@ def setup_app_icons(root, base_dir, icon_name):
     else:
         messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
 
-def vista_mostrar_pk(parent, base_dir, volver_a, pk, titulo, algoritmo, fecha):
+def vista_mostrar_pk(parent, volver_a, pk, titulo, algoritmo, fecha):
     """
     Muestra los detalles de la clave seleccionada en la interfaz principal
     """
@@ -68,7 +73,7 @@ def vista_mostrar_pk(parent, base_dir, volver_a, pk, titulo, algoritmo, fecha):
     cabecera_certificado = tk.Frame(vista, bg="#F5F5F5")
     cabecera_certificado.pack(fill="x", padx=(40, 0), pady=(40, 30))
 
-    algoritmo_img = resize_algoritmo_image_proportionally(base_dir, algoritmo, desired_height=75)
+    algoritmo_img = resize_algoritmo_image_proportionally(algoritmo, desired_height=75)
 
     image_label = tk.Label(cabecera_certificado, image=algoritmo_img, bg="#F5F5F5")
     image_label.image = algoritmo_img
@@ -255,7 +260,7 @@ def setup_list_headers(header_frame, headers, column_sizes):
         )
         label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
 
-def resize_image_proportionally(base_dir, nombre, desired_height=75):
+def resize_image_proportionally(nombre, desired_height=75):
     """
     Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones, devolviendo CTkImage.
     """
@@ -263,7 +268,7 @@ def resize_image_proportionally(base_dir, nombre, desired_height=75):
     from customtkinter import CTkImage # type: ignore
     import os
 
-    image_path = os.path.join(base_dir, "img", f"{nombre}.png")
+    image_path = os.path.join(BASE_DIR, "img", f"{nombre}.png")
 
     # Cargar imagen original
     original_img = Image.open(image_path)
@@ -282,14 +287,14 @@ def resize_image_proportionally(base_dir, nombre, desired_height=75):
     return CTkImage(light_image=resized_img, dark_image=resized_img, size=(desired_width, desired_height))
 
 
-def resize_algoritmo_image_proportionally(base_dir, algoritmo, desired_height=75):
+def resize_algoritmo_image_proportionally(algoritmo, desired_height=75):
     """
     Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones.
     """
     from PIL import Image, ImageTk # type: ignore
     import os
     # En lugar de usar algoritmo_img, carga directamente desde el archivo
-    img_path = os.path.join(base_dir, "img")        
+    img_path = os.path.join(BASE_DIR, "img")        
     if algoritmo == "sphincs":
         image_path = os.path.join(img_path, "Sphincs.png")
     else:  # dilithium
@@ -620,7 +625,7 @@ def create_pk_row(lista_frame, row_count, clave):
 
     return next_row
 
-def cert_data_list(parent, cert_data, base_dir, fecha_firma=None, cert_valido = 1):
+def cert_data_list(parent, cert_data, fecha_firma=None, cert_valido = 1):
     """
     Crea una lista visual para mostrar datos de un certificado (titular, dni, etc.).
     """
@@ -661,7 +666,6 @@ def cert_data_list(parent, cert_data, base_dir, fecha_firma=None, cert_valido = 
             # Get the full public key and display it in a new view
             vista_mostrar_pk(
                 parent=APP_INSTANCE.root,
-                base_dir=base_dir,
                 volver_a=return_function,
                 pk=cert_data.get('user_public_key'), 
                 titulo=f"{cert_data.get("nombre")} - {cert_data.get("dni")}",
@@ -691,7 +695,7 @@ def cert_data_list(parent, cert_data, base_dir, fecha_firma=None, cert_valido = 
         header_frame.grid_columnconfigure(2, weight=0)  # Fecha (ancho fijo)
         
         # 1. ICONO
-        algorithm_image = resize_algoritmo_image_proportionally(base_dir, cert_data.get('algoritmo').lower(), 40)
+        algorithm_image = resize_algoritmo_image_proportionally(cert_data.get('algoritmo').lower(), 40)
         img_label = tk.Label(header_frame, image=algorithm_image, bg="white")
         img_label.image = algorithm_image
         img_label.grid(row=0, column=0, padx=(0, 10))

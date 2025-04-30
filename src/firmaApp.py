@@ -8,8 +8,8 @@ import tkinter as tk
 from tkinter import PhotoImage, messagebox, filedialog, simpledialog
 from tkinterdnd2 import TkinterDnD # type: ignore
 import customtkinter as ctk # type: ignore
-from backend.funcFirma import register_protocol_handler
-from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, setup_app_icons
+from backend.funcFirma import register_protocol_handler, set_base_dir_back_firma
+from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, set_base_dir, setup_app_icons
 from frontend.compFirma import create_cert_area, create_certificate_list, create_certificate_row, create_checkbox, create_drop_area, set_app_instance_autofirma
 
 class AutoFirmaApp:
@@ -20,7 +20,7 @@ class AutoFirmaApp:
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
         center_window(self.root)
-        setup_app_icons(self.root, BASE_DIR, "Diego")
+        setup_app_icons(self.root, "Diego")
 
         self.vista_inicial_autofirma()
 
@@ -66,11 +66,11 @@ class AutoFirmaApp:
             messagebox.showerror("Error", "No se encontraron firmas válidas en el documento.")
             return
                     
-        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual, BASE_DIR)
+        resultados_validacion = verificar_firmas_cascada(firmas, hash_documento_actual)
 
         vista = crear_vista_nueva(self.root)
 
-        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, BASE_DIR, resultados_validacion)
+        certificados_frame, valid_count, invalid_count = create_certificate_list(vista, resultados_validacion)
         
         summary_img, summary_text = determinar_estilo_firmas_validadas(valid_count, invalid_count)
         
@@ -78,7 +78,7 @@ class AutoFirmaApp:
         resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
         resultado_frame.pack(padx=20, pady=15, fill="x")
 
-        img = resize_image_proportionally(BASE_DIR, summary_img, 100)
+        img = resize_image_proportionally(summary_img, 100)
         label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
         label_imagen.grid(row=0, column=0, padx=(10, 10), sticky="w")
 
@@ -108,7 +108,7 @@ class AutoFirmaApp:
         fondo_pdf_frame.pack(pady=5)
         fondo_pdf_frame.pack_propagate(False)
 
-        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
+        img_pdf = resize_image_proportionally("adobe", 50)
         image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
         image_label.image = img_pdf
         image_label.pack(side="left", padx=20)
@@ -169,7 +169,7 @@ class AutoFirmaApp:
         label = ctk.CTkLabel(cert_area_container, text="Selecciona el certificado de firma:", font=("Inter", 17), text_color="#111111")
         label.pack(anchor="w", padx= 30)
 
-        cert_area = create_cert_area(cert_area_container, BASE_DIR, callback= handle_selected_cert)
+        cert_area = create_cert_area(cert_area_container, callback= handle_selected_cert)
         cert_area.pack(anchor="center")
 
         pass_container = ctk.CTkFrame(vista, fg_color="transparent")
@@ -202,7 +202,7 @@ class AutoFirmaApp:
                     messagebox.showerror("Error", "No se ha seleccionado un certificado de firma.")
                     return
 
-                cert_firma, _, _, _, _ = cargar_datos_certificado(firma_cert_path, BASE_DIR)
+                cert_firma, _, _, _, _ = cargar_datos_certificado(firma_cert_path)
 
                 #-----------------------VERIFICAMOS LA CONTRASEÑA DEL CERTIFICADO----------------------
                 encrypted_sk = cert_firma.get("user_secret_key")
@@ -221,7 +221,7 @@ class AutoFirmaApp:
                     return
                 
                 #---------------BUSCAMOS EL CERTIFICADO DE AUTENTICACION ASOCIADO----------------------
-                success, cert_auth, error_msg = cargar_certificado_autenticacion(cert_firma, BASE_DIR)
+                success, cert_auth, error_msg = cargar_certificado_autenticacion(cert_firma)
                 if not success:
                     log_message("firmaApp.log", error_msg)
                     raise ValueError(error_msg)
@@ -541,7 +541,7 @@ class AutoFirmaApp:
         resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  
         resultado_frame.pack(padx=20, pady=(30,40))
 
-        img = resize_image_proportionally(BASE_DIR, "tick" if success else "error", 100)
+        img = resize_image_proportionally("tick" if success else "error", 100)
         label_imagen = ctk.CTkLabel(resultado_frame, image=img, text="", bg_color="#f5f5f5")
         label_imagen.grid(row=0, column=0, padx=(0, 30))
 
@@ -571,7 +571,7 @@ class AutoFirmaApp:
         fondo_pdf_frame.pack()
         fondo_pdf_frame.pack_propagate(False)
 
-        img_pdf = resize_image_proportionally(BASE_DIR, "adobe", 50)
+        img_pdf = resize_image_proportionally("adobe", 50)
         image_label = ctk.CTkLabel(fondo_pdf_frame, image=img_pdf, bg_color="transparent", text="")
         image_label.image = img_pdf
         image_label.pack(side="left", padx=20)
@@ -628,7 +628,6 @@ class AutoFirmaApp:
 
         from datetime import datetime
         certificado_row = create_certificate_row(
-            base_dir=BASE_DIR,
             lista_frame= padding_frame,
             row_count=0,
             cert_info=cert,
@@ -653,7 +652,7 @@ class AutoFirmaApp:
         titulo_label.pack(pady=(40, 50))
 
         # Use the cert parameter instead of undefined certificado_path
-        datos_list = cert_data_list(vista, cert_data, BASE_DIR, fecha_firma, cert_valido)
+        datos_list = cert_data_list(vista, cert_data, fecha_firma, cert_valido)
         datos_list.pack()
         
         # Detectar si volver_a es un método directo o una lambda
@@ -669,6 +668,8 @@ class AutoFirmaApp:
 if __name__ == "__main__":
     # Iniciar aplicación
     root = TkinterDnD.Tk()
+    set_base_dir(BASE_DIR)
+    set_base_dir_back_firma(BASE_DIR)
     app = AutoFirmaApp(root)
     set_app_instance(app)
     set_app_instance_autofirma(app)

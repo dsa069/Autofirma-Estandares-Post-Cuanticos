@@ -4,6 +4,12 @@ import os
 import fitz  # type: ignore # PyMuPDF
 from backend.funcComunes import log_message
 
+BASE_DIR = None
+
+def set_base_dir_back_firma(base_dir):
+    global BASE_DIR
+    BASE_DIR = base_dir
+
 def firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signature_hash=None):
     """
     Firma digitalmente un documento PDF.
@@ -98,7 +104,7 @@ def verificar_firma(hash_data, clave_pública, firma, algoritmo):
         return None
     return firma
 
-def verificar_firmas_cascada(firmas, hash_actual, base_dir):  
+def verificar_firmas_cascada(firmas, hash_actual):  
 # IMPORTANTE: Procesar firmas en orden inverso para la validación en cascada
     total_firmas = len(firmas)
     
@@ -128,7 +134,7 @@ def verificar_firmas_cascada(firmas, hash_actual, base_dir):
         user_pk = bytes.fromhex(cert_data["user_public_key"])
         
         # Verificar certificado
-        cert_valido = verificar_certificado(cert_data, base_dir)
+        cert_valido = verificar_certificado(cert_data)
         
         # Verificar firma usando el hash actual
         firma_valida = verificar_firma(hash_actual, user_pk, firma, algoritmo)
@@ -198,7 +204,7 @@ def determinar_estilo_firmas_validadas(valid_count, invalid_count):
             f"Algunas del documento firmas son inválidas"
         )
 
-def verificar_certificado(cert_data, base_dir):
+def verificar_certificado(cert_data):
     """Verifica la validez de un certificado (SPHINCS+ o Dilithium)."""
     try:
         from backend.funcComunes import calcular_hash_firma, calcular_hash_huella
@@ -232,7 +238,7 @@ def verificar_certificado(cert_data, base_dir):
             raise ValueError("El certificado no contiene un ID de clave pública de entidad válido.")
         
         # Obtener la clave pública usando la función centralizada
-        entity_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir)
+        entity_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo)
         
         if entity_pk is None:
             raise ValueError(f"No se encontró una clave pública válida con ID {entity_pk_id}")
@@ -255,7 +261,7 @@ def verificar_certificado(cert_data, base_dir):
         log_message("firmaApp.log",f"Error al verificar certificado: {e}")
         return False
 
-def cargar_datos_certificado(cert_path, base_dir):
+def cargar_datos_certificado(cert_path):
     """Carga y verifica un certificado desde el archivo especificado"""
     try:
         # Leer el certificado
@@ -263,7 +269,7 @@ def cargar_datos_certificado(cert_path, base_dir):
             cert_data = json.load(cert_file)
 
         # Verificar el certificado
-        if not verificar_certificado(cert_data, base_dir):
+        if not verificar_certificado(cert_data):
             log_message("firmaApp.log", "Certificado no válido")
             return None, None, None, None, None
         
@@ -273,14 +279,14 @@ def cargar_datos_certificado(cert_path, base_dir):
         issue_date = datetime.fromisoformat(cert_data["fecha_expedicion"])
         algoritmo = cert_data.get("algoritmo")
         entity_pk_id = cert_data["entity_public_key_id"]
-        ent_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir)
+        ent_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo)
         
         return cert_data, user_pk, ent_pk, exp_date, issue_date
     except Exception as e:
         log_message("firmaApp.log", f"Error al cargar datos del certificado: {e}")
         return None, None, None, None, None
 
-def cargar_certificado_autenticacion(cert_firma, base_dir):
+def cargar_certificado_autenticacion(cert_firma):
     """
     Carga automáticamente el certificado de autenticación correspondiente al certificado de firma.
     """
@@ -307,7 +313,7 @@ def cargar_certificado_autenticacion(cert_firma, base_dir):
                 cert_auth = json.load(cert_file)
                 
             # Verificar el certificado de autenticación
-            if not verificar_certificado(cert_auth, base_dir):
+            if not verificar_certificado(cert_auth):
                 error_msg = "El certificado de autenticación no es válido."
                 log_message("firmaApp.log", "Error: Certificado de autenticación inválido.")
                 return False, None, error_msg
@@ -402,7 +408,7 @@ def decrypt_private_key(encrypted_sk, password):
         except Exception:
             return None  # Error → Contraseña incorrecta    
 
-def buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir):
+def buscar_clave_publica_por_id(entity_pk_id, algoritmo):
     """
     Busca una clave pública en el archivo pk_entidad.json por su ID.
     """
@@ -410,7 +416,7 @@ def buscar_clave_publica_por_id(entity_pk_id, algoritmo, base_dir):
     import json
     
     # Ruta al archivo de claves públicas de entidad
-    pk_path = os.path.join(base_dir, "pk_entidad.json")
+    pk_path = os.path.join(BASE_DIR, "pk_entidad.json")
     
     try:
         # Cargar el archivo de claves

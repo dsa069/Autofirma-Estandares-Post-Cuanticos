@@ -1,17 +1,13 @@
-import sys
 import os
 from backend.funcComunes import log_message, init_paths
 
 BASE_DIR = init_paths()
 
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, cert_data_list, resize_algoritmo_image_proportionally, resize_image_proportionally, set_app_instance, setup_app_icons, vista_mostrar_pk
+from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, cert_data_list, resize_algoritmo_image_proportionally, resize_image_proportionally, set_app_instance, set_base_dir, setup_app_icons, vista_mostrar_pk
 from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
-
-SK_ENTIDAD_PATH = os.path.join(BASE_DIR, "sk_entidad.json")
-PK_ENTIDAD_PATH = os.path.join(BASE_DIR, "pk_entidad.json")
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -21,7 +17,7 @@ class CertificadoDigitalApp:
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
         center_window(self.root)
-        setup_app_icons(self.root, BASE_DIR, "AlterDiego")
+        setup_app_icons(self.root, "AlterDiego")
 
         self.vista_inicial_entidad_generadora()
 
@@ -45,7 +41,7 @@ class CertificadoDigitalApp:
         btn = create_button(vista, "Generar nuevas claves", lambda: self.vista_generacion_claves(), 220)
         btn.pack(pady=12, padx=(60, 0), anchor="w")
         
-        lista_frame = create_key_list(vista, BASE_DIR)
+        lista_frame = create_key_list(vista)
         lista_frame.pack(padx=10, pady=10) 
 
     def vista_generacion_claves(self):
@@ -106,8 +102,8 @@ class CertificadoDigitalApp:
                         algoritmo, 
                         fecha_expedicion, 
                         fecha_caducidad, 
-                        SK_ENTIDAD_PATH, 
-                        PK_ENTIDAD_PATH,
+                        os.path.join(BASE_DIR, "sk_entidad.json"), 
+                        os.path.join(BASE_DIR, "pk_entidad.json"),
                     )
                     
                     if id == -1:
@@ -184,7 +180,6 @@ class CertificadoDigitalApp:
 
             key_row = create_key_row(
                 lista_frame = padding_frame,
-                base_dir=BASE_DIR,
                 row_count=0,
                 clave=selected_key,
                 es_clicable=False,
@@ -290,7 +285,7 @@ class CertificadoDigitalApp:
         # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
 
-        img = resize_image_proportionally(BASE_DIR, "error" if error else "tick", 100)
+        img = resize_image_proportionally("error" if error else "tick", 100)
 
         resultado_frame = ctk.CTkFrame(vista, fg_color="#f5f5f5")  # Fondo blanco grisáceo
         resultado_frame.pack(padx=20, pady=20, fill="x")
@@ -333,7 +328,7 @@ class CertificadoDigitalApp:
             error_message.pack(pady=(5, 20), padx=20, anchor="w")
         else:
 
-            datos_list = cert_data_list(vista, cert_data, BASE_DIR)
+            datos_list = cert_data_list(vista, cert_data)
             datos_list.pack()
 
         volver_btn = create_button(vista, "Finalizar", lambda: self.vista_inicial_entidad_generadora())
@@ -342,6 +337,7 @@ class CertificadoDigitalApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    set_base_dir(BASE_DIR)
     app = CertificadoDigitalApp(root)
     set_app_instance(app)
     set_app_instance_entidad(app)

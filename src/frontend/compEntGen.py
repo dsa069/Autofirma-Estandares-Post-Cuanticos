@@ -66,7 +66,7 @@ def create_dropdown_with_text(parent, text, opciones = [], placeholder = ""):
 
     return entrada
 
-def create_key_list(parent, base_dir):
+def create_key_list(parent):
     # Cargar datos de claves
     from backend.funcEntGen import cargar_claves_entidad, clasificar_claves_por_estado
     from frontend.compComunes import create_base_list
@@ -81,7 +81,7 @@ def create_key_list(parent, base_dir):
     def procesar_claves(lista_frame, datos):
         row_count = 0
         for algoritmo, clave, es_caducada, es_futura in datos:
-            row_count = create_key_row(lista_frame, base_dir, row_count, clave, es_caducada, es_futura, pk_callback_volver_a= lambda: APP_INSTANCE.vista_inicial_entidad_generadora())
+            row_count = create_key_row(lista_frame, row_count, clave, es_caducada, es_futura, pk_callback_volver_a= lambda: APP_INSTANCE.vista_inicial_entidad_generadora())
         return row_count
     
     # Definir encabezados específicos para claves
@@ -102,7 +102,7 @@ def create_key_list(parent, base_dir):
         
     return contenedor_principal
 
-def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True, separador=True, pk_callback_volver_a = None ):
+def create_key_row(lista_frame, row_count, clave, es_caducada=False, es_futura=False, es_clicable=True, separador=True, pk_callback_volver_a = None ):
     """
     Añade una fila con información de clave al frame scrollable
     """
@@ -217,7 +217,6 @@ def create_key_row(lista_frame, base_dir, row_count, clave, es_caducada=False, e
         log_message("entGenApp.log", f"Llamando a vista_mostrar_pk con título={clave['titulo']}, algoritmo={nombre_algoritmo}")
         vista_mostrar_pk(
             parent=APP_INSTANCE.root,
-            base_dir=base_dir,
             volver_a= pk_callback_volver_a,
             pk=clave_publica, 
             titulo=clave["titulo"], 

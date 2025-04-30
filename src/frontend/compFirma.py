@@ -251,7 +251,7 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
 
     return frame_container
 
-def create_cert_area(parent, base_dir, text="Pulse el area y seleccione el certificado de firma a utilizar", callback=None):
+def create_cert_area(parent, text="Pulse el area y seleccione el certificado de firma a utilizar", callback=None):
     from tkinterdnd2 import DND_FILES # type: ignore
     def open_file_dialog(event=None):
         from tkinter import filedialog
@@ -311,7 +311,7 @@ def create_cert_area(parent, base_dir, text="Pulse el area y seleccione el certi
         else:
             algoritmo = "sphincs"
 
-        algorithm_image = resize_algoritmo_image_proportionally(base_dir, algoritmo, 50)
+        algorithm_image = resize_algoritmo_image_proportionally(algoritmo, 50)
         
         image_label = tk.Label(content_frame, image=algorithm_image, bg="white")
         image_label.image = algorithm_image
@@ -449,7 +449,7 @@ def create_cert_area(parent, base_dir, text="Pulse el area y seleccione el certi
 
     return frame_container
 
-def create_certificate_list(parent, base_dir, firmas):
+def create_certificate_list(parent, firmas):
     """
     Crea una lista específica para mostrar certificados
     """
@@ -480,7 +480,7 @@ def create_certificate_list(parent, base_dir, firmas):
             else:
                 invalid_count += 1
 
-            row_count = create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_firma, estado, APP_INSTANCE.verify_signatures)
+            row_count = create_certificate_row(lista_frame, row_count, cert_info, fecha_firma, estado, APP_INSTANCE.verify_signatures)
         return row_count
 
     # Obtener la estructura base de la lista
@@ -495,7 +495,7 @@ def create_certificate_list(parent, base_dir, firmas):
     
     return contenedor_principal, valid_count, invalid_count
 
-def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None, separator = True):
+def create_certificate_row(lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None, separator = True):
     from frontend.compComunes import create_base_row
 
     def razon_error(motivo_error):
@@ -532,7 +532,7 @@ def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_fi
     es_valida = not estado
 
     # --- Columna 0: logo del algoritmo ---
-    img_algortimo = resize_image_proportionally(base_dir, cert_info["algoritmo"], 45)
+    img_algortimo = resize_image_proportionally(cert_info["algoritmo"], 45)
 
     logo_label = ctk.CTkLabel(
         fila_container,
@@ -572,7 +572,7 @@ def create_certificate_row(base_dir, lista_frame, row_count, cert_info, fecha_fi
     fecha_label.grid(row=0, column=2, rowspan=2, pady=8, sticky="nsew")
 
     # --- Columna 3: icono de verificación ---
-    img = resize_image_proportionally(base_dir, "tick" if es_valida else "error", 40)
+    img = resize_image_proportionally("tick" if es_valida else "error", 40)
 
     if img:
         check_label = ctk.CTkLabel(
