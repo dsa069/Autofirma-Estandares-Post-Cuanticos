@@ -58,15 +58,42 @@ def create_checkbox(parent, text):
     
     return container
 
-def create_drop_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
+def create_drag_drop_area(parent, text, callback=None, height=260, 
+                         file_filter=None, dialog_title="Seleccionar archivo", 
+                         initial_dir=None, custom_content_renderer=None,
+                         content_label=None, image_provider=None, center_content=False):
+    """
+    Método genérico para crear áreas de arrastrar y soltar.
+    
+    Parámetros:
+    - parent: Widget padre
+    - text: Texto a mostrar inicialmente
+    - callback: Función a llamar cuando se selecciona un archivo
+    - height: Altura del contenedor
+    - file_filter: Tupla (descripción, patrón) para filtrar archivos
+    - dialog_title: Título del diálogo de selección
+    - initial_dir: Directorio inicial para el diálogo
+    - custom_content_renderer: Función personalizada para renderizar el contenido
+    - content_label: Texto de etiqueta de contenido (ej: "Documento seleccionado:")
+    - image_provider: Función que proporciona la imagen adecuada para el archivo
+    """
     from tkinterdnd2 import DND_FILES # type: ignore
+    
     def open_file_dialog(event=None):
         from tkinter import filedialog
         import os
+        
+        # Obtener directorio inicial
+        init_dir = initial_dir() if callable(initial_dir) else initial_dir
+        if init_dir is None:
+            init_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        
         file_path = filedialog.askopenfilename(
-            title="Seleccionar archivo firmado",
-            initialdir= os.path.join(os.path.expanduser("~"), "Desktop"),
-            filetypes=[("Archivos PDF", "*.pdf")])
+            title=dialog_title,
+            initialdir=init_dir,
+            filetypes=[file_filter] if file_filter else []
+        )
+        
         if file_path:
             update_label(file_path)
             if callback:
@@ -74,15 +101,29 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
 
     def drop(event):
         path = event.data.strip('{}')
-        if path.lower().endswith(".pdf"):
+        if is_valid_file(path):
             update_label(path)
             if callback:
                 callback(path)
+    
+    def is_valid_file(path):
+        import os
+        if file_filter:
+            desc, pattern = file_filter
+            if pattern.startswith("*"):
+                # Es una extensión
+                if not path.lower().endswith(pattern[1:]):
+                    return False
+            elif "." in pattern:
+                # Es un patrón específico
+                filename = os.path.basename(path)
+                import fnmatch
+                return fnmatch.fnmatch(filename, pattern)
+        return True
 
     def update_label(file_path):
-        from PIL import Image, ImageTk # type: ignore
         import os
-
+        
         # Desconectar eventos del frame antes de limpiar
         frame_container.unbind("<Enter>")
         frame_container.unbind("<Leave>")
@@ -90,65 +131,79 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
         # Limpia el frame antes de añadir elementos nuevos
         for widget in frame_container.winfo_children():
             widget.destroy()
-
-        # Label "Documento seleccionado"
-        label_info = tk.Label(
-            frame_container,
-            text="Documento seleccionado:",
-            fg="#111111",
-            font=("Inter", 16, "bold"),
-            bg="white",
-            anchor="w",
-            justify="left"
-        )
-        label_info.pack(anchor="w", padx=20, pady=(10, 0))
-
-        # Contenedor horizontal: imagen + info PDF
-        content_frame = tk.Frame(frame_container, bg="white")
-        content_frame.pack(fill="x", padx=20, pady=10)
-
-        # Imagen de Adobe
-        img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img", "adobe.png")
-        img = Image.open(img_path)
-        img = img.resize((57, 57))
-        img_tk = ImageTk.PhotoImage(img)
-
-        image_label = tk.Label(content_frame, image=img_tk, bg="white")
-        image_label.image = img_tk
-        image_label.pack(side="left", padx=(0, 10))
-
-        # Título y ruta
-        pdf_frame = tk.Frame(content_frame, bg="white")
-        pdf_frame.pack(side="left", fill="x", expand=True)
-
-        filename = os.path.basename(file_path)
-        folder_path = os.path.dirname(file_path)
-
-        label_title = tk.Label(
-            pdf_frame,
-            text=filename,
-            fg="#111111",
-            font=("Inter", 15),
-            bg="white",
-            anchor="w"
-        )
-        label_title.pack(anchor="w")
-
-        label_path = tk.Label(
-            pdf_frame,
-            text=folder_path,
-            fg="#555555",
-            font=("Inter", 11),
-            bg="white",
-            anchor="w"
-        )
-        label_path.pack(anchor="w")
-
-        # Vincular nuevos eventos al contenedor después de actualizar
+            
+        if custom_content_renderer:
+            custom_content_renderer(frame_container, file_path)
+        else:
+            # Crear un frame contenedor para centrado si es necesario
+            if center_content:
+                # Usar pack con expand=True para centrado vertical natural
+                content_container = tk.Frame(frame_container, bg="white")
+                content_container.pack(fill="x", expand=True)
+                target_frame = content_container
+            else:
+                target_frame = frame_container
+            
+            # Renderizar contenido genérico (estructura común)
+            if content_label:
+                # Label "Contenido seleccionado"
+                label_info = tk.Label(
+                    target_frame,
+                    text=content_label,
+                    fg="#111111",
+                    font=("Inter", 16, "bold"),
+                    bg="white",
+                    anchor="w",
+                    justify="left"
+                )
+                label_info.pack(anchor="w", padx=20, pady=(10, 0))
+            
+            # Contenedor horizontal: imagen + info
+            content_frame = tk.Frame(target_frame, bg="white")
+            content_frame.pack(fill="x", padx= (10,0) if center_content else (20,0) , pady=10)
+            
+            # Imagen (si hay proveedor de imágenes)
+            if image_provider:
+                image = image_provider(file_path)
+                if image:
+                    image_label = tk.Label(content_frame, image=image, bg="white")
+                    image_label.image = image
+                    image_label.pack(side="left", padx=(0, 10))
+            
+            # Título y ruta
+            info_frame = tk.Frame(content_frame, bg="white")
+            info_frame.pack(side="left", fill="x", expand=True)
+            
+            filename = os.path.basename(file_path)
+            folder_path = os.path.dirname(file_path)
+            
+            label_title = tk.Label(
+                info_frame,
+                text=filename,
+                fg="#111111",
+                font=("Inter", 15),
+                bg="white",
+                anchor="w"
+            )
+            label_title.pack(anchor="w")
+            
+            label_path = tk.Label(
+                info_frame,
+                text=folder_path,
+                fg="#555555",
+                font=("Inter", 11),
+                bg="white",
+                anchor="w"
+            )
+            label_path.pack(anchor="w")
+            
+        # Vincular nuevos eventos al contenedor
         frame_container.bind("<Enter>", lambda e: frame_container.config(bg="#FAFAFA"))
         frame_container.bind("<Leave>", lambda e: frame_container.config(bg="white"))
+        label_title.bind("<Button-1>", open_file_dialog)
+        label_path.bind("<Button-1>", open_file_dialog)
         
-        # Actualizar todos los elementos de fondo cuando se pasa el ratón
+        # Código para actualizar fondos en hover
         def update_all_bg_enter(event):
             frame_container.config(bg="#FAFAFA")
             for child in frame_container.winfo_children():
@@ -177,12 +232,13 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
                                 if isinstance(great_grandchild, tk.Label):
                                     great_grandchild.config(bg="white")
 
+        # Vincular eventos de clic a todos los elementos
         frame_container.bind("<Button-1>", open_file_dialog)
-        content_frame.bind("<Button-1>", open_file_dialog)
-        image_label.bind("<Button-1>", open_file_dialog)
-        pdf_frame.bind("<Button-1>", open_file_dialog)
-        label_title.bind("<Button-1>", open_file_dialog)
-        label_path.bind("<Button-1>", open_file_dialog)
+        for widget in frame_container.winfo_children():
+            widget.bind("<Button-1>", open_file_dialog)
+            if isinstance(widget, tk.Frame):
+                for child in widget.winfo_children():
+                    child.bind("<Button-1>", open_file_dialog)
         
         frame_container.bind("<Enter>", update_all_bg_enter)
         frame_container.bind("<Leave>", update_all_bg_leave)
@@ -191,7 +247,7 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     outer_container = ctk.CTkFrame(
         parent,
         width=620,
-        height=260,
+        height=height,
         corner_radius=25,
         fg_color="#FFFFFF",
         border_width=1,
@@ -204,205 +260,7 @@ def create_drop_area(parent, text="Pulse el área y seleccione el documento o ar
     frame_container = tk.Frame(
         outer_container,
         width=600,
-        height=240,
-        bg="white",
-        highlightthickness=0
-    )
-    frame_container.place(relx=0.5, rely=0.5, anchor="center")
-    frame_container.pack_propagate(False)
-
-    # Crear la etiqueta inicial
-    label = tk.Label(
-        frame_container,
-        text=text,
-        fg="#555555",
-        font=("Inter", 16),
-        bg="white",
-        wraplength=580,
-        justify="center"
-    )
-    label.pack(expand=True)
-
-    # Vincular eventos al frame y la etiqueta
-    frame_container.bind("<Button-1>", open_file_dialog)
-    label.bind("<Button-1>", open_file_dialog)
-
-    # Configurar el área para soltar archivos
-    frame_container.drop_target_register(DND_FILES)
-    frame_container.dnd_bind('<<Drop>>', drop)
-
-    # Eventos de entrada y salida del mouse para el estado inicial
-    def on_enter(event):
-        frame_container.config(bg="#FAFAFA")
-        # Verificar si la etiqueta aún existe
-        for widget in frame_container.winfo_children():
-            if widget == label and widget.winfo_exists():
-                label.config(bg="#FAFAFA")
-
-    def on_leave(event):
-        frame_container.config(bg="white")
-        # Verificar si la etiqueta aún existe
-        for widget in frame_container.winfo_children():
-            if widget == label and widget.winfo_exists():
-                label.config(bg="white")
-
-    frame_container.bind("<Enter>", on_enter)
-    frame_container.bind("<Leave>", on_leave)
-
-    return frame_container
-
-def create_cert_area(parent, text="Pulse el area y seleccione el certificado de firma a utilizar", callback=None):
-    from tkinterdnd2 import DND_FILES # type: ignore
-    def open_file_dialog(event=None):
-        from tkinter import filedialog
-        import os
-        # Comprobar si existe la carpeta certificados_postC
-        user_home = os.path.expanduser("~")
-        certs_folder = os.path.join(user_home, "certificados_postC")
-        
-        # Verificar si la carpeta existe
-        if not os.path.exists(certs_folder):
-            log_message("firmaApp.log","Error: No se encuentra la carpeta certificados_postC")
-
-        file_path = filedialog.askopenfilename(
-            title="Seleccionar archivo firmado",
-            initialdir= certs_folder,
-            filetypes=[("Certificados", f"certificado_digital_firmar_*.json")])
-        
-        if file_path:
-            update_label(file_path)
-            if callback:
-                callback(file_path)
-
-    def drop(event):
-        import os
-        path = event.data.strip('{}')
-        filename = os.path.basename(path)
-        path = event.data.strip('{}')
-        if path.lower().endswith(".json") and filename.startswith("certificado_digital_firmar_"):
-            update_label(path)
-            if callback:
-                callback(path)
-
-    def update_label(file_path):
-        from PIL import Image, ImageTk # type: ignore
-        import os
-
-        filename = os.path.basename(file_path)
-        folder_path = os.path.dirname(file_path)
-
-        # Desconectar eventos del frame antes de limpiar
-        frame_container.unbind("<Enter>")
-        frame_container.unbind("<Leave>")
-        
-        # Limpia el frame antes de añadir elementos nuevos
-        for widget in frame_container.winfo_children():
-            widget.destroy()
-
-        # Contenedor horizontal: imagen + info
-        content_frame = tk.Frame(frame_container, bg="white")
-        content_frame.pack(fill="x", expand=True)
-
-        algoritmo = None
-
-        nombre_sin_prefijo = filename[len("certificado_digital_firmar_"):].lower()
-        if "dilithium" in nombre_sin_prefijo:
-            algoritmo = "dilithium"
-        else:
-            algoritmo = "sphincs"
-
-        algorithm_image = resize_algoritmo_image_proportionally(algoritmo, 50)
-        
-        image_label = tk.Label(content_frame, image=algorithm_image, bg="white")
-        image_label.image = algorithm_image
-        image_label.pack(side="left", padx=(0, 10))
-
-        # Título y ruta
-        cert_frame = tk.Frame(content_frame, bg="white")
-        cert_frame.pack(side="left", fill="x", expand=True)
-
-        label_title = tk.Label(
-            cert_frame,
-            text=filename,
-            fg="#111111",
-            font=("Inter", 15),
-            bg="white",
-            anchor="w"
-        )
-        label_title.pack(anchor="w")
-
-        label_path = tk.Label(
-            cert_frame,
-            text=folder_path,
-            fg="#555555",
-            font=("Inter", 11),
-            bg="white",
-            anchor="w"
-        )
-        label_path.pack(anchor="w")
-
-        # Vincular nuevos eventos al contenedor después de actualizar
-        frame_container.bind("<Enter>", lambda e: frame_container.config(bg="#FAFAFA"))
-        frame_container.bind("<Leave>", lambda e: frame_container.config(bg="white"))
-        
-        # Actualizar todos los elementos de fondo cuando se pasa el ratón
-        def update_all_bg_enter(event):
-            frame_container.config(bg="#FAFAFA")
-            for child in frame_container.winfo_children():
-                if isinstance(child, tk.Label) or isinstance(child, tk.Frame):
-                    child.config(bg="#FAFAFA")
-                if isinstance(child, tk.Frame):
-                    for grandchild in child.winfo_children():
-                        if isinstance(grandchild, tk.Label) or isinstance(grandchild, tk.Frame):
-                            grandchild.config(bg="#FAFAFA")
-                        if isinstance(grandchild, tk.Frame):
-                            for great_grandchild in grandchild.winfo_children():
-                                if isinstance(great_grandchild, tk.Label):
-                                    great_grandchild.config(bg="#FAFAFA")
-        
-        def update_all_bg_leave(event):
-            frame_container.config(bg="white")
-            for child in frame_container.winfo_children():
-                if isinstance(child, tk.Label) or isinstance(child, tk.Frame):
-                    child.config(bg="white")
-                if isinstance(child, tk.Frame):
-                    for grandchild in child.winfo_children():
-                        if isinstance(grandchild, tk.Label) or isinstance(grandchild, tk.Frame):
-                            grandchild.config(bg="white")
-                        if isinstance(grandchild, tk.Frame):
-                            for great_grandchild in grandchild.winfo_children():
-                                if isinstance(great_grandchild, tk.Label):
-                                    great_grandchild.config(bg="white")
-
-            # Vincular evento de clic a todos los elementos para poder cambiar el certificado
-        frame_container.bind("<Button-1>", open_file_dialog)
-        content_frame.bind("<Button-1>", open_file_dialog)
-        image_label.bind("<Button-1>", open_file_dialog)
-        cert_frame.bind("<Button-1>", open_file_dialog)
-        label_title.bind("<Button-1>", open_file_dialog)
-        label_path.bind("<Button-1>", open_file_dialog)
-        
-        frame_container.bind("<Enter>", update_all_bg_enter)
-        frame_container.bind("<Leave>", update_all_bg_leave)
-
-    # Crear el frame contenedor
-    outer_container = ctk.CTkFrame(
-        parent,
-        width=620,
-        height=120,
-        corner_radius=25,
-        fg_color="#FFFFFF",
-        border_width=1,
-        border_color="#E0E0E0"
-    )
-    outer_container.pack()
-    outer_container.pack_propagate(False)
-    
-    # Crear el frame contenedor real encima (sin bordes)
-    frame_container = tk.Frame(
-        outer_container,
-        width=600,
-        height=100,
+        height=height-20,
         bg="white",
         highlightthickness=0
     )
@@ -432,14 +290,12 @@ def create_cert_area(parent, text="Pulse el area y seleccione el certificado de 
     # Eventos de entrada y salida del mouse para el estado inicial
     def on_enter(event):
         frame_container.config(bg="#FAFAFA")
-        # Verificar si la etiqueta aún existe
         for widget in frame_container.winfo_children():
             if widget == label and widget.winfo_exists():
                 label.config(bg="#FAFAFA")
 
     def on_leave(event):
         frame_container.config(bg="white")
-        # Verificar si la etiqueta aún existe
         for widget in frame_container.winfo_children():
             if widget == label and widget.winfo_exists():
                 label.config(bg="white")
@@ -448,6 +304,66 @@ def create_cert_area(parent, text="Pulse el area y seleccione el certificado de 
     frame_container.bind("<Leave>", on_leave)
 
     return frame_container
+
+def create_drop_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
+    """Crea un área para arrastrar y soltar documentos PDF"""
+    import os
+    from PIL import Image, ImageTk # type: ignore
+    
+    def get_pdf_image(file_path):
+        """Obtiene la imagen de Adobe para un PDF"""
+        img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img", "adobe.png")
+        img = Image.open(img_path)
+        img = img.resize((57, 57))
+        return ImageTk.PhotoImage(img)
+    
+    return create_drag_drop_area(
+        parent=parent,
+        text=text,
+        callback=callback,
+        height=260,
+        file_filter=("Archivos PDF", "*.pdf"),
+        dialog_title="Seleccionar documento PDF",
+        initial_dir=os.path.join(os.path.expanduser("~"), "Desktop"),
+        content_label="Documento seleccionado:",
+        image_provider=get_pdf_image,
+        center_content=False  # No centrar verticalmente (comportamiento por defecto)
+    )
+
+def create_cert_area(parent, text="Pulse el area y seleccione el certificado de firma a utilizar", callback=None):
+    """Crea un área para arrastrar y soltar certificados digitales"""
+    import os
+    
+    def get_certs_dir():
+        """Obtiene el directorio de certificados"""
+        user_home = os.path.expanduser("~")
+        certs_folder = os.path.join(user_home, "certificados_postC")
+        
+        # Verificar si la carpeta existe
+        if not os.path.exists(certs_folder):
+            log_message("firmaApp.log", "Error: No se encuentra la carpeta certificados_postC")
+        
+        return certs_folder
+    
+    def get_cert_image(file_path):
+        """Obtiene la imagen del algoritmo para un certificado"""
+        filename = os.path.basename(file_path)
+        nombre_sin_prefijo = filename[len("certificado_digital_firmar_"):].lower()
+        
+        algoritmo = "dilithium" if "dilithium" in nombre_sin_prefijo else "sphincs"
+        return resize_algoritmo_image_proportionally(algoritmo, 50)
+    
+    return create_drag_drop_area(
+        parent=parent,
+        text=text,
+        callback=callback,
+        height=120,  # Altura exacta como en el código original
+        file_filter=("Certificados", "certificado_digital_firmar_*.json"),
+        dialog_title="Seleccionar certificado",
+        initial_dir=get_certs_dir,
+        image_provider=get_cert_image,
+        center_content=True  # Mantener centrado vertical
+    )
 
 def create_certificate_list(parent, firmas):
     """
