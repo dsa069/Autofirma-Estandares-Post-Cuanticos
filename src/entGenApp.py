@@ -252,7 +252,7 @@ class CertificadoDigitalApp:
                     return
 
                 try:
-                    cert_auth_path, cert_sign_path = generar_certificado(
+                    cert_auth_path, _ = generar_certificado(
                         selected_key,
                         nombre=nombre,
                         dni=dni,

@@ -430,12 +430,12 @@ def create_certificate_list(parent, firmas):
             fecha_firma = firma_data.get("fecha_firma")
 
             estado = 0
-            if not resultado["firma_valida"]:
-                estado = 1
+            if not resultado["integridad_valida"]:
+                estado = 3
             elif not resultado["cert_valido"]:
                 estado = 2
-            elif not resultado["integridad_valida"]:
-                estado = 3
+            elif not resultado["firma_valida"]:
+                estado = 1
 
             if estado == 0:
                 valid_count += 1

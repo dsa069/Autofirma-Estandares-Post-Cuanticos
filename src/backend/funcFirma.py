@@ -28,7 +28,7 @@ def firmar_documento_pdf(save_path, user_sk, cert_firma, cert_auth, visual_signa
         signature = firmar_hash(hash_documento, user_sk, algoritmo)
 
         # AÑADIR METADATOS AL PDF (incluida la firma digital)
-        add_metadata_to_pdf(save_path, signature, cert_auth, visual_signature_hash)
+        add_metadata_to_pdf(save_path, signature, cert_auth, user_sk, visual_signature_hash)
 
         # Registrar en el log el documento firmado
         titulo_doc = os.path.basename(save_path)
@@ -116,22 +116,19 @@ def verificar_firmas_cascada(firmas, hash_actual):
     for i in range(total_firmas - 1, -1, -1):
         firma_data = firmas[i]
 
-        # Guardar el hash original
-        hash_original = firma_data["hash_integridad"]
-        
-        # Recalcular el hash y comparar
-        hash_recalculado = calcular_hash_metadatos(firma_data)
-        
-        integridad_valida = True
-        if not hash_original == hash_recalculado:
-            integridad_valida = False
-            log_message("firmaApp.log", f"ALERTA: La integridad de los metadatos de la firma {i} ha sido comprometida")
-        
         # Extraer datos básicos
         firma = bytes.fromhex(firma_data["firma"])
         cert_data = firma_data["certificado_autenticacion"]
         algoritmo = cert_data.get("algoritmo", "sphincs").lower()
         user_pk = bytes.fromhex(cert_data["user_public_key"])
+        firma_metadatos = bytes.fromhex(firma_data["firma_metadatos"])
+        
+        # Validar firma metadatos
+        hash_recalculado_meta = calcular_hash_metadatos(firma_data)
+        
+        integridad_valida = verificar_firma(hash_recalculado_meta, user_pk, firma_metadatos, algoritmo)
+        if not integridad_valida:
+            log_message("firmaApp.log", f"ALERTA: La integridad de los metadatos de la firma {i} ha sido comprometida")
         
         # Verificar certificado
         cert_valido = verificar_certificado(cert_data)
@@ -375,7 +372,7 @@ def calcular_hash_metadatos(metadata):
         "fecha_firma",
         "hash_visual_signature"
     ]
-    return calcular_hash_ordenado(metadata, ordered_keys).hexdigest() 
+    return calcular_hash_ordenado(metadata, ordered_keys).digest() 
 
 def decrypt_private_key(encrypted_sk, password):
         """Descifra la clave privada utilizando AES-256 CBC y verifica la redundancia."""
@@ -443,9 +440,11 @@ def buscar_clave_publica_por_id(entity_pk_id, algoritmo):
         log_message("firmaApp.log", f"Error al cargar archivo de claves públicas: {e}")
         return None
 
-def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
+def add_metadata_to_pdf(pdf_path, firma, cert_data, user_sk, visual_signature_hash=None):
     """Añade la firma y el certificado de autenticación a los metadatos del PDF preservando firmas anteriores."""
     try:
+        from backend.funcComunes import firmar_hash
+
         doc = fitz.open(pdf_path)
         metadata = doc.metadata
         fecha_firma = datetime.now().isoformat()
@@ -462,7 +461,9 @@ def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
             nueva_firma["hash_visual_signature"] = visual_signature_hash.hex()
 
         # Calcular y añadir el hash de integridad
-        nueva_firma["hash_integridad"] = calcular_hash_metadatos(nueva_firma)    
+        hash_integridad = calcular_hash_metadatos(nueva_firma)
+
+        nueva_firma["firma_metadatos"] = firmar_hash(hash_integridad, user_sk, cert_data["algoritmo"]).hex()
         
         # Verificar si ya existen metadatos de firmas
         existing_metadata = {}
@@ -490,7 +491,8 @@ def add_metadata_to_pdf(pdf_path, firma, cert_data, visual_signature_hash=None):
         log_message("firmaApp.log",f"PDF firmado con metadatos guardado en: {pdf_path}")
         
     except Exception as e:
-        log_message("firmaApp.log",f"Error al añadir metadatos al PDF: {e}")  
+        log_message("firmaApp.log",f"Error al añadir metadatos al PDF: {e}") 
+        raise 
 
 def copiar_contenido_pdf(origen, destino):
     """
