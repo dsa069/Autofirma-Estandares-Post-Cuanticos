@@ -483,7 +483,7 @@ def create_certificate_row(lista_frame, row_count, cert_info, fecha_firma, estad
         cert_valido_value = 2 if estado == 0 else 0
 
     # Crear la fila base
-    fila_container, next_row, _ = create_base_row(
+    fila_container, next_row = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,

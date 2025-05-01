@@ -115,7 +115,7 @@ def create_key_row(lista_frame, row_count, clave, es_caducada=False, es_futura=F
     column_sizes = [80, 175, 150, 190]  # Algoritmo, Título, PK, Período
 
     # Crear la fila base
-    fila_container, next_row, logo_images = create_base_row(
+    fila_container, next_row = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=column_sizes,
@@ -175,13 +175,16 @@ def create_key_row(lista_frame, row_count, clave, es_caducada=False, es_futura=F
             row=0, column=3, padx=10, pady=5, sticky="w")
     
     # Mostrar logo o nombre del algoritmo (columna 0)
-    if algoritmo in logo_images and logo_images[algoritmo]:
-        logo_label = tk.Label(fila_container, image=logo_images[algoritmo], bg=fila_container["bg"])
-        logo_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+    if algoritmo in ["sphincs", "dilithium"]:
+        from frontend.compComunes import resize_image_proportionally
+        alg_nombre = algoritmo.capitalize()  # Capitalize first letter for image name
+        logo_img = resize_image_proportionally(alg_nombre, desired_height=40)
+        logo_label = ctk.CTkLabel(fila_container, image=logo_img, text="", fg_color=fila_container["bg"])
+        logo_label.grid(row=0, column=0, padx= 0 if algoritmo == "dilithium" else (5,0), pady=5, sticky="w")
     else:
         alg_nombre = "SPHINCS+" if algoritmo == "sphincs" else "Dilithium"
         ctk.CTkLabel(fila_container, text=alg_nombre, font=("Segoe UI", 12)).grid(
-            row=0, column=0, padx=10, pady=5, sticky="w")
+            row=0, column=0, padx=(10,0), pady=5, sticky="w")
     
     # Título (columna 1)
     ctk.CTkLabel(fila_container, text=clave["titulo"], font=("Segoe UI", 12)).grid(

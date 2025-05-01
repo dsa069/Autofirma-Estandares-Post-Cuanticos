@@ -5,7 +5,6 @@ from backend.funcComunes import log_message
 ctk.set_appearance_mode("light")
 
 # Variable global para mantener referencias a las imágenes
-LOGO_IMAGES = {}  # Mover a nivel global
 APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
 BASE_DIR = None  # Para guardar la ruta base de la aplicación
 
@@ -289,32 +288,6 @@ def resize_image_proportionally(nombre, desired_height=75):
     # Convertir a CTkImage para usar en CustomTkinter
     return CTkImage(light_image=resized_img, dark_image=resized_img, size=(desired_width, desired_height))
 
-def cargar_logos_algoritmos():
-    """Carga las imágenes de logos de algoritmos si no están cargadas"""
-    global LOGO_IMAGES
-    from PIL import Image, ImageTk # type: ignore
-    import os
-
-    if not LOGO_IMAGES:
-        img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "img")
-        
-        try:
-            sphincs_path = os.path.join(img_path, "Sphincs.png")
-            dilithium_path = os.path.join(img_path, "Dilithium.png")
-            
-            if os.path.exists(sphincs_path):
-                sphincs_logo = Image.open(sphincs_path)
-                sphincs_logo = sphincs_logo.resize((60, 35), Image.LANCZOS)
-                LOGO_IMAGES["sphincs"] = ImageTk.PhotoImage(sphincs_logo)
-            
-            if os.path.exists(dilithium_path):
-                dilithium_logo = Image.open(dilithium_path)
-                dilithium_logo = dilithium_logo.resize((60, 30), Image.LANCZOS)
-                LOGO_IMAGES["dilithium"] = ImageTk.PhotoImage(dilithium_logo)
-                
-        except Exception as e:
-            log_message("entGenApp.log", f"Error al cargar logos: {e}")
-
 def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None, max_visible_items=1, separator=True, custom_header_function=None):
     """
     Crea un esqueleto básico para cualquier lista con estilo consistente.
@@ -348,9 +321,6 @@ def create_base_list(parent, height=270, empty_message=None, process_data_functi
             text_color="#757575"
         )
         mensaje_label.grid(row=0, column=0, columnspan=4, padx=20, pady=30)
-
-    # Cargar imágenes si no están cargadas
-    cargar_logos_algoritmos()
 
     # Frame contenedor principal
     contenedor_principal = ctk.CTkFrame(
@@ -510,7 +480,7 @@ def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback
         linea_divisora.grid(row=row_count+1, column=0, columnspan=column_count, 
                         sticky="ew", padx=25, pady=2)
     
-    return fila_container, row_count +  (2 if separator else 1), LOGO_IMAGES  # +2 para la fila y la línea
+    return fila_container, row_count +  (2 if separator else 1)  # +2 para la fila y la línea
 
 def create_pk_row(lista_frame, row_count, clave):
     """
@@ -536,7 +506,7 @@ def create_pk_row(lista_frame, row_count, clave):
         return "break"
 
     # Crear la fila base
-    fila_container, next_row, _ = create_base_row(
+    fila_container, next_row = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         click_callback=callback_copy,
@@ -721,7 +691,7 @@ def cert_data_row(lista_frame, row_count, titulo, valor, callback=None):
     from frontend.compComunes import create_base_row
 
     # Crear la fila base
-    fila_container, next_row, _ = create_base_row(
+    fila_container, next_row = create_base_row(
         lista_frame=lista_frame,
         row_count=row_count,
         column_sizes=[200, 400] ,
