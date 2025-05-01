@@ -10,7 +10,8 @@ datas = [('../package', 'package'),
         ('img/Diego.ico', '.'),
         ('img/Diego.png', '.'),
         ('tkdnd', 'tkdnd'), 
-        ('img', 'img')
+        ('img', 'img'),
+        ('../LICENSE', '.')
 ]
 
 a = Analysis(

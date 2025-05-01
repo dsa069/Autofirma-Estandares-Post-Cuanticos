@@ -12,7 +12,8 @@ datas = [('../package', 'package'),
         ('pk_entidad.json', '.'),
         ('img/AlterDiego.ico', '.'),
         ('img/AlterDiego.png', '.'),
-        ('img', 'img')
+        ('img', 'img'),
+        ('../LICENSE', '.')
 ]
 
 a = Analysis(
