@@ -1,13 +1,11 @@
-import os
-from backend.funcComunes import log_message, init_paths
-
-BASE_DIR = init_paths()
-
 import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk  # type: ignore
-from frontend.compComunes import center_window, crear_vista_nueva, create_base_list, create_base_row, create_button, create_text, create_text_field, create_text_field_with_title, cert_data_list, resize_image_proportionally, set_app_instance, set_base_dir, setup_app_icons, vista_mostrar_pk
-from frontend.compEntGen import create_dropdown_with_text, create_key_list, create_key_row, set_app_instance_entidad
+from backend.funcComunes import log_message, init_paths
+from frontend.compComunes import center_window, set_app_instance, set_base_dir, setup_app_icons, crear_vista_nueva, create_button
+from frontend.compEntGen import set_app_instance_entidad
+
+BASE_DIR = init_paths()
 
 class CertificadoDigitalApp:
     def __init__(self, root):
@@ -22,7 +20,8 @@ class CertificadoDigitalApp:
         self.vista_inicial_entidad_generadora()
 
     def vista_inicial_entidad_generadora(self):
-        # Título
+        from frontend.compComunes import create_text
+        from frontend.compEntGen import  create_key_list
 
         vista = crear_vista_nueva(self.root)
 
@@ -48,6 +47,8 @@ class CertificadoDigitalApp:
         """Genera nuevas claves de entidad con parámetros personalizados."""
         try:
             from backend.funcEntGen import generar_claves_entidad, verificar_campos_generacion_claves
+            from frontend.compComunes import create_text_field_with_title
+            from frontend.compEntGen import create_dropdown_with_text
 
             vista = crear_vista_nueva(self.root)
 
@@ -91,12 +92,13 @@ class CertificadoDigitalApp:
                 fecha_cad_str = fecha_cad_field.get().strip()
 
                 # Verificar campos usando la nueva función
-                mensaje, fecha_expedicion, fecha_caducidad = verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str)
+                mensaje, fecha_expedicion, fecha_caducidad = verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str, algoritmo)
                 if not fecha_expedicion or not fecha_caducidad:
                     messagebox.showerror("Error", mensaje)
                     return
 
                 try:
+                    import os
                     id = generar_claves_entidad(
                         titulo, 
                         algoritmo, 
@@ -141,7 +143,9 @@ class CertificadoDigitalApp:
         """Genera dos certificados digitales: uno para firma y otro para autenticación."""
         try:
             from backend.funcEntGen import generar_certificado, validar_datos_usuario, validate_password
-            
+            from frontend.compComunes import create_text_field, create_text_field_with_title
+            from frontend.compEntGen import create_key_row
+
             vista = crear_vista_nueva(self.root)
 
             titulo_label = ctk.CTkLabel(vista, text="Generar un certificado Digital", font=("Inter", 25), fg_color="transparent")
@@ -236,15 +240,15 @@ class CertificadoDigitalApp:
                     return  
                 
                 log_message("entGenApp.log",f"Usando clave de entidad: {selected_key['titulo']} ({selected_key["algoritmo"].capitalize()})")
-                                
-                if password != password_confirm:
-                    messagebox.showerror("Error de validación", "Las contraseñas no coinciden")
-                    log_message("entGenApp.log", "Error: Las contraseñas introducidas no coinciden")
-                    return
 
                 valid, message = validate_password(password)
                 if not valid:
                     messagebox.showerror("Contraseña insegura", message)
+                    return
+                
+                if password != password_confirm:
+                    messagebox.showerror("Error de validación", "Las contraseñas no coinciden")
+                    log_message("entGenApp.log", "Error: Las contraseñas introducidas no coinciden")
                     return
 
                 try:
@@ -258,9 +262,6 @@ class CertificadoDigitalApp:
                     import json
                     with open(cert_auth_path, 'r') as f:
                         cert_data = json.load(f)
-                
-                    messagebox.showinfo("Éxito", 
-                                    f"Certificados generados con {selected_key['algoritmo']} con éxito:\n{cert_auth_path}\n{cert_sign_path}")
 
                     self.vista_resultado_certificado(cert_data=cert_data)
                 except Exception as e:                
@@ -282,6 +283,8 @@ class CertificadoDigitalApp:
 
     def vista_resultado_certificado(self, cert_data = None, error = None):
         """Muestra el resultado de la generación del certificado."""
+        from frontend.compComunes import cert_data_list, resize_image_proportionally
+
         # Crear ventana para mostrar el resultado
         vista = crear_vista_nueva(self.root)
 

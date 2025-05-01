@@ -1,16 +1,15 @@
 import sys
 import os
-from backend.funcComunes import log_message, init_paths
-
-BASE_DIR = init_paths()
-
 import tkinter as tk
-from tkinter import PhotoImage, messagebox, filedialog, simpledialog
+from tkinter import messagebox
 from tkinterdnd2 import TkinterDnD # type: ignore
 import customtkinter as ctk # type: ignore
+from backend.funcComunes import log_message, init_paths
 from backend.funcFirma import register_protocol_handler, set_base_dir_back_firma
-from frontend.compComunes import center_window, crear_vista_nueva, create_button, create_text, create_text_field_with_title, resize_image_proportionally, set_app_instance, set_base_dir, setup_app_icons
-from frontend.compFirma import create_cert_area, create_certificate_list, create_certificate_row, create_checkbox, create_drop_area, set_app_instance_autofirma
+from frontend.compComunes import center_window, crear_vista_nueva, create_button, set_app_instance, set_base_dir, setup_app_icons, resize_image_proportionally
+from frontend.compFirma import set_app_instance_autofirma
+
+BASE_DIR = init_paths()
 
 class AutoFirmaApp:
     def __init__(self, root):
@@ -25,6 +24,9 @@ class AutoFirmaApp:
         self.vista_inicial_autofirma()
 
     def vista_inicial_autofirma(self):
+        from frontend.compComunes import create_text
+        from frontend.compFirma import create_pdf_area
+
         self.document_path = None
         vista = crear_vista_nueva(self.root)
 
@@ -34,17 +36,16 @@ class AutoFirmaApp:
         bienvenida_label.pack(pady=(30,10), padx=(50, 0))
 
         introduction_label = create_text(
-            vista, text="Esta herramienta te permite generar certificados digitales y claves con criptografía resistentes a ataques cuánticos, garantizando la seguridad a largo plazo. " \
-            "La aplicación utiliza estándares avanzados como Dilithium y SPHINCS+. "
-            "Para crear firmar o validar un documento, selecciona el archivo PDF en el area inferior." 
-        )
+            vista, text="Esta herramienta te permite firmar digitalmente documentos con criptografía resistente a ataques cuánticos, garantizando la seguridad a largo plazo. " \
+            "Puedes seleccionar un documento, en el area inferior, para firmarlo con tu certificado digital, o bien, validar una firma existente para comprobar su autenticidad. La aplicación utiliza estándares avanzados como Dilithium y SPHINCS+."
+            )
         introduction_label.pack(pady=(10,30), padx=(50, 0))
         
         def handle_selected_file(document_path):
             log_message("firmaApp.log", f"Archivo seleccionado: {document_path}")
             self.document_path = document_path
 
-        create_drop_area(vista, callback=handle_selected_file)
+        create_pdf_area(vista, callback=handle_selected_file)
 
         botones_frame = ctk.CTkFrame(vista, fg_color="transparent")
         botones_frame.pack(padx=20, pady=10, expand=True)
@@ -58,7 +59,8 @@ class AutoFirmaApp:
     def verify_signatures(self):
         """Muestra los resultados de la verificación de múltiples firmas en cascada."""
         from backend.funcFirma import determinar_estilo_firmas_validadas, verificar_firmas_cascada, extraer_firmas_documento
-        
+        from frontend.compFirma import create_certificate_list
+
         # Llamar a la función del backend
         success, firmas, hash_documento_actual = extraer_firmas_documento(self.document_path)
         
@@ -150,6 +152,8 @@ class AutoFirmaApp:
 
     def sign_document(self):
         """Firma un documento digitalmente y permite añadir una firma escrita opcional en el PDF."""
+        from frontend.compComunes import create_text_field_with_title
+        from frontend.compFirma import create_cert_area, create_checkbox
 
         password_trys = [0]  # Using a mutable object (list) to maintain state
 
@@ -229,7 +233,8 @@ class AutoFirmaApp:
                 # -----------------GUARDAR EL DOCUMENTO FIRMADO---------------------
                 original_filename = os.path.basename(self.document_path)
                 filename_without_ext, extension = os.path.splitext(original_filename)
-
+                
+                from tkinter import filedialog
                 save_path = filedialog.asksaveasfilename(
                     title="Guardar nuevo documento firmado",
                     initialfile=f"{filename_without_ext}_firmado{extension}",
@@ -535,6 +540,8 @@ class AutoFirmaApp:
             return False, None
 
     def vista_resultado_firma(self, success, cert):
+        from frontend.compFirma import create_certificate_row
+
         vista = crear_vista_nueva(self.root)
 
         # Crear un frame para el resultado

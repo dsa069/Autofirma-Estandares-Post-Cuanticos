@@ -1,7 +1,7 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
-from backend.funcComunes import format_iso_display, log_message
-from frontend.compComunes import resize_algoritmo_image_proportionally, resize_image_proportionally # type: ignore
+from backend.funcComunes import log_message
+
 ctk.set_appearance_mode("light")
 
 APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal
@@ -348,7 +348,7 @@ def create_drag_drop_area(parent, text, callback=None, height=260,
 
     return frame_container
 
-def create_drop_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
+def create_pdf_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
     """Crea un área para arrastrar y soltar documentos PDF"""
     import os
     from PIL import Image, ImageTk # type: ignore
@@ -391,6 +391,8 @@ def create_cert_area(parent, text="Pulse el area y seleccione el certificado de 
     
     def get_cert_image(file_path):
         """Obtiene la imagen del algoritmo para un certificado"""
+        from frontend.compComunes import resize_image_proportionally 
+
         filename = os.path.basename(file_path)
         nombre_sin_prefijo = filename[len("certificado_digital_firmar_"):].lower()
         
@@ -456,7 +458,8 @@ def create_certificate_list(parent, firmas):
     return contenedor_principal, valid_count, invalid_count
 
 def create_certificate_row(lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None, separator = True):
-    from frontend.compComunes import create_base_row
+    from backend.funcComunes import format_iso_display
+    from frontend.compComunes import create_base_row, resize_image_proportionally
 
     def razon_error(motivo_error):
         if motivo_error == 1:

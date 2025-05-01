@@ -1,6 +1,7 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
 from backend.funcComunes import log_message
+
 ctk.set_appearance_mode("light")
 
 APP_INSTANCE = None  # Para guardar la referencia a la aplicación principal

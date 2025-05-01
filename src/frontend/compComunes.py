@@ -1,6 +1,8 @@
 import tkinter as tk
 import customtkinter as ctk # type: ignore
-from backend.funcComunes import log_message, format_iso_display
+from backend.funcComunes import log_message
+
+ctk.set_appearance_mode("light")
 
 # Variable global para mantener referencias a las imágenes
 LOGO_IMAGES = {}  # Mover a nivel global
@@ -15,9 +17,6 @@ def set_app_instance(app):
 def set_base_dir(base_dir):
     global BASE_DIR
     BASE_DIR = base_dir
-
-
-ctk.set_appearance_mode("light")
 
 def center_window(root):
     """Centra la ventana en la pantalla"""
@@ -289,36 +288,6 @@ def resize_image_proportionally(nombre, desired_height=75):
 
     # Convertir a CTkImage para usar en CustomTkinter
     return CTkImage(light_image=resized_img, dark_image=resized_img, size=(desired_width, desired_height))
-
-
-def resize_algoritmo_image_proportionally(algoritmo, desired_height=75):
-    """
-    Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones.
-    """
-    from PIL import Image, ImageTk # type: ignore
-    import os
-    # En lugar de usar algoritmo_img, carga directamente desde el archivo
-    img_path = os.path.join(BASE_DIR, "img")        
-    if algoritmo == "sphincs":
-        image_path = os.path.join(img_path, "Sphincs.png")
-    else:  # dilithium
-        image_path = os.path.join(img_path, "Dilithium.png")
-    
-    # Cargar imagen original
-    original_img = Image.open(image_path)
-
-    # Obtener dimensiones originales
-    original_width, original_height = original_img.size
-
-    # Calcular ancho proporcionalmente
-    aspect_ratio = original_width / original_height
-    desired_width = int(desired_height * aspect_ratio)
-
-    # Redimensionar manteniendo las proporciones
-    original_img = original_img.resize((desired_width, desired_height), Image.LANCZOS)
-    
-    # Convertir a formato para Tkinter
-    return ImageTk.PhotoImage(original_img)
 
 def cargar_logos_algoritmos():
     """Carga las imágenes de logos de algoritmos si no están cargadas"""
@@ -634,6 +603,8 @@ def cert_data_list(parent, cert_data, fecha_firma=None, cert_valido = 1):
     Crea una lista visual para mostrar datos de un certificado (titular, dni, etc.).
     """
     from frontend.compComunes import create_base_list
+    from backend.funcComunes import format_iso_display
+
     key_data = [
         ("Titular", cert_data.get('nombre')),
         ("DNI", cert_data.get('dni')),

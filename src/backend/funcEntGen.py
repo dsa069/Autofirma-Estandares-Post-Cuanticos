@@ -407,7 +407,7 @@ def validate_password(password):
     
     return True, "Contraseña válida"
     
-def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
+def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str, algoritmo):
     """
     Verifica que los campos para generar una nueva clave sean válidos.
     
@@ -423,6 +423,9 @@ def verificar_campos_generacion_claves(titulo, fecha_ini_str, fecha_cad_str):
     # Validar título
     if not titulo or not titulo.strip():
         return "Debe especificar un nombre para la entidad", None, None
+    
+    if algoritmo.upper() not in ["SPHINCS", "DILITHIUM"]:
+        return "Debe especificar el algoritmo de frima SPHINCS o DILITHIUM", None, None
 
     # Validar fechas
     fecha_expedicion = convert_to_iso_date(fecha_ini_str)
