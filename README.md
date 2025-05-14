@@ -1,42 +1,121 @@
-# sphincs-python
-This is a non-official SPHINCS+ python implementation created from scratch based on SPHINCS+ algorithm of digital signatures which can be found at https://sphincs.org/.
+# AutoFirma con Estándares Post-Cuánticos
 
-**DO NOT USE THIS PROGRAM FOR PROFESSIONNAL USE** unless you know what you are doing. This work isn't official and hasn't been approved by anybody, it's main purpose was to understand how SPHINCS+ works and to try how we could use it. This program might have some flaws and is not meant to be fast.
+Herramienta de firma digital para documentos PDF que implementa algoritmos criptográficos resistentes a ataques cuánticos. Este proyecto proporciona una solución completa para la creación, gestión y verificación de firmas digitales utilizando algoritmos post-cuánticos como SPHINCS+ y Dilithium.
 
-## Program sources
-Two folders contains SPHINCS+ algorithm, but only the _package_ folder is recommanded to be used
-- The main useful part of this code is located in the _package_ folder, containing classes you can use to work with the algorithm.
-- The _src_ folder contain the same functions before they have been transformed into a class. Each Cryptographics methods are split in differents files (_WOTS+_, _XMSS_ and _FORS_).
+## Características Principales
 
-## Using the Program
-A Jupyter Notebook called _Sphincs Example_ is provided to help you learn how to use the program.
+- **Firma Digital Post-Cuántica**: Firma documentos PDF utilizando algoritmos resistentes a computación cuántica.
+- **Validación de Firmas**: Verifica la autenticidad e integridad de firmas digitales existentes.
+- **Generación de Certificados**: Crea y gestiona certificados digitales con claves post-cuánticas.
+- **Firma Visual**: Añade representaciones visuales de las firmas dentro del documento.
+- **Interfaz Gráfica Amigable**: Diseño moderno e intuitivo para facilitar todas las operaciones.
+- **Firmas en Cascada**: Soporte para múltiples firmas superpuestas en un documento.
+- **Integración con Sistema**: Protocolo personalizado para verificación de firmas (`autofirma://`).
 
-Copy the _package_ folder in your project root.
-Start by importing the SPHINCS Library:
-```
-from package.sphincs import Sphincs
-```
-And create an instance of SPHINCS+:
-```
-sphincs = Sphincs()
-```
-You can change SPHINCS+ parameters (_n_, _w_, _w_, _d_, _k_ and _a_) using its provided functions:
-```
-sphincs.set_winternitz(4)
-# Or
-sphincs.set_w(4)
-```
-Generate a key pair: (Return a secret key and a public key)
-```
-sk, pk = sphincs.generate_key_pair()
-```
-Signing your message, message must be exprimed as bytes! (Return a signature)
-```
-m = b'What are quantum mechanics? I don't know. People who repair quantums, I suppose.'
-signature = sphincs.sign(m, sk)
-```
-Verifying a signature: (Return True if signature is correct, False elsewere)
-```
-sphincs.verify(signature, m, pk)
+## Componentes del Proyecto
+
+El proyecto consta de tres aplicaciones principales:
+
+1. **FirmaDocumentos** (`firmaApp.py`): Aplicación principal para firmar y verificar documentos PDF.
+2. **EntidadGeneradora** (`entGenApp.py`): Generador de certificados digitales y claves de entidad.
+3. **Herramienta de Modificación** (`editarPDF.py`): Utilidad para pruebas de integridad y modificación de documentos.
+
+## Requisitos de Instalación
+
+### Dependencias
+
+- Python 3.8 o superior
+- Bibliotecas Python:
+  - customtkinter
+  - tkinterdnd2
+  - PyMuPDF (fitz)
+  - pycryptodome
+  - pillow
+  - psutil (para Windows)
+
+Para instalar las dependencias necesarias:
+
+```bash
+pip install customtkinter tkinterdnd2 PyMuPDF pycryptodome pillow psutil
 ```
 
+### Algoritmos Criptográficos
+
+- SPHINCS+: Implementado en el paquete `package.sphincs`
+- Dilithium: Disponible a través de `dilithium_py.ml_dsa`
+
+## Uso
+
+### Firma de Documentos
+
+1. Inicie la aplicación FirmaDocumentos
+2. Seleccione o arrastre un documento PDF
+3. Haga clic en "Firmar"
+4. Seleccione su certificado digital y proporcione la contraseña
+5. Opcionalmente, añada una firma visual al documento
+6. Guarde el documento firmado
+
+### Verificación de Firmas
+
+1. Abra la aplicación FirmaDocumentos
+2. Seleccione o arrastre un documento PDF firmado
+3. Haga clic en "Verificar"
+4. Revise los resultados de la verificación
+
+### Generación de Certificados
+
+1. Inicie la aplicación EntidadGeneradora
+2. Genere nuevas claves de entidad o seleccione una existente
+3. Complete los datos del certificado (nombre, DNI, etc.)
+4. Establezca una contraseña segura
+5. El certificado se guardará en la carpeta de certificados del usuario
+
+## Estructura del Proyecto
+
+Autofirma-Estandares-Post-Cuanticos/
+├── package/               # Implementaciones de algoritmos criptográficos
+├── src/
+│   ├── backend/           # Lógica de negocio y funciones criptográficas
+│   │   ├── funcComunes.py # Funciones compartidas
+│   │   ├── funcFirma.py   # Operaciones de firma
+│   │   └── funcEntGen.py  # Generación de certificados
+│   ├── frontend/          # Componentes de interfaz gráfica
+│   │   ├── compComunes.py # Componentes UI comunes
+│   │   ├── compFirma.py   # Componentes de firma
+│   │   └── compEntGen.py  # Componentes para generación de certificados
+│   ├── img/               # Recursos gráficos (iconos, imágenes)
+│   ├── logs/              # Registros de la aplicación
+│   ├── firmaApp.py        # Aplicación de firma de documentos
+│   ├── entGenApp.py       # Generador de certificados
+│   ├── editarPDF.py       # Herramienta para pruebas de integridad
+│   ├── firmaApp.spec      # Configuración de compilación PyInstaller
+│   └── entGenApp.spec     # Configuración de compilación PyInstaller
+└── LICENSE           
+
+# Compilación a Ejecutable
+
+Para generar archivos ejecutables (.exe en Windows):
+
+## Compilar aplicación de firma
+python -m PyInstaller --clean firmaApp.spec
+
+## Compilar generador de certificados
+python -m PyInstaller --clean entGenApp.spec
+
+Los ejecutables generados estarán disponibles en el directorio dist.
+
+# Pruebas de Integridad
+La herramienta editarPDF.py permite realizar pruebas de integridad:
+
+1. Modificar palabras en el documento original
+2. Alterar firmas digitales
+3. Modificar metadatos de certificados
+4. Cambiar fechas de firmas
+5. Estas funciones son útiles para comprobar los mecanismos de protección implementados.
+
+# Verificación de Firmas Digitales
+El proyecto incluye un protocolo personalizado autofirma:// que permite la verificación rápida de documentos PDF:
+
+1. Al hacer clic en una firma visual dentro de un PDF, se activa el protocolo.
+2. La aplicación AutoFirma se inicia automáticamente y verifica el documento.
+3. Se muestra un informe con los resultados de la validación.

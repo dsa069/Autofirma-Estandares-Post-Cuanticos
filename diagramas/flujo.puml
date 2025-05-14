@@ -1,0 +1,117 @@
+@startuml AutoFirma Post-Quantum Flow
+
+' Configuración para aumentar la altura
+skinparam ranksep 80
+skinparam nodesep 80
+skinparam linetype polyline
+
+' Estilos básicos
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+}
+
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor #999999
+}
+
+' Actores arriba y abajo para maximizar espacio vertical
+actor "Administrador" as Admin
+actor "Usuario" as User
+
+package "Criptografía Post-Cuántica" {
+  [SPHINCS+] as Sphincs
+  [Dilithium] as Dilithium
+}
+
+' Aplicaciones principales
+rectangle "Aplicaciones Principales" {
+  [firmaApp.py] as FirmaApp #lightblue
+  [entGenApp.py] as EntGenApp #lightgreen
+}
+
+' Backend
+package "Backend" {
+  [funcFirma.py] as FuncFirma
+  [funcEntGen.py] as FuncEntGen
+  [funcComunes.py] as FuncComunes
+}
+
+' Frontend
+package "Frontend" {
+  [compFirma.py] as CompFirma
+  [compEntGen.py] as CompEntGen
+  [compComunes.py] as CompComunes
+}
+
+' Archivos
+database "Archivos" {
+  [sk_entidad.json] as SKEntity
+  [pk_entidad.json] as PKEntity
+  [certificados] as Certs
+  [Documento PDF firmado] as PDFSigned
+}
+
+' FLUJO 1: Administrador genera claves
+Admin --> EntGenApp : 1. Genera claves de entidad
+EntGenApp --> FuncEntGen
+FuncEntGen --> SKEntity : Almacena clave privada
+FuncEntGen --> PKEntity : Almacena clave pública
+
+' FLUJO 2: Administrador crea certificado
+Admin --> EntGenApp : 2. Crea certificado
+EntGenApp --> FuncEntGen
+FuncEntGen --> Certs : Almacena certificado
+FuncEntGen --> Sphincs
+FuncEntGen --> Dilithium
+
+' FLUJO 3: Usuario firma documento
+User --> FirmaApp : 3. Firma documento
+FirmaApp --> FuncFirma
+FuncFirma --> Certs : Recupera certificado
+FuncFirma --> Sphincs : Operaciones de firma
+FuncFirma --> Dilithium : Operaciones de firma
+FuncFirma --> PDFSigned : Genera
+
+' FLUJO 4: Usuario verifica firma
+User --> FirmaApp : 4. Verifica firma
+FirmaApp --> FuncFirma
+FuncFirma --> PKEntity : Verifica con clave pública
+FuncFirma --> Certs : Recupera información
+
+' UI - Conexiones simples
+FirmaApp --> CompFirma
+FirmaApp --> CompComunes
+EntGenApp --> CompEntGen
+EntGenApp --> CompComunes
+
+' Funciones comunes
+FirmaApp --> FuncComunes
+EntGenApp --> FuncComunes
+
+note bottom of Sphincs
+  Algoritmo basado en hash
+  Firmas más grandes
+  Mayor seguridad
+end note
+
+note bottom of Dilithium
+  Basado en retículos
+  Firmas más pequeñas
+  Equilibrio seguridad/eficiencia
+end note
+
+note right of PDFSigned
+  Contiene:
+  - Firma digital post-cuántica
+  - Datos del certificado firmante
+  - Opcional: firma visual en el PDF
+end note
+
+@enduml
