@@ -1,8 +1,8 @@
 # Ignore all JSON files in src directory
-src/*.json
+app/*.json
 # Ignore preguntas directory
 preguntas/
 
-src/dist
-src/build
-src/logs
+app/dist
+app/build
+app/logs
