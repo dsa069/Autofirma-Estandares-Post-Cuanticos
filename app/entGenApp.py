@@ -10,7 +10,7 @@ BASE_DIR = init_paths()
 class CertificadoDigitalApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Generador de Certificados Digitales - Sphincs")
+        self.root.title("Generador de Certificados SafeInQ")
         self.root.geometry("700x584")
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
@@ -26,7 +26,7 @@ class CertificadoDigitalApp:
         vista = crear_vista_nueva(self.root)
 
         bienvenida_label = create_text(
-            vista, text="Bienvenido a la aplicación de Generador Certificados Post-Cuánticos"
+            vista, text="Bienvenido a Generador de Certificados SafeInQ"
         )
         bienvenida_label.pack(pady=(30,10), padx=(50, 0))
 

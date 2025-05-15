@@ -39,7 +39,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='FirmaDocumentos',
+    name='Autofirma SafeInQ',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

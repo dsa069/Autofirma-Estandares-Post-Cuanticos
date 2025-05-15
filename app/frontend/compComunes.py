@@ -632,6 +632,9 @@ def cert_data_list(parent, cert_data, fecha_firma=None, cert_valido = 1):
         return "break"
 
     def procesar_key_data(lista_frame, datos):
+        """ 
+        Procesa los datos de la clave y crea filas en el frame.
+        """
         row_count = 0
         for titulo, valor in datos:
             # Check if this is the public key row

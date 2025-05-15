@@ -14,7 +14,7 @@ BASE_DIR = init_paths()
 class AutoFirmaApp:
     def __init__(self, root):
         self.root = root 
-        self.root.title("AutoFirma - Sphincs")
+        self.root.title("Autofirma SafeInQ")
         self.root.geometry("700x584")
         self.root.resizable(False, False)
         self.root.configure(bg="#F5F5F5")
@@ -31,7 +31,7 @@ class AutoFirmaApp:
         vista = crear_vista_nueva(self.root)
 
         bienvenida_label = create_text(
-            vista, text="Bienvenido a la aplicación de AutoFirma Post-Cuántica"
+                vista, text="Bienvenido a Autofirma SafeInQ"
         )
         bienvenida_label.pack(pady=(30,10), padx=(50, 0))
 
