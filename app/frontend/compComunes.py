@@ -27,6 +27,9 @@ def center_window(root):
     root.geometry(f'{width}x{height}+{x}+{y}')
 
 def setup_app_icons(root, icon_name):
+    """
+    Configura el icono de la aplicación en Windows y el icono de la barra de tareas.
+    """
     import ctypes
     import os
     import sys
@@ -60,6 +63,32 @@ def setup_app_icons(root, icon_name):
         root.iconphoto(True, icono)  # Icono en la barra de tareas
     else:
         messagebox.showwarning("Advertencia", "⚠️ Icono .png no encontrado, verifica la ruta.")
+
+def resize_image_proportionally(nombre, desired_height=75):
+    """
+    Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones, devolviendo CTkImage.
+    """
+    from PIL import Image # type: ignore
+    from customtkinter import CTkImage # type: ignore
+    import os
+
+    image_path = os.path.join(BASE_DIR, "img", f"{nombre}.png")
+
+    # Cargar imagen original
+    original_img = Image.open(image_path)
+
+    # Obtener dimensiones originales
+    original_width, original_height = original_img.size
+
+    # Calcular ancho proporcionalmente
+    aspect_ratio = original_width / original_height
+    desired_width = int(desired_height * aspect_ratio)
+
+    # Redimensionar manteniendo las proporciones
+    resized_img = original_img.resize((desired_width, desired_height), Image.LANCZOS)
+
+    # Convertir a CTkImage para usar en CustomTkinter
+    return CTkImage(light_image=resized_img, dark_image=resized_img, size=(desired_width, desired_height))
 
 def vista_mostrar_pk(parent, volver_a, pk, titulo, algoritmo, fecha):
     """
@@ -210,6 +239,9 @@ def create_button(parent, text, command=None, width=110):
     return container
 
 def create_text_field_with_title(parent, text, placeholder="", width=450):
+    """
+    Crea un campo de texto con título
+    """
     contenedor = ctk.CTkFrame(parent, fg_color="transparent")
     contenedor.pack(anchor="w", pady=(10, 10))  # Alineado a la izquierda
 
@@ -222,6 +254,9 @@ def create_text_field_with_title(parent, text, placeholder="", width=450):
     return entrada
 
 def create_text_field(parent, placeholder = "", width=450):
+    """
+    Crea un campo de texto con estilo moderno.
+    """
     entrada = ctk.CTkEntry(
         parent,
         placeholder_text=placeholder,
@@ -237,70 +272,42 @@ def create_text_field(parent, placeholder = "", width=450):
     entrada.pack(padx=(10,0))
     return entrada
 
-def setup_list_headers(header_frame, headers, column_sizes):
-    """
-    Configura los encabezados de la lista y sus tamaños.
-    
-    Args:
-        header_frame: Frame donde colocar los encabezados
-        headers: Lista de textos para los encabezados
-        column_sizes: Lista de tamaños para cada columna
-    """
-    # Configurar columnas con tamaños específicos
-    for i, size in enumerate(column_sizes):
-        header_frame.grid_columnconfigure(i, minsize=size)
-    
-    # Crear encabezados
-    for i, texto in enumerate(headers):
-        label = ctk.CTkLabel(
-            header_frame, 
-            text=texto, 
-            font=("Segoe UI", 14, "bold"), 
-            text_color="#111111",
-            anchor="center",
-            justify="center"
-        )
-        label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
-
-def resize_image_proportionally(nombre, desired_height=75):
-    """
-    Carga una imagen desde una ruta y la redimensiona manteniendo las proporciones, devolviendo CTkImage.
-    """
-    from PIL import Image # type: ignore
-    from customtkinter import CTkImage # type: ignore
-    import os
-
-    image_path = os.path.join(BASE_DIR, "img", f"{nombre}.png")
-
-    # Cargar imagen original
-    original_img = Image.open(image_path)
-
-    # Obtener dimensiones originales
-    original_width, original_height = original_img.size
-
-    # Calcular ancho proporcionalmente
-    aspect_ratio = original_width / original_height
-    desired_width = int(desired_height * aspect_ratio)
-
-    # Redimensionar manteniendo las proporciones
-    resized_img = original_img.resize((desired_width, desired_height), Image.LANCZOS)
-
-    # Convertir a CTkImage para usar en CustomTkinter
-    return CTkImage(light_image=resized_img, dark_image=resized_img, size=(desired_width, desired_height))
-
 def create_base_list(parent, height=270, empty_message=None, process_data_function=None, data=None, headers=None, column_sizes=None, max_visible_items=1, separator=True, custom_header_function=None):
     """
     Crea un esqueleto básico para cualquier lista con estilo consistente.
-    
     Args:
-        parent: Widget padre
-        height: Altura del contenedor
-        empty_message: Mensaje a mostrar cuando la lista está vacía
+        parent: Frame padre donde se coloca la lista
+        height: Altura del contenedor de la lista
+        empty_message: Mensaje a mostrar si la lista está vacía
         process_data_function: Función para procesar los datos y crear filas
-        data: Datos a procesar para la lista
-        headers: Encabezados de la lista
-        column_sizes: Tamaños de las columnas encabezado
+        data: Datos a mostrar en la lista
+        headers: Encabezados de la lista (opcional)
+        column_sizes: Tamaños de las columnas (opcional)
+        max_visible_items: Número máximo de elementos visibles antes de mostrar el scrollbar
+        separator: Si se debe añadir un separador entre filas
+        custom_header_function: Función para crear encabezados personalizados (opcional)
     """
+
+    def setup_list_headers(header_frame, headers, column_sizes):
+        """
+        Configura los encabezados de la lista y sus tamaños.
+        """
+        # Configurar columnas con tamaños específicos
+        for i, size in enumerate(column_sizes):
+            header_frame.grid_columnconfigure(i, minsize=size)
+        
+        # Crear encabezados
+        for i, texto in enumerate(headers):
+            label = ctk.CTkLabel(
+                header_frame, 
+                text=texto, 
+                font=("Segoe UI", 14, "bold"), 
+                text_color="#111111",
+                anchor="center",
+                justify="center"
+            )
+            label.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
+
     def eliminar_ultimo_separador(lista_frame, row_count):
         """Elimina el último separador para mejorar la estética"""
         for widget in lista_frame.winfo_children():
@@ -388,42 +395,21 @@ def create_base_list(parent, height=270, empty_message=None, process_data_functi
 
     return contenedor_principal
 
-def create_pk_list(parent, pk):
-    # Cargar datos de claves
-    from frontend.compComunes import create_base_list
-    
-    # Definir función para procesar datos
-    def procesar_claves(lista_frame, datos):
-        row_count = create_pk_row(lista_frame, 0, pk)
-        return row_count
-
-    max_items = 0 if len(pk) > 200 else 1
-
-    # Obtener la estructura base de la lista
-    contenedor_principal = create_base_list(
-        parent, 
-        height=300,
-        empty_message="Error al mostrar la clave",
-        process_data_function=procesar_claves,
-        data=[pk],
-        max_visible_items=max_items
-    )
-        
-    return contenedor_principal
-
 def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback=None, is_disabled=False, separator=True):
     """
     Crea una fila base con estructura consistente para cualquier lista.
-    
+
     Args:
         lista_frame: Frame scrollable donde se coloca la fila
         row_count: Número de fila actual
-        column_sizes: Lista con los anchos para cada columna
-        click_callback: Función a llamar cuando se hace clic en la fila
-        is_disabled: Indica si la fila está deshabilitada (visual)
-        
+        column_sizes: Tamaños de las columnas
+        click_callback: Función a ejecutar al hacer clic en la fila
+        is_disabled: Si la fila está deshabilitada (sin interactividad)
+        separator: Si se debe añadir un separador después de la fila
+    
     Returns:
-        tuple: (fila_container, row_count)
+        fila_container: Contenedor de la fila
+        next_row: Número de fila siguiente
     """
     # Color de fondo según el estado
     color_fondo = "#F5F5F5" if is_disabled else "#FFFFFF"
@@ -481,6 +467,32 @@ def create_base_row(lista_frame, row_count, column_sizes = [600], click_callback
                         sticky="ew", padx=25, pady=2)
     
     return fila_container, row_count +  (2 if separator else 1)  # +2 para la fila y la línea
+
+def create_pk_list(parent, pk):
+    """
+    Crea una lista visual para mostrar la clave pública.
+    """
+    # Cargar datos de claves
+    from frontend.compComunes import create_base_list
+    
+    # Definir función para procesar datos
+    def procesar_claves(lista_frame, datos):
+        row_count = create_pk_row(lista_frame, 0, pk)
+        return row_count
+
+    max_items = 0 if len(pk) > 200 else 1
+
+    # Obtener la estructura base de la lista
+    contenedor_principal = create_base_list(
+        parent, 
+        height=300,
+        empty_message="Error al mostrar la clave",
+        process_data_function=procesar_claves,
+        data=[pk],
+        max_visible_items=max_items
+    )
+        
+    return contenedor_principal
 
 def create_pk_row(lista_frame, row_count, clave):
     """

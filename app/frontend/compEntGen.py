@@ -13,6 +13,9 @@ def set_app_instance_entidad(app):
     log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
 
 def create_dropdown(parent, opciones = [], placeholder = ""):
+    """
+    Crea un dropdown con un borde simulado y un efecto de sombra
+    """
     container = ctk.CTkFrame(parent, fg_color="transparent")
     container.pack(anchor="w", padx=(10, 0)) 
     
@@ -57,6 +60,9 @@ def create_dropdown(parent, opciones = [], placeholder = ""):
     return combo
 
 def create_dropdown_with_text(parent, text, opciones = [], placeholder = ""):
+    """
+    Crea un dropdown con un texto descriptivo
+    """
     contenedor = ctk.CTkFrame(parent, fg_color="transparent")
     contenedor.pack(anchor="w", pady=(10, 10))  # Alineado a la izquierda
 
@@ -68,6 +74,9 @@ def create_dropdown_with_text(parent, text, opciones = [], placeholder = ""):
     return entrada
 
 def create_key_list(parent):
+    """
+    Crea una lista de claves en el frame scrollable
+    """
     # Cargar datos de claves
     from backend.funcEntGen import cargar_claves_entidad, clasificar_claves_por_estado
     from frontend.compComunes import create_base_list

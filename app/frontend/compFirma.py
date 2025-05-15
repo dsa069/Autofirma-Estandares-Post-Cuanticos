@@ -13,6 +13,9 @@ def set_app_instance_autofirma(app):
     log_message("entGenApp.log", f"APP_INSTANCE establecido: {APP_INSTANCE}")
 
 def create_checkbox(parent, text):
+    """
+    Crea un checkbox con sombra y texto.
+    """
     # Contenedor principal (transparente)
     container = ctk.CTkFrame(parent, fg_color="transparent")
     container.pack(pady=(10, 0))
@@ -76,6 +79,7 @@ def create_drag_drop_area(parent, text, callback=None, height=260,
     - custom_content_renderer: Función personalizada para renderizar el contenido
     - content_label: Texto de etiqueta de contenido (ej: "Documento seleccionado:")
     - image_provider: Función que proporciona la imagen adecuada para el archivo
+    - center_content: Si True, centra el contenido verticalmente
     """
     from tkinterdnd2 import DND_FILES # type: ignore
     
@@ -351,7 +355,7 @@ def create_drag_drop_area(parent, text, callback=None, height=260,
 def create_pdf_area(parent, text="Pulse el área y seleccione el documento o arrástrelo aquí", callback=None):
     """Crea un área para arrastrar y soltar documentos PDF"""
     import os
-    from PIL import Image, ImageTk # type: ignore
+    from PIL import Image # type: ignore
     
     # 1. Corregir get_pdf_image para usar CTkImage
     def get_pdf_image(file_path):
@@ -458,6 +462,9 @@ def create_certificate_list(parent, firmas):
     return contenedor_principal, valid_count, invalid_count
 
 def create_certificate_row(lista_frame, row_count, cert_info, fecha_firma, estado = 0, callback_volver_a = None, separator = True):
+    """
+    Crea una fila para mostrar información de un certificado
+    """
     from backend.funcComunes import format_iso_display
     from frontend.compComunes import create_base_row, resize_image_proportionally
 
