@@ -147,8 +147,8 @@ def verificar_firmas_cascada(firmas, hash_actual):
         })
         
         # Calcular el siguiente hash para la cascada si hay más firmas para verificar
-        if i > 0 and "hash_visual_signature" in firma_data:
-            hash_visual = bytes.fromhex(firma_data["hash_visual_signature"])
+        if i > 0 and "hash_firma_visual" in firma_data:
+            hash_visual = bytes.fromhex(firma_data["hash_firma_visual"])
             # Operación "resta" conceptual para obtener el hash anterior
             hash_actual = bytes(a ^ b for a, b in zip(hash_actual, hash_visual))
             log_message("firmaApp.log",f"Hash calculado para firma {i}: {hash_actual.hex()[:10]}...")
@@ -370,7 +370,7 @@ def calcular_hash_metadatos(metadata):
         "firma",
         "certificado_autenticacion",
         "fecha_firma",
-        "hash_visual_signature"
+        "hash_firma_visual"
     ]
     return calcular_hash_ordenado(metadata, ordered_keys).digest() 
 
@@ -458,7 +458,7 @@ def add_metadata_to_pdf(pdf_path, firma, cert_data, user_sk, visual_signature_ha
 
         # Añadir el hash de la firma visual si existe
         if visual_signature_hash:
-            nueva_firma["hash_visual_signature"] = visual_signature_hash.hex()
+            nueva_firma["hash_firma_visual"] = visual_signature_hash.hex()
 
         # Calcular y añadir el hash de integridad
         hash_integridad = calcular_hash_metadatos(nueva_firma)
