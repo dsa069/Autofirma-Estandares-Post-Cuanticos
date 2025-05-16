@@ -202,7 +202,7 @@ class CertificadoDigitalApp:
             dni_container.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
             titular_field = create_text_field_with_title(titular_container, "Titular del certificado:", "Nombre completo (particular o entidad)", 300)
-            dni_field = create_text_field_with_title(dni_container, "Dcomuneto identificativo del titular:", "Escriba NIE/NIF/CIF", 300)
+            dni_field = create_text_field_with_title(dni_container, "Documento identificativo del titular:", "Escriba NIE/NIF/CIF", 300)
 
             password_container = ctk.CTkFrame(datos_frame, fg_color="transparent")
             password_container.pack(anchor="w") 
