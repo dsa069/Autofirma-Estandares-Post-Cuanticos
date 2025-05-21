@@ -12,8 +12,6 @@ title Proceso de Generación de Certificados Digitales Post-Cuánticos
 
 |Usuario|
 start
-
-|#AntiqueWhite|Interfaz de Usuario|
 :Iniciar Aplicación Generadora;
 
 |#LightBlue|Vista Principal|
@@ -21,50 +19,31 @@ start
 :Listar claves de entidad existentes;
 
 |Usuario|
-if (¿Generar nuevas claves?) then (Sí)
-  |#LightCyan|Vista Generación Claves|
-  :Mostrar formulario de generación de claves;
-  :Usuario introduce título descriptivo;
-  :Usuario selecciona algoritmo (SPHINCS/DILITHIUM);
-  :Usuario establece fecha de inicio (por defecto hoy);
-  :Usuario establece fecha de caducidad (por defecto +2 años);
-  
-  |#PaleGreen|Backend - Generación de Claves|
-  :Validar formato de datos;
-  :Verificar fechas y campos obligatorios;
-  
-  if (¿Datos válidos?) then (No)
-    :Mostrar mensaje de error;
-    stop
-  else (Sí)
-    :Generar par de claves de entidad según algoritmo;
-    :Crear registro con título, fechas y algoritmo;
-    :Asignar ID único a las claves;
-    :Almacenar clave privada en sk_entidad.json;
-    :Almacenar clave pública en pk_entidad.json;
-    :Registrar generación en logs;
-  endif
-  
-  |#LightBlue|Vista Principal|
-  :Mostrar mensaje de éxito;
-  :Actualizar lista de claves disponibles;
-else (No)
-endif
-
-|Usuario|
 :Seleccionar clave de entidad existente;
 
 |#LightYellow|Vista Generación Certificado|
 :Mostrar formulario de generación de certificado;
 :Mostrar información de la clave de entidad seleccionada;
+
+|Usuario|
 :Usuario introduce nombre del titular;
 :Usuario introduce documento identificativo (DNI/NIF/CIF);
 :Usuario establece contraseña para el certificado;
 :Usuario confirma contraseña;
 
+|#LightYellow|Vista Generación Certificado|
+:Aceptar datos introducidos;
+
 |#PaleGreen|Backend - Validación|
-:Validar nombre y documento identificativo;
-:Verificar requisitos de contraseña;
+:Validar que el nombre y documento 
+identificativo esten completos;
+:Validar formato del documento identificativo (NIF, NIE, CIF);
+:Comprobar digito de control del documento identificativo;
+:Verificar requisitos de contraseña:
+- Mínimo 8 caracteres
+- Al menos una mayúscula
+- Al menos un número
+- Al menos un carácter especial;
 :Comprobar coincidencia de contraseñas;
 
 if (¿Validación correcta?) then (No)
@@ -77,26 +56,31 @@ endif
 
 |#PaleGreen|Backend - Generación de Certificados|
 :Extraer algoritmo y claves de entidad;
-:Determinar fechas de validez;
-:Generar par de claves para el usuario;
+:Establecer fecha de expedición actual;
+:Copiar fecha de caducidad de la clave de entidad;
+:Generar par de claves criptográficas para el usuario utilizando
+el algoritmo de las claves de entidad seleccionadas;
 :Crear certificado de autenticación:
 - Datos personales
+- Periodo de validez
 - Clave pública del usuario
 - ID de clave pública de entidad
 - Algoritmo;
-:Calcular hash del certificado;
+:Calcular hash SHA-256 del certificado con campos ordenados;
 :Firmar hash con clave privada de entidad;
 :Añadir firma al certificado de autenticación;
-:Calcular huella digital;
+:Calcular y añadir huella digital del certificado de autenticación;
 
-:Cifrar clave privada del usuario con contraseña;
+:Generar clave AES-256 derivada de la contraseña;
+:Cifrar clave privada del usuario con AES-256 y PBKDF2;
 :Crear certificado de firma:
 - Copiar datos del certificado de autenticación
-- Añadir clave privada cifrada;
-:Calcular huella digital;
+- Añadir clave privada cifrada
+- Calcular y añadir huella digital del certificado de firma;
 
-:Guardar certificados en directorio del usuario:
-- certificado_digital_autenticar_{DNI}_{ALGORITMO}.json
+:Guardar certificados en /certificados_postC ubicado en el 
+directorio del usuario:
+- certificado_digital_autenticacion_{DNI}_{ALGORITMO}.json
 - certificado_digital_firmar_{DNI}_{ALGORITMO}.json;
 :Registrar generación en logs;
 
@@ -106,8 +90,9 @@ if (¿Operación exitosa?) then (Sí)
   :Mostrar detalles del certificado generado:
   - Titular
   - DNI
-  - Fechas de validez
-  - Algoritmo
+  - Fecha expedición y caducidad
+  - Algoritmos
+  - Entidad generadora
   - Clave pública (parcial);
 else (No)
   |#LightPink|Vista Resultado|
@@ -122,5 +107,8 @@ endif
 :Volver a pantalla principal;
 
 stop
+
+' Metodos involucrados: (vista_crear_certificado, validar_datos_usuario, validate_password, )
+' Comentar que la gneriacion, firma y verificacion siempre hay que comprobar el algoritmo.
 
 @enduml
