@@ -1,0 +1,126 @@
+@startuml Proceso de Generación de Certificados
+
+' Configuración visual
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam DefaultFontName Arial
+skinparam ArrowColor #333333
+skinparam ActivityBorderColor #666666
+skinparam ActivityBackgroundColor #EEEEEE
+
+title Proceso de Generación de Certificados Digitales Post-Cuánticos
+
+|Usuario|
+start
+
+|#AntiqueWhite|Interfaz de Usuario|
+:Iniciar Aplicación Generadora;
+
+|#LightBlue|Vista Principal|
+:Mostrar pantalla principal;
+:Listar claves de entidad existentes;
+
+|Usuario|
+if (¿Generar nuevas claves?) then (Sí)
+  |#LightCyan|Vista Generación Claves|
+  :Mostrar formulario de generación de claves;
+  :Usuario introduce título descriptivo;
+  :Usuario selecciona algoritmo (SPHINCS/DILITHIUM);
+  :Usuario establece fecha de inicio (por defecto hoy);
+  :Usuario establece fecha de caducidad (por defecto +2 años);
+  
+  |#PaleGreen|Backend - Generación de Claves|
+  :Validar formato de datos;
+  :Verificar fechas y campos obligatorios;
+  
+  if (¿Datos válidos?) then (No)
+    :Mostrar mensaje de error;
+    stop
+  else (Sí)
+    :Generar par de claves de entidad según algoritmo;
+    :Crear registro con título, fechas y algoritmo;
+    :Asignar ID único a las claves;
+    :Almacenar clave privada en sk_entidad.json;
+    :Almacenar clave pública en pk_entidad.json;
+    :Registrar generación en logs;
+  endif
+  
+  |#LightBlue|Vista Principal|
+  :Mostrar mensaje de éxito;
+  :Actualizar lista de claves disponibles;
+else (No)
+endif
+
+|Usuario|
+:Seleccionar clave de entidad existente;
+
+|#LightYellow|Vista Generación Certificado|
+:Mostrar formulario de generación de certificado;
+:Mostrar información de la clave de entidad seleccionada;
+:Usuario introduce nombre del titular;
+:Usuario introduce documento identificativo (DNI/NIF/CIF);
+:Usuario establece contraseña para el certificado;
+:Usuario confirma contraseña;
+
+|#PaleGreen|Backend - Validación|
+:Validar nombre y documento identificativo;
+:Verificar requisitos de contraseña;
+:Comprobar coincidencia de contraseñas;
+
+if (¿Validación correcta?) then (No)
+  :Mostrar mensaje de error específico;
+  |#LightYellow|Vista Generación Certificado|
+  :Mantener formulario con datos;
+  stop
+else (Sí)
+endif
+
+|#PaleGreen|Backend - Generación de Certificados|
+:Extraer algoritmo y claves de entidad;
+:Determinar fechas de validez;
+:Generar par de claves para el usuario;
+:Crear certificado de autenticación:
+- Datos personales
+- Clave pública del usuario
+- ID de clave pública de entidad
+- Algoritmo;
+:Calcular hash del certificado;
+:Firmar hash con clave privada de entidad;
+:Añadir firma al certificado de autenticación;
+:Calcular huella digital;
+
+:Cifrar clave privada del usuario con contraseña;
+:Crear certificado de firma:
+- Copiar datos del certificado de autenticación
+- Añadir clave privada cifrada;
+:Calcular huella digital;
+
+:Guardar certificados en directorio del usuario:
+- certificado_digital_autenticar_{DNI}_{ALGORITMO}.json
+- certificado_digital_firmar_{DNI}_{ALGORITMO}.json;
+:Registrar generación en logs;
+
+if (¿Operación exitosa?) then (Sí)
+  |#LightPink|Vista Resultado|
+  :Mostrar mensaje de éxito;
+  :Mostrar detalles del certificado generado:
+  - Titular
+  - DNI
+  - Fechas de validez
+  - Algoritmo
+  - Clave pública (parcial);
+else (No)
+  |#LightPink|Vista Resultado|
+  :Mostrar mensaje de error;
+  :Mostrar detalles del problema;
+endif
+
+|Usuario|
+:Finalizar proceso;
+
+|#LightBlue|Vista Principal|
+:Volver a pantalla principal;
+
+stop
+
+@enduml
