@@ -1,0 +1,123 @@
+@startuml Proceso de Verificación de Firmas
+
+' Configuración visual
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam DefaultFontName Arial
+skinparam ArrowColor #333333
+skinparam ActivityBorderColor #666666
+skinparam ActivityBackgroundColor #EEEEEE
+
+title Proceso de Verificación de Firmas Digitales Post-Cuánticas
+
+|Usuario|
+start
+
+note right
+  Dos entradas posibles:
+  1. Desde la aplicación
+  2. Desde un enlace autofirma:// en el PDF
+end note
+
+if (¿Origen?) then (aplicación)
+  |Vista Principal|
+  :Mostrar pantalla principal;
+  :Mostrar área para seleccionar documento;
+  
+  |#eefffc|Usuario|
+  :Seleccionar o arrastrar documento PDF firmado;
+  
+  |Vista Principal|
+  :Registrar ruta del documento seleccionado;
+  
+  |Usuario|
+  :Hacer clic en botón "Verificar";
+else (enlace en PDF)
+  |#eefffc|Sistema|
+  :Abrir aplicación con protocolo autofirma://;
+  :Pasar argumentos con URI;
+  
+  |#bfd7fc|Backend - Protocolo|
+  :Procesar la URI;
+  :Identificar documento PDF activo;
+endif
+
+'verify_signatures(), extraer_firmas_documento()
+|Backend - Verificación|
+:Abrir documento PDF;
+:Extraer firmas de metadatos;
+:Calcular hash actual del documento;
+
+if (¿Firmas encontradas?) then (No)
+  |Vista Principal|
+  :Mostrar mensaje "No se encontraron firmas válidas";
+  stop
+else (Sí)
+endif
+
+'verificar_firmas_cascada()
+|#bfd7fc|Backend - Verificación|
+:Iniciar verificación en cascada (de más reciente a la más antigua);
+
+note right
+  Procesamiento iterativo
+  para cada firma encontrada
+end note
+
+label ProcesoFirma
+:Extraer datos de la firma:
+  -Extraer certificado de autenticación
+  -Determinar algoritmo usado (SPHINCS/DILITHIUM)
+  -Extraer clave pública del usuario
+  -Extraer firma metadatos;
+
+:Verificar integridad de metadatos:
+  - Calcular hash de metadatos
+  - Verificar firma de metadatos con clave pública;
+
+'verificar_certificado()
+:Verificar validez del certificado:
+  - Asegurar huella digital
+  - Comprobar validez de fechas
+  - Confirmar la existencia del id de clave pública de la entidad
+  - Verificar firma del certificado por entidad emisora;
+
+:Verificar firma del documento:
+  - Usar hash correspondiente 
+  (hash del documento - hash de firmas visuales anteiormente procesadas)
+  - Verificar firma del usuario según algoritmo criptográfico;
+
+:Almacenar resultados de validación;
+
+if (¿Hay más firmas?) then (Sí)
+  :Calcular hash anterior usando XOR con hash visual;
+  :Ejecucion de verificación para la siguiente firma;
+  stop
+else (No)
+  :Finalizar verificación;
+endif
+
+:Determinar resumen global:
+  - Contar firmas válidas
+  - Contar firmas inválidas
+  - Determinar estilo visual según resultado;
+
+|#cbebf9|Vista Resultados|
+:Mostrar resumen de verificación;
+:Mostrar información del documento;
+:Mostrar lista de firmas detectadas:
+- Estado (válida/inválida)
+- Motivo de error (si aplica)
+- Fecha de firma
+- Firmante;
+
+
+|Usuario|
+:Hacer clic en "Finalizar";
+
+|#cbebf9|Vista Principal|
+:Volver a la pantalla principal;
+
+stop
+
+@enduml

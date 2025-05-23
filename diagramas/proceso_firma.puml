@@ -1,0 +1,146 @@
+@startuml Proceso de Firma de Documentos
+
+' Configuración visual
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam DefaultFontName Arial
+skinparam ArrowColor #333333
+skinparam ActivityBorderColor #666666
+skinparam ActivityBackgroundColor #EEEEEE
+
+title Proceso de Firma de Documentos PDF con Criptografía Post-Cuántica
+
+|#eefffc|Usuario|
+start
+:Iniciar Aplicación Autofirma;
+
+|#cbebf9|Vista Principal|
+:Mostrar pantalla principal;
+:Mostrar área para seleccionar documento;
+
+|Usuario|
+:Seleccionar o arrastrar documento PDF;
+
+|Vista Principal|
+:Registrar ruta del documento seleccionado;
+
+|Usuario|
+:Hacer clic en botón "Firmar";
+
+'sign_document()
+|#cbebf9|Vista Firma|
+:Mostrar formulario de firma;
+:Mostrar selector de certificado de firma;
+
+|Usuario|
+:Seleccionar certificado de firma (.json);
+:Introducir contraseña del certificado;
+:Seleccionar opción de firma visible (checkbox);
+
+|Vista Firma|
+:Aceptar datos introducidos;
+
+|#bfd7fc|Backend - Validación y Preparación|
+if (¿Certificado seleccionado?) then (No)
+  :Mostrar mensaje de error;
+  |Vista Firma|
+  :Mantener formulario con datos;
+  stop
+else (Sí)
+endif
+
+|Backend - Validación y Preparación|
+:Verificar validez del certificado:
+  - Asegurar huella digital
+  - Comprobar validez de fechas
+  - Confirmar la existencia del id de clave pública de la entidad
+  - Verificar firma del certificado por entidad emisora;
+:Cargar datos del certificado de firma;
+:Extraer clave privada del usuario cifrada del certificado;
+'decrypt_private_key()
+:Descifrar clave privada con la contraseña AES-256;
+
+if (¿Contraseña correcta?) then (No)
+  :Mostrar mensaje de error;
+  :Incrementar contador de intentos;
+  
+  if (¿3 intentos fallidos?) then (Sí)
+    :Enviar alerta de seguridad;
+  else (No)
+  endif
+  
+  |Vista Firma|
+  :Mantener formulario con datos;
+
+  stop
+else (Sí)
+endif
+
+|Backend - Validación y Preparación|
+:Buscar y cargar certificado de autenticación asociado;
+:Abrir gestor de archivos del sietema 
+para guardar documento firmado;
+
+|Usuario|
+:Seleccionar ubicación y nombre del archivo;
+
+|Backend - Validación y Preparación|
+:Copiar contenido del documento original al nuevo;
+
+|#bfd7fc|Backend - Firma|
+if (¿Firma visible seleccionada?) then (Sí)
+  |Vista Firma|
+  :Mostrar preview del PDF para seleccionar posición de firma;
+  
+  |Usuario|
+  :Navegar a la página deseada;
+  :Hacer clic en la posición donde ubicar la firma;
+
+  |Vista Firma|
+  :Confirmar posición de firma;
+  
+  'decrypt_private_key()add_written_signature(), añadir_firma_visual_pdf(), crear_enlace_verificacion()
+  |Backend - Firma|
+  :Añadir firma visual al PDF:
+  - Nombre del firmante
+  - Fecha/hora
+  - Enlace clickable para verificación;
+  :Calcular hash de diferencia entre el documento sin firma visual 
+  y el documento con firma visual para hallar el hash de la firma visual;
+else (No)
+endif
+
+'firmar_documento_pdf(), add_metadata_to_pdf()
+|Backend - Firma|
+:Calcular hash SHA-256 del documento;
+:Obtener algoritmo de firma del certificado (SPHINCS/DILITHIUM);
+:Firmar el hash con la clave privada del usuario;
+:Crear estructura para futuras firmas en el documento si es su primera firma;
+:Añadir metadatos al PDF:
+ - Firma digital
+ - Certificado de autenticación
+ - Fecha de firma
+ - Hash de firma visual (si existe);
+:Firmar los metadatos del PDF y añadirla a los metadatos;
+:Registrar operación en el log;
+
+|#cbebf9|Vista Resultado|
+:Mostrar resultado;
+if (¿Firma y validación del certificado exitosa ?) then (Sí)
+  :Mostrar información del documento firmado;
+  :Mostrar información del certificado utilizado;
+else (No)
+  :Mostrar mensaje de error;
+endif
+
+|Usuario|
+:Hacer clic en "Finalizar";
+
+|Vista Principal|
+:Volver a la pantalla principal;
+
+stop
+
+
+
+@enduml

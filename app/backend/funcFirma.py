@@ -206,7 +206,7 @@ def verificar_certificado(cert_data):
     try:
         from backend.funcComunes import calcular_hash_firma, calcular_hash_huella
         # Detectar algoritmo del certificado
-        algoritmo = cert_data.get("algoritmo")  # Por defecto SPHINCS+ para compatibilidad
+        algoritmo = cert_data.get("algoritmo")
         log_message("firmaApp.log",f"Verificando certificado con algoritmo: {algoritmo.upper()}")
         
         expected_hash = cert_data.get("huella_digital")

@@ -10,18 +10,18 @@ skinparam ActivityBackgroundColor #EEEEEE
 
 title Proceso de Generación de Certificados Digitales Post-Cuánticos
 
-|Usuario|
+|#eefffc|Usuario|
 start
 :Iniciar Aplicación Generadora;
 
-|#LightBlue|Vista Principal|
+|#cbebf9|Vista Principal|
 :Mostrar pantalla principal;
 :Listar claves de entidad existentes;
 
 |Usuario|
 :Seleccionar clave de entidad existente;
 
-|#LightYellow|Vista Generación Certificado|
+|#cbebf9|Vista Generación Certificado|
 :Mostrar formulario de generación de certificado;
 :Mostrar información de la clave de entidad seleccionada;
 
@@ -31,10 +31,10 @@ start
 :Usuario establece contraseña para el certificado;
 :Usuario confirma contraseña;
 
-|#LightYellow|Vista Generación Certificado|
+|Vista Generación Certificado|
 :Aceptar datos introducidos;
 
-|#PaleGreen|Backend - Validación|
+|#bfd7fc|Backend - Validación|
 :Validar que el nombre y documento 
 identificativo esten completos;
 :Validar formato del documento identificativo (NIF, NIE, CIF);
@@ -48,13 +48,13 @@ identificativo esten completos;
 
 if (¿Validación correcta?) then (No)
   :Mostrar mensaje de error específico;
-  |#LightYellow|Vista Generación Certificado|
+  |Vista Generación Certificado|
   :Mantener formulario con datos;
   stop
 else (Sí)
 endif
 
-|#PaleGreen|Backend - Generación de Certificados|
+|#bfd7fc|Backend - Generación de Certificados|
 :Extraer algoritmo y claves de entidad;
 :Establecer fecha de expedición actual;
 :Copiar fecha de caducidad de la clave de entidad;
@@ -95,7 +95,7 @@ if (¿Operación exitosa?) then (Sí)
   - Entidad generadora
   - Clave pública (parcial);
 else (No)
-  |#LightPink|Vista Resultado|
+  |#cbebf9|Vista Resultado|
   :Mostrar mensaje de error;
   :Mostrar detalles del problema;
 endif
@@ -103,12 +103,12 @@ endif
 |Usuario|
 :Finalizar proceso;
 
-|#LightBlue|Vista Principal|
+|Vista Principal|
 :Volver a pantalla principal;
 
 stop
 
-' Metodos involucrados: (vista_crear_certificado, validar_datos_usuario, validate_password, )
+' Metodos involucrados: (vista_crear_certificado, validar_datos_usuario, validate_password, generar_certificado, encrypt_private_key )
 ' Comentar que la gneriacion, firma y verificacion siempre hay que comprobar el algoritmo.
 
 @enduml

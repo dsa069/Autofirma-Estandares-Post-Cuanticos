@@ -10,18 +10,18 @@ skinparam ActivityBackgroundColor #EEEEEE
 
 title Proceso de Generación de Claves de Entidad Post-Cuánticas
 
-|Usuario|
+|#eefffc|Usuario|
 start
 :Iniciar Aplicación Generadora;
 
-|#LightBlue|Vista Principal|
+|#cbebf9|Vista Principal|
 :Mostrar pantalla principal;
 :Listar claves de entidad existentes;
 
 |Usuario|
 :Seleccionar "Generar nuevas claves";
 
-|#LightCyan|Vista Generación Claves|
+|#cbebf9|Vista Generación Claves|
 :Mostrar formulario de generación de claves;
 
 |Usuario|
@@ -33,23 +33,23 @@ start
 :Usuario establece fecha de caducidad 
 (por defecto +2 años);
 
-|#LightCyan|Vista Generación Claves|
+|Vista Generación Claves|
 :Aceptar datos introducidos;
 
-|#PaleGreen|Backend - Generación de Claves|
+|#bfd7fc|Backend - Generación de Claves|
 :Validar formato de datos;
 :Verificar fechas y campos obligatorios;
 
 if (¿Datos válidos?) then (No)
-  |#PaleGreen|Backend - Generación de Claves|
+  |Backend - Generación de Claves|
   :Mostrar mensaje de error;
-  |#LightCyan|Vista Generación Claves|
+  |Vista Generación Claves|
   :Mantener formulario con datos;
   stop
 else (Sí)
 endif
 
-|#PaleGreen|Backend - Generación de Claves|
+|Backend - Generación de Claves|
 :Generar ID único UUID para la clave;
 :Generar par de claves criptográficas según algoritmo seleccionado;
 :Crear registro JSON con título, fechas y algoritmo;
@@ -57,7 +57,7 @@ endif
 :Almacenar clave pública en pk_entidad.json;
 :Registrar generación en logs;
 
-|#LightBlue|Vista Principal|
+|Vista Principal|
 :Mostrar mensaje de éxito con detalles de la clave;
 :Actualizar lista de claves disponibles;
 
