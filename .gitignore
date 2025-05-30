@@ -6,3 +6,4 @@ preguntas/
 app/dist
 app/build
 app/logs
+out/

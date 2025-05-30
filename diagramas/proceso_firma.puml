@@ -50,7 +50,7 @@ else (Sí)
 endif
 
 |Backend - Validación y Preparación|
-:Verificar validez del certificado:
+:Verificar validez del certificado de firma:
   - Asegurar huella digital
   - Comprobar validez de fechas
   - Confirmar la existencia del id de clave pública de la entidad
@@ -78,6 +78,11 @@ endif
 
 |Backend - Validación y Preparación|
 :Buscar y cargar certificado de autenticación asociado;
+:Verificar validez del certificado de autenticación:
+  - Asegurar huella digital
+  - Comprobar validez de fechas
+  - Confirmar la existencia del id de clave pública de la entidad
+  - Verificar firma del certificado por entidad emisora;
 :Abrir gestor de archivos del sietema 
 para guardar documento firmado;
 

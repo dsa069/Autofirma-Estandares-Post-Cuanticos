@@ -1,0 +1,94 @@
+@startgantt Proyecto Autofirma con Estámdares Post-Cuánticos
+printscale daily
+Project starts 2024-11-17
+
+-- INVESTIGACIÓN --
+[INVESTIGACIÓN (15h)] as [INV] starts 2024-11-18 and ends 2025-01-30 
+[INV] is colored in lightblue
+[Estudio de algoritmos post-cuánticos Sphincs+ y Dilithium (5h)] as [T1] starts 2024-11-18 and ends 2024-12-08
+[T1] starts after [INV]'s start
+[Analizar aplicación Autofirma FNMT (1h)] as [T2] starts 2024-12-10 and ends 2024-12-11
+[T2] starts after [INV]'s start
+[Aprender Python y las diferentes bibliotecas del proyecto (1h)] as [T3] starts 2024-12-13 and ends 2024-12-25
+[T3] starts after [INV]'s start
+[Experimentación implementaciones algoritmos post-cuánticos Python (2h)] as [T3.1] starts 2024-12-16 and ends 2024-12-29
+[T3.1] starts after [T3]'s start
+[Definición de las dos aplicaciones (1h)] as [T3.1.1] starts 2025-01-09 and ends 2025-01-09
+[T3.1.1] starts after [T3.1]'s end
+[Investigación sobre implementación de la biblioteca Sphincs+ de C en el proyecto Python (5h)] as [T3.2] starts 2025-01-25 and ends 2025-01-30
+[T3.2] starts after [T3]'s start
+
+-- EXPLORACIÓN DE FUNCIONALIDADES --
+[EXPLORACIÓN DE FUNCIONALIDADES (80h)] as [EXP] starts 2025-02-01 and ends 2025-05-01
+[EXP] is colored in lightblue
+[Implementación básica de Sphincs+ (2h)] as [E1] starts 2025-02-01 and ends 2025-02-03
+[E1] starts after [EXP]'s start
+[Generación y almacenamiento de claves de entidad generadora (10h)] as [E1.1] starts 2025-02-04 and ends 2025-04-01
+[E1.1] starts after [E1]'s end
+[Generación certificado digital (14h)] as [E1.1.1] starts 2025-02-05 and ends 2025-04-17
+[E1.1.1] starts after [E1.1]'s start
+[Firma de documentos pdf (12h)] as [E1.1.1.1] starts 2025-02-05 and ends 2025-03-06
+[E1.1.1.1] starts after [E1.1.1]'s start
+[Verificación de firmas en documentos pdf (15h)] as [E1.1.1.1.1] starts 2025-02-06 and ends 2025-03-06
+[E1.1.1.1.1] starts after [E1.1.1.1]'s start
+[Firma visible opcional en el documento firmado (5h)] as [E1.1.1.1.1.1] starts 2025-03-06 and ends 2025-03-24
+[E1.1.1.1.1.1] starts after [E1.1.1.1.1]'s end
+[Firma y verificación de múltiples firmas (5h)] as [E1.1.1.1.1.1.1] starts 2025-03-25 and ends 2025-04-01
+[E1.1.1.1.1.1.1] starts after [E1.1.1.1.1.1]'s end
+[Firma y verificación de los metadatos (2h)] as [E1.1.1.1.1.1.1.1] starts 2025-04-17 and ends 2025-05-01
+[E1.1.1.1.1.1.1.1] starts after [E1.1.1.1.1.1.1]'s end
+[Verificación automática firma visible en el pdf (4h)] as [E1.1.1.1.1.1.2] starts 2025-04-02 and ends 2025-04-05
+[E1.1.1.1.1.1.2] starts after [E1.1.1.1.1.1]'s end
+[Cifrado de la clave privada del usuario mediante contraseña (2h)] as [E1.1.1.1.1.2] starts 2025-03-12 and ends 2025-03-13
+[E1.1.1.1.1.2] starts after [E1.1.1.1.1]'s start
+[Adición del algoritmo Dilithium (2h)] as [E1.1.1.1.1.3] starts 2025-03-17 and ends 2025-03-18
+[E1.1.1.1.1.3] starts after [E1.1.1.1.1]'s start
+[Compilación de las aplicaciones en ejecutables (3h)] as [E1.1.1.1.1.4] starts 2025-03-18 and ends 2025-04-02
+[E1.1.1.1.1.4] starts after [E1.1.1.1.1]'s start
+[Añadiendo comprobaciones adicionales a varios campos (1h)] as [E1.1.1.1.1.5] starts 2025-04-15 and ends 2025-04-16
+[E1.1.1.1.1.5] starts after [E1.1.1.1.1]'s start
+[Sistema de aviso silencioso por logs e investigación aviso email (1h)] as [E1.1.1.1.2] starts 2025-03-14 and ends 2025-03-16
+[E1.1.1.1.2] starts after [E1.1.1.1]'s start
+[Comprobar NIF, NIE Y CIF según formato y dígito de control (2h)] as [E1.1.1.1.3] starts 2025-04-13 and ends 2025-04-14
+[E1.1.1.1.3] starts after [E1.1.1.1]'s start
+
+-- DISEÑO DE MOCKUPS ALTA FIDELIDAD --
+[DISEÑO DE MOCKUPS ALTA FIDELIDAD (30h)] as [MOCK] starts 2025-03-27 and ends 2025-04-05
+[MOCK] is colored in lightblue
+[Diseño Generador de certificados SafeInQ (18h)] as [D1] starts 2025-03-27 and ends 2025-03-31
+[D1] starts after [MOCK]'s start
+[Diseño Autofirma SafeInQ (10h)] as [D1.1] starts 2025-04-01 and ends 2025-04-03
+[D1.1] starts after [D1]'s end
+[Diseño Logos e Iconos (2h)] as [D2] starts 2025-04-04 and ends 2025-04-05
+[D2] starts after [MOCK]'s start
+
+-- REESTRUCTURACIÓN DEL PROYECTO --
+[REESTRUCTURACIÓN DEL PROYECTO (25h)] as [RES] starts 2025-04-06 and ends 2025-04-12
+[RES] is colored in lightblue
+[Separación de adaptación de funciones backend Comunes (5h)] as [R1] starts 2025-04-06 and ends 2025-04-12
+[R1] starts after [RES]'s start
+[Separación de adaptación de funciones backend Generador de certificados SafeInQ (10h)] as [R1.1] starts 2025-04-06 and ends 2025-04-09
+[R1.1] starts after [R1]'s start
+[Separación de adaptación de funciones backend Autofirma SafeInQ (10h)] as [R1.2] starts 2025-04-09 and ends 2025-04-12
+[R1.2] starts after [R1]'s start
+
+-- IMPLEMENTACIÓN DE LA INTERFAZ FINAL --
+[IMPLEMENTACIÓN DE LA INTERFAZ FINAL (70h)] as [IMP] starts 2025-04-18 and ends 2025-05-01
+[IMP] is colored in lightblue
+[Componentes de la interfaz (24h)] as [I1] starts 2025-04-18 and ends 2025-04-21
+[I1] starts after [IMP]'s start
+[Vistas e integración con backend Generador de certificados SafeInQ (20h)] as [I1.1] starts 2025-04-22 and ends 2025-04-24
+[I1.1] starts after [I1]'s end
+[Vistas e integración con backend Autofirma SafeInQ (20h)] as [I1.2] starts 2025-04-25 and ends 2025-04-29
+[I1.2] starts after [I1]'s end
+[Optimizaciones generales a las aplicaciones (6h)] as [I2] starts 2025-04-30 and ends 2025-05-01
+[I2] starts after [IMP]'s start
+
+-- DOCUMENTACIÓN DEL PROYECTO --
+[DOCUMENTACIÓN DEL PROYECTO (80h)] as [MEM_FASE] starts 2025-02-12 and ends 2025-06-02
+[MEM_FASE] is colored in lightblue
+[Desarrollo del anteproyecto (3h)] as [ANT] starts 2025-02-12 and ends 2025-02-14
+[ANT] starts after [MEM_FASE]'s start
+[Memoria Trabajo de Fin de Grado (77h)] as [MEM] starts 2025-05-05 and ends 2025-06-02
+[MEM] starts after [ANT]'s start
+@endgantt

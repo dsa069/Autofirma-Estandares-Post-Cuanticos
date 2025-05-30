@@ -27,7 +27,7 @@ start
 
 |Usuario|
 :Usuario introduce nombre del titular;
-:Usuario introduce documento identificativo (DNI/NIF/CIF);
+:Usuario introduce documento identificativo (NIE/NIF/CIF);
 :Usuario establece contraseña para el certificado;
 :Usuario confirma contraseña;
 
@@ -60,28 +60,32 @@ endif
 :Copiar fecha de caducidad de la clave de entidad;
 :Generar par de claves criptográficas para el usuario utilizando
 el algoritmo de las claves de entidad seleccionadas;
-:Crear certificado de autenticación:
-- Datos personales
-- Periodo de validez
-- Clave pública del usuario
-- ID de clave pública de entidad
-- Algoritmo;
+:Crear plantilla de certificado:
+  - Datos personales
+  - Periodo de validez
+  - Clave pública del usuario
+  - ID de clave pública de entidad
+  - Algoritmo;
 :Calcular hash SHA-256 del certificado con campos ordenados;
 :Firmar hash con clave privada de entidad;
-:Añadir firma al certificado de autenticación;
-:Calcular y añadir huella digital del certificado de autenticación;
+:Añadir firma a la plantilla de certificado;
+:Calcular huella digital de la plantilla de certificado (incluyendo firma);
+:Crear certificado de autenticación
+  - Copiar datos de la plantilla de certificado
+  - Añadir huella digital calculada anteriormente;
 
 :Generar clave AES-256 derivada de la contraseña;
 :Cifrar clave privada del usuario con AES-256 y PBKDF2;
+:Calcular huella digital de la plantilla de certificado y la clave cifrada;
 :Crear certificado de firma:
-- Copiar datos del certificado de autenticación
-- Añadir clave privada cifrada
-- Calcular y añadir huella digital del certificado de firma;
+  - Copiar datos de la plantilla de certificado
+  - Añadir huella digital calculada anteriormente
+  - Añadir clave privada cifrada;
 
 :Guardar certificados en /certificados_postC ubicado en el 
 directorio del usuario:
-- certificado_digital_autenticacion_{DNI}_{ALGORITMO}.json
-- certificado_digital_firmar_{DNI}_{ALGORITMO}.json;
+  - certificado_digital_autenticacion_{DNI}_{ALGORITMO}.json
+  - certificado_digital_firmar_{DNI}_{ALGORITMO}.json;
 :Registrar generación en logs;
 
 if (¿Operación exitosa?) then (Sí)

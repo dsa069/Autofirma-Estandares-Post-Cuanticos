@@ -1,0 +1,21 @@
+@startgantt Proyecto Autofirma con Estámdares Post-Cuánticos
+printscale daily
+Project starts 2024-11-17
+
+-- INVESTIGACIÓN --
+[INVESTIGACIÓN (15h)] as [INV] starts 2024-11-18 and ends 2025-01-30 
+[INV] is colored in lightblue
+[Estudio de algoritmos post-cuánticos Sphincs+ y Dilithium (5h)] as [T1] starts 2024-11-18 and ends 2024-12-08
+[T1] starts after [INV]'s start
+[Analizar aplicación Autofirma FNMT (1h)] as [T2] starts 2024-12-10 and ends 2024-12-11
+[T2] starts after [INV]'s start
+[Aprender Python y las diferentes bibliotecas del proyecto (1h)] as [T3] starts 2024-12-13 and ends 2024-12-25
+[T3] starts after [INV]'s start
+[Experimentación implementaciones algoritmos post-cuánticos Python (2h)] as [T3.1] starts 2024-12-16 and ends 2024-12-29
+[T3.1] starts after [T3]'s start
+[Definición de las dos aplicaciones (1h)] as [T3.1.1] starts 2025-01-09 and ends 2025-01-09
+[T3.1.1] starts after [T3.1]'s end
+[Investigación biblioteca Sphincs+ de C (5h)] as [T3.2] starts 2025-01-25 and ends 2025-01-30
+[T3.2] starts after [T3]'s start
+
+@endgantt
