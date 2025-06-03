@@ -268,7 +268,7 @@ def cargar_datos_certificado(cert_path):
         # Verificar el certificado
         if not verificar_certificado(cert_data):
             log_message("firmaApp.log", "Certificado no válido")
-            return None, None, None, None, None
+            return False, cert_data, None, None, None, None
         
         # Extraer datos básicos
         user_pk = bytes.fromhex(cert_data["user_public_key"])
@@ -278,10 +278,10 @@ def cargar_datos_certificado(cert_path):
         entity_pk_id = cert_data["entity_public_key_id"]
         ent_pk = buscar_clave_publica_por_id(entity_pk_id, algoritmo)
         
-        return cert_data, user_pk, ent_pk, exp_date, issue_date
+        return True, cert_data, user_pk, ent_pk, exp_date, issue_date
     except Exception as e:
         log_message("firmaApp.log", f"Error al cargar datos del certificado: {e}")
-        return None, None, None, None, None
+        return False, cert_data, None, None, None, None
 
 def cargar_certificado_autenticacion(cert_firma):
     """

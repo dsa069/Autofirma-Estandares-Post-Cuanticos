@@ -206,8 +206,10 @@ class AutoFirmaApp:
                     messagebox.showerror("Error", "No se ha seleccionado un certificado de firma.")
                     return
 
-                cert_firma, _, _, _, _ = cargar_datos_certificado(firma_cert_path)
-
+                is_valid, cert_firma, _, _, _, _ = cargar_datos_certificado(firma_cert_path)
+                if not is_valid:
+                    log_message("firmaApp.log","No se puedo cargar el certificado o no es válido.")
+                    raise ValueError("No se puedo cargar el certificado o no es válido")
                 #-----------------------VERIFICAMOS LA CONTRASEÑA DEL CERTIFICADO----------------------
                 encrypted_sk = cert_firma.get("user_secret_key")
                 if not encrypted_sk:
