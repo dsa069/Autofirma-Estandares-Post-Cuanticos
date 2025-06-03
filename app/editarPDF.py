@@ -28,7 +28,7 @@ class PDFModifierApp:
         # Create buttons with descriptive frames
         btn_frame1 = ttk.LabelFrame(main_frame, text="Opción 1")
         btn_frame1.pack(fill=tk.X, pady=5)
-        btn_change_word = ttk.Button(btn_frame1, text="Cambiar primera palabra a 'babayaga'",
+        btn_change_word = ttk.Button(btn_frame1, text="Cambiar primera palabra a 'alterado'",
                                    command=self.change_first_word)
         btn_change_word.pack(fill=tk.X, padx=10, pady=5)
         
@@ -57,7 +57,7 @@ class PDFModifierApp:
         status_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=10)
         
     def change_first_word(self):
-        """Change the first word of a PDF to 'babayaga'"""
+        """Change the first word of a PDF to 'alterado'"""
         self.status_var.set("Seleccionando PDF...")
         
         try:
@@ -90,9 +90,9 @@ class PDFModifierApp:
                     page.apply_redactions()
                     
                     # Insert the new text
-                    page.insert_text(rect.tl, "babayaga", fontsize=12)
+                    page.insert_text(rect.tl, "alterado", fontsize=12)
                     word_found = True
-                    self.status_var.set(f"Palabra reemplazada: '{first_word[4]}' → 'babayaga'")
+                    self.status_var.set(f"Palabra reemplazada: '{first_word[4]}' → 'alterado'")
                     break
             
             if not word_found:
@@ -106,7 +106,7 @@ class PDFModifierApp:
                 title="Guardar PDF modificado",
                 defaultextension=".pdf",
                 filetypes=[("Archivos PDF", "*.pdf")],
-                initialfile="babayaga_" + os.path.basename(file_path)
+                initialfile="alterado_" + os.path.basename(file_path)
             )
             
             if save_path:
