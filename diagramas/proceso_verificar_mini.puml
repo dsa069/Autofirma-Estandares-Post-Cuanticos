@@ -1,0 +1,34 @@
+@startuml Proceso de Verificación de Firmas
+skinparam backgroundColor transparent
+<style>
+activityDiagram {
+  // Style for activity nodes (process steps)
+  activity {
+    BackgroundColor cbebf9
+    RoundCorner 25
+  }
+}
+</style>
+start
+split
+  :Apertura de Aplicación;
+split again
+  :Llamada vía autofirma://;
+end split
+if (¿Hay firmas para verificar?) then (sí)
+  :Extracción firmas del documento;
+  while (¿Quedan firmas por verificar?) is (sí)
+    :Extraer datos de la firma actual;
+    :Verificar integridad de metadatos;
+    :Verificar certificado;
+    :Verificar firma del documento;
+    :Almacenar resultado de validez;
+    :Calcular hash de la siguiente firma \n\t (XOR hash visual actual);
+  endwhile (no)
+  :Mostrar resultado visual: "Válido" / "No válido" / "Parcial";
+  stop
+else (no)
+  :Mostrar mensaje: No hay firmas para verificar;
+  stop
+endif
+@enduml

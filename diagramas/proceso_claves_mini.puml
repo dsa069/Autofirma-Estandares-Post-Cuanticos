@@ -1,0 +1,29 @@
+@startuml Proceso de Generación de Claves
+skinparam backgroundColor transparent
+<style>
+activityDiagram {
+  // Style for activity nodes (process steps)
+  activity {
+    BackgroundColor cbebf9
+    RoundCorner 25
+  }
+}
+</style>
+start
+:Administrador introduce título, algoritmo, fechas de vigencia;
+if (¿Datos completos?) then (sí)
+  if (¿Fechas coherentes?) then (sí)
+    :Generar par de claves utilizando el algoritmo indicado;
+    :Guardar clave pública en pk_entidad.json;
+    :Guardar clave privada en sk_entidad.json;
+    :Actualizar la lista de claves disponibles en la interfaz;
+    stop
+  else (no)
+    :Mostrar error: Fechas incoherentes;
+    stop
+  endif
+else (no)
+  :Mostrar error: Datos incompletos;
+  stop
+endif
+@enduml

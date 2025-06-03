@@ -1,0 +1,40 @@
+@startuml "Proceso de Firma de Documentos"
+skinparam backgroundColor transparent
+<style>
+activityDiagram {
+  // Style for activity nodes (process steps)
+  activity {
+    BackgroundColor cbebf9
+    RoundCorner 25
+  }
+}
+</style>
+start
+:Usuario selecciona PDF, certificado, contraseña y si desea firma visible;
+if (\t\t\t\t¿El certificado es válido?\n (Huella digital, validez fechas, clave pública y firma de la entidad)) then (sí)
+  if (¿Contraseña correcta?) then (sí)
+    :Desencriptar clave privada;
+    :Usuario selecciona nombre y ubicación del documento firmado;
+    if (¿Firma visual seleccionada?) then (sí)
+      :Dibujar firma visual en el PDF y preparar protocolo autofirma://;
+      :Calcular hash de la firma visual para metadatos;
+    endif
+    :Firmar documento usando clave privada y algoritmo del certificado;
+    :Añadir metadatos (firma documento, certificado, hash visual, fecha);
+    :Firmar metadatos;
+    :Guardar documento firmado y mostrar resultado al usuario;
+    stop
+  else (no)
+    if (Intentos == 3) then (sí)
+    :Escribir aviso silencioso en el log;
+    else (no)
+    endif
+    start
+    :Usuario selecciona PDF, certificado, contraseña y si desea firma visible...;
+    stop
+  endif
+else (no)
+  :Mostrar error: Certificado inválido;
+  stop
+endif
+@enduml

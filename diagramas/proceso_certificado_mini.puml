@@ -1,0 +1,38 @@
+@startuml Proceso de Generación de Certificados
+skinparam backgroundColor transparent
+<style>
+activityDiagram {
+  // Style for activity nodes (process steps)
+  activity {
+    BackgroundColor cbebf9
+    RoundCorner 25
+  }
+}
+</style>
+start
+:Administrador selecciona clave de entidad válida;
+:Introduce nombre, NIF/NIE/CIF, contraseña para cifrado;
+if (¿Datos completos?) then (sí)
+  if (¿Formato DNI/NIE/CIF válido?) then (sí)
+    if (¿Contraseña cumple requisitos?) then (sí)
+      :Generación de par de claves de usuario con algoritmo de la clave de entidad;
+      :Creación y firma de los datos comunes entre certificados;
+      :Cifrado de la Clave Privada mediante contraseña (Certificado firma);
+      :Diferenciación entre certificados (firma y autenticación);
+      :Cálculo de huellas digitales;
+      :Almacenamiento de certificados en directorio de usuario;
+      :Mostrar resultado al usuario;
+      stop
+    else (no)
+      :Mostrar error: Contraseña no válida;
+      stop
+    endif
+  else (no)
+    :Mostrar error: Formato de NIF/NIE/CIF incorrecto;
+    stop
+  endif
+else (no)
+  :Mostrar error: Datos incompletos;
+  stop
+endif
+@enduml
