@@ -343,8 +343,8 @@ class AutoFirmaApp:
                 if signature_rect[0]:
                     signature_rect[0] = None
                 
-                # Renderizar página con escala de 0.8
-                pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(0.8, 0.8))
+                # Renderizar página con escala de 0.6
+                pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(0.6, 0.6))
                 img_data = pix.tobytes("ppm")
                 
                 # Convertir a imagen de Tkinter
@@ -366,7 +366,7 @@ class AutoFirmaApp:
                 
                 # Si el frame aún no tiene tamaño (primera carga), usar tamaños predeterminados
                 if canvas_width <= 1:
-                    canvas_width = 780  # Ancho aproximado del canvas
+                    canvas_width = 400  # Ancho aproximado del canvas
                 if canvas_height <= 1:
                     canvas_height = 500  # Alto aproximado del canvas
                 
@@ -412,8 +412,8 @@ class AutoFirmaApp:
                     return  # Ignorar clics fuera del documento
                 
                 # Convertir coordenadas del canvas a coordenadas del documento real
-                real_x = x_adjusted / 0.8  # Ajustar por la escala
-                real_y = y_adjusted / 0.8  # Ajustar por la escala
+                real_x = x_adjusted / 0.6  # Ajustar por la escala
+                real_y = y_adjusted / 0.6  # Ajustar por la escala
                 
                 # Actualizar variables - estas son las coordenadas exactas de la esquina superior izquierda
                 selected_x.set(int(real_x - signature_width/2))
@@ -424,13 +424,13 @@ class AutoFirmaApp:
                     canvas.delete(signature_rect[0])
                 
                 # Dibujar rectángulo en la posición seleccionada
-                rect_x = x_adjusted - (signature_width * 0.8) / 2
-                rect_y = y_adjusted - (signature_height * 0.8) / 2
+                rect_x = x_adjusted - (signature_width * 0.6) / 2
+                rect_y = y_adjusted - (signature_height * 0.6) / 2
                 
                 signature_rect[0] = canvas.create_rectangle(
                     rect_x + offset_x[0], rect_y + offset_y[0], 
-                    rect_x + (signature_width * 0.8) + offset_x[0], 
-                    rect_y + (signature_height * 0.8) + offset_y[0],
+                    rect_x + (signature_width * 0.6) + offset_x[0], 
+                    rect_y + (signature_height * 0.6) + offset_y[0],
                     outline="black", width=2
                 )
                     
@@ -450,14 +450,13 @@ class AutoFirmaApp:
                 vista.destroy()
                 """return False, None"""
             
-            # CAMBIO: Primero crear el panel de previsualización
             # Panel principal con altura fija para mostrar la página y seleccionar posición
             preview_frame = tk.Frame(vista, height=500, bg="#F5F5F5", borderwidth=0, highlightthickness=0)
             preview_frame.pack(fill=tk.X, padx=0, pady=0)
             preview_frame.pack_propagate(False)  # Evitar que el frame cambie de tamaño
             
             # Canvas con tamaño fijo para mostrar la página
-            canvas = tk.Canvas(preview_frame, bg="#F5F5F5", width=780, height=500, borderwidth=0, highlightthickness=0)
+            canvas = tk.Canvas(preview_frame, bg="#F5F5F5", width=400, height=500, borderwidth=0, highlightthickness=0)
             canvas.pack(expand=True)
             
             # Vincular evento de clic
