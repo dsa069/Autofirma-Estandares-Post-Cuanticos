@@ -540,7 +540,7 @@ class PDFModifierApp:
                     else:
                         messagebox.showinfo("Información", "No se ha modificado ninguna fecha.")
                         self.status_var.set("No se ha modificado ninguna fecha")
-                    
+                
                     doc.close()
                     
                 elif "fecha_firma" in meta_data:
